@@ -1,1 +1,29 @@
-{}
+{
+  "apiErrors": {
+    "UNAUTHENTICATED": "Please log in again.",
+    "FORBIDDEN": "You are not allowed to do this.",
+    "BANNED": "Your account has been suspended. Contact the helpline for assistance.",
+    "NOT_FOUND": "Not found.",
+    "VALIDATION_ERROR": "Some information is invalid. Please check and try again.",
+    "CONFLICT": "This action conflicts with the current state.",
+    "LIMIT_EXCEEDED": "Limit reached.",
+    "STATE_INVALID": "This action is not possible in the current state.",
+    "RATE_LIMITED": "Too many requests. Please try again in a little while.",
+    "INTERNAL": "Something went wrong. Please try again.",
+    "USER_ALREADY_EXISTS": "This account already exists.",
+    "USER_BANNED": "Your account has been suspended. Contact the helpline for assistance.",
+    "PROFILE_INCOMPLETE": "Please complete your profile first.",
+    "LISTING_NOT_FOUND": "Listing not found.",
+    "LISTING_LIMIT_REACHED": "You already have 10 active listings. Mark one sold or archive it first.",
+    "PHOTO_LIMIT_EXCEEDED": "A maximum of 5 photos can be attached.",
+    "FAVORITE_LIMIT_REACHED": "A maximum of 200 listings can be saved.",
+    "INVALID_STATE_TRANSITION": "This action is not possible in the listing's current state.",
+    "EDIT_NOT_ALLOWED": "This listing can no longer be edited.",
+    "DECLARATION_REQUIRED": "Please accept the seller declaration to submit the listing.",
+    "PHONE_IN_DESCRIPTION": "Do not write phone numbers in the description. Buyers will contact you through the app.",
+    "INVALID_UPLOAD": "This photo could not be used. Only JPG, PNG or WebP up to 5 MB is allowed.",
+    "REPORT_ALREADY_EXISTS": "You have already reported this listing.",
+    "LISTING_NOT_REPORTABLE": "This listing cannot be reported.",
+    "UNSUPPORTED_MEDIA_TYPE": "Unsupported request type."
+  }
+}
