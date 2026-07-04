@@ -8,7 +8,13 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
+    include: [
+      'tests/unit/**/*.test.ts',
+      'tests/unit/**/*.test.tsx',
+      'tests/integration/**/*.test.ts',
+    ],
+    // Node by default; component tests opt into jsdom via a per-file
+    // `// @vitest-environment jsdom` docblock.
     environment: 'node',
   },
 })

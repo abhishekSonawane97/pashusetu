@@ -33,6 +33,14 @@ const SECURITY_HEADERS = [
 ]
 
 const nextConfig: NextConfig = {
+  // Listing images are served from the R2 public CDN domains (doc 13 §1: prod
+  // img.pashusetu.in, dev img-dev.pashusetu.in). Only these hosts are allowed.
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'img.pashusetu.in' },
+      { protocol: 'https', hostname: 'img-dev.pashusetu.in' },
+    ],
+  },
   async headers() {
     return [{ source: '/(.*)', headers: SECURITY_HEADERS }]
   },
