@@ -241,14 +241,16 @@ The durable moat is **operational, not technical**: a human moderation reputatio
 | C6 | KVK / AHO accessibility | Institutional endorsement channel |
 | C7 | Goat/sheep economy presence | Second species leg → more listings per village, faster liquidity |
 
-**Recommendation — two pilot districts:**
+**Recommendation — two pilot districts (founder decision, 2026-07-05):**
 
 | District | Marathi | Reasoning against criteria | Watch-outs |
 |---|---|---|---|
 | **Ahmednagar** (officially renamed Ahilyanagar) | अहमदनगर (अहिल्यानगर) | Largest district in the state by area with one of Maharashtra's strongest dairy belts and co-op networks (C1, C2 high); dense weekly market calendar (C3); hosts major agri institutions incl. KVK presence around Rahuri (C6); named in early scoping `[src: deep-research-report.md]`, Sprint 3 seed note. District-level stats to be re-confirmed in field research (verify before publishing) | Physically huge — restrict pilot ops to 3–4 talukas (e.g. Sangamner–Rahuri–Shrirampur belt) rather than the whole district |
-| **Satara** | सातारा | Western-Maharashtra dairy heartland (C1, C2); the primary farmer persona (Ramesh) is grounded here `[src: discusstion-dump.md]`, so interview access exists; strong weekly markets in the Phaltan–Lonand belt (C3); compact enough for one person to cover (C5); active goat economy on the eastern dry side (C7). Market-level facts to confirm via R-04 (verify before publishing) | Buffalo share lower than sugar-belt districts; ensure buffalo supply via trader outreach |
+| **Aurangabad** (officially renamed Chhatrapati Sambhajinagar) | औरंगाबाद (छत्रपती संभाजीनगर) | Marathwada's commercial hub with strong road connectivity and dense weekly cattle-market calendar (C3); catchment for buffalo (Jafarabadi/local) and the Osmanabadi goat economy of Marathwada (C7); regional trader concentration gives demand-side liquidity (C2); founder-selected pilot geography, 2026-07-05. District-level stats to be confirmed in field research (verify before publishing) | Drier region — milch-cow dairy density lower than the western sugar belt; lean on buffalo + goat supply and trader (Mahesh-type) demand; co-op network thinner than Ahilyanagar, so KVK/AHO partnerships (§5.2) matter more here |
 
-Pune district (Baramati mandi, M8; Shikrapur used in early API examples `[src: deep-research-report.md]`) is the named **fallback/third district** if either pilot underperforms at the week-6 checkpoint (§5.8) — it trades higher smartphone penetration (C4) against heavier competition from urban classifieds.
+Pune district (Baramati mandi, M8; Shikrapur used in early API examples `[src: deep-research-report.md]`) remains the named **fallback/third district** if either pilot underperforms at the week-6 checkpoint (§5.8); Satara (previous recommendation, strong existing research access) is the secondary fallback.
+
+> **Decision note (2026-07-05):** the earlier draft recommended Ahilyanagar + Satara. The founder selected **Ahilyanagar (Ahmednagar) + Chhatrapati Sambhajinagar (Aurangabad)** as the two pilot districts; all downstream docs (PRD §10, project plan S8/M5, UAT plan, launch checklist) follow this pair.
 
 ### 5.5 Support model
 
@@ -315,7 +317,7 @@ gantt
     Seed 50 assisted listings          :2026-10-08, 16d
     section Launch
     Launch events Ahmednagar x2        :2026-10-24, 8d
-    Launch events Satara x2            :2026-10-31, 8d
+    Launch events Sambhajinagar x2     :2026-10-31, 8d
     Haat flyer distribution            :2026-10-22, 28d
     section Grow
     WhatsApp group seeding             :2026-10-24, 42d
@@ -411,7 +413,7 @@ Findings land back in this document as version bumps; any change to canonical bu
 - [x] Gap analysis names 6 explicit gaps and maps exactly 5 differentiators to concrete, locked MVP features with links to owning docs
 - [x] Monetization outlook stays post-MVP, competitor-validated, and consistent with Principle 6 and the free MVP model; no Phase-1 design work implied
 - [x] Positioning statement follows the classic For/Who/Is/That/Unlike template; 3 tagline candidates provided in English + Devanagari Marathi with a recommended pick
-- [x] GTM plan covers all mandated elements: Pashu Mitra program (full spec incl. incentive + anti-gaming), KVK/AHO partnerships, co-op tie-ins, haat flyers, WhatsApp/radio, pilot-district criteria with 2 reasoned recommendations (Ahmednagar, Satara) + named fallback (Pune), Marathi helpline + call-to-list support model, launch event plan with numeric targets, and a referral loop that stays within MVP scope (no in-product payments or referral schema)
+- [x] GTM plan covers all mandated elements: Pashu Mitra program (full spec incl. incentive + anti-gaming), KVK/AHO partnerships, co-op tie-ins, haat flyers, WhatsApp/radio, pilot-district criteria with 2 reasoned recommendations (Ahilyanagar/Ahmednagar, Chhatrapati Sambhajinagar/Aurangabad — founder decision 2026-07-05) + named fallback (Pune), Marathi helpline + call-to-list support model, launch event plan with numeric targets, and a referral loop that stays within MVP scope (no in-product payments or referral schema)
 - [x] Field asset copy provided in real Devanagari Marathi with English glosses (flyer, trust line, share messages, helpline greeting)
 - [x] Pilot GTM budget itemized for 3 months / 2 districts, arithmetic totals correct, tied to the source cost model and to a cost-per-listing guardrail
 - [x] Adoption risks table has 12 rows (≥8 required), each with likelihood, impact, mitigation, and an early-warning signal

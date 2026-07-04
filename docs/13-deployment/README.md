@@ -565,7 +565,7 @@ Ordered; each gate blocks the next. Evidence (screenshot/log link) is filed in `
 9. **Legal pages published** — `/privacy`, `/terms`, `/grievance` live in Marathi + English per [doc 16](../16-legal/README.md); seller declaration text live in the submit flow; footer links resolve.
 10. **Helpline number live** — the dedicated support SIM (number published per doc 16 and in the app footer) rings to the founder; `support@`/`grievance@pashusetu.in` forwarding verified (§2.9 step 4); ban-appeal + deletion scripts from BR-014/BR-015 printed in the moderation runbook (PS-067).
 11. **Rollback rehearsed** — the S7 PS-065 drill log shows app rollback ≤ 10 min and the Neon restore drill both passed **within the last 30 days**; if older, re-run both now.
-12. **Final sweep** — moderation queue empty; `GET /admin/stats` returns the G-01…G-12 baseline (all ~0, captured as launch baseline); cron jobs' last runs green; then announce in the pilot villages (Satara + Ahilyanagar, PRD §10).
+12. **Final sweep** — moderation queue empty; `GET /admin/stats` returns the G-01…G-12 baseline (all ~0, captured as launch baseline); cron jobs' last runs green; then announce in the pilot villages (Chhatrapati Sambhajinagar + Ahilyanagar, PRD §10).
 
 ---
 

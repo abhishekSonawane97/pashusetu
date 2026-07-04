@@ -524,7 +524,7 @@ User B (authenticated, complete profile) attempts against user A's resources —
 ### 6.1 Participants & setting
 
 - **Who:** 6 participants (recruit 8, expect ≥ 5 to complete — minimum 5, maximum 8): 4 farmer/seller profiles and 2 trader/buyer profiles; ≥ 2 first-time smartphone users; ≥ 1 woman farmer; age spread 25–60; all Marathi-speaking.
-- **Where:** 2 villages in the pilot districts (PRD §10): one in **Koregaon taluka, Satara** and one in **Ahilyanagar** district, recruited through the dairy co-op / Pashu Mitra contacts (GTM per [../15-project-plan/README.md](../15-project-plan/README.md)). Sessions at the participant's home or the co-op office — their environment, their network.
+- **Where:** 2 villages in the pilot districts (PRD §10): one in **Paithan taluka, Chhatrapati Sambhajinagar (Aurangabad)** and one in **Ahilyanagar (Ahmednagar)** district, recruited through the dairy co-op / Pashu Mitra contacts (GTM per [../15-project-plan/README.md](../15-project-plan/README.md)). Sessions at the participant's home or the co-op office — their environment, their network.
 - **Device & account:** participant's own Android phone on their own SIM/data (facilitator hotspot only as a rescue); loaner Redmi 9A (§4.3) if needed. Participants register with their **real phone numbers** on the prod-like staging environment (real OTP; URL per [../13-deployment/README.md](../13-deployment/README.md)); all UAT data is wiped after the round.
 - **When:** UAT runs in the hardening sprint before the beta gate (§8.2), after all E2E scenarios are green on staging.
 

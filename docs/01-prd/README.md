@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Approved |
 | **Version** | 1.0 |
 | **Owner** | Founder (Abhishek) |
 | **Last updated** | 2026-07-04 |
@@ -755,7 +755,7 @@ Guardrail: none of these items may appear as an MVP requirement in any downstrea
 
 ## 10. Release criteria — beta pilot gate
 
-The beta pilot (target: 2 districts — Satara and Ahilyanagar — via co-op and Pashu Mitra onboarding, per [../15-project-plan/README.md](../15-project-plan/README.md)) ships only when every box below is checked:
+The beta pilot (target: 2 districts — Chhatrapati Sambhajinagar (Aurangabad) and Ahilyanagar (Ahmednagar), founder decision 2026-07-05 — via co-op and Pashu Mitra onboarding, per [../15-project-plan/README.md](../15-project-plan/README.md)) ships only when every box below is checked:
 
 - [ ] All Must features (F-01–F-07, F-09, F-10, F-12) pass 100% of their acceptance criteria in staging ([../14-testing-qa/README.md](../14-testing-qa/README.md) test run signed off)
 - [ ] Should features minimum bar met: F-08 favorites functional; F-11 in-app channel functional (SMS may follow within 2 weeks of pilot start)

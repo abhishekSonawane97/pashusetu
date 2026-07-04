@@ -226,7 +226,7 @@ Total: **174 points**. Points use the solo-dev scale of §3.1.
 
 ### 3.13 E-12 — Beta Launch & Ops (23 pts)
 
-**Goal:** everything between "feature-complete" and "farmers in Satara and Ahilyanagar are using it": legal, tests, drills, UAT, launch. **Exit criteria:** every PRD §10 release-gate box checked; pilot live; first-week metrics reviewed.
+**Goal:** everything between "feature-complete" and "farmers in Chhatrapati Sambhajinagar and Ahilyanagar are using it": legal, tests, drills, UAT, launch. **Exit criteria:** every PRD §10 release-gate box checked; pilot live; first-week metrics reviewed.
 
 | Id | Title | User story | AC / Verify | Pts | Deps | Docs |
 |---|---|---|---|---|---|---|
@@ -329,7 +329,7 @@ Dev committed points target 24 (25 max). The **Designer track** row lists delive
 
 | | |
 |---|---|
-| **Goal** | Launch in the 2 pilot districts (Satara, Ahilyanagar per PRD §10), fix what the first real users break, and baseline the metrics. Deliberately light commitment: **~15–17 pts of capacity reserved** for UAT findings and launch-week fixes — launch weeks always find work. |
+| **Goal** | Launch in the 2 pilot districts (Chhatrapati Sambhajinagar, Ahilyanagar per PRD §10), fix what the first real users break, and baseline the metrics. Deliberately light commitment: **~15–17 pts of capacity reserved** for UAT findings and launch-week fixes — launch weeks always find work. |
 | **Committed** | PS-067 (1) · PS-070 (2) · PS-071 (2) — **5 pts committed + reserve** |
 | **Demo criteria** | PRD §10 release gate walked line-by-line with evidence; launch event executed in first pilot village (02 §5.6); ≥ 10 genuine farmer listings approved within SLA in week 1; admin stats reviewed with the G-01…G-12 baseline; zero open SEV-1 defects at sprint end. |
 | **Risks** | Low first-week adoption (§8 R-05 — activate Pashu Mitra assisted-listing plan immediately, not after a month); founder splits between moderation, support helpline and fixes (runbook PS-067 + strict daily triage slot). |
@@ -359,7 +359,7 @@ Dev committed points target 24 (25 max). The **Designer track** row lists delive
 | M2 | **Listing lifecycle E2E works** | End S3 | (1) On a real budget Android over cellular: create → 3 photos → declaration → submit → PENDING; (2) approval (interim runbook) makes it publicly visible with `expires_at = +30 d`; (3) `declaration_accepted` + `declaration_at` stored (SQL check); (4) draft resume after app kill; (5) `moderation_log` row exists for the approval. |
 | M3 | **Marketplace browsable publicly** | End S3 | (1) Anonymous user (fresh incognito, no login) filters by species+district and opens a detail page; (2) the detail URL shared into WhatsApp shows an image preview and opens SSR-rendered; (3) non-APPROVED listing URL returns HTTP 404; (4) no seller phone anywhere in payloads or HTML (grep + PS-042 test once it lands). |
 | M4 | **Moderated marketplace complete** | End S5 | (1) Approve/reject with mandatory reason from the admin panel, reason visible to seller verbatim; (2) 3-report auto-hide fires exactly once under a concurrent test; (3) ban archives all the user's listings atomically and blocks API access; (4) audit log shows every admin/system action; (5) stats endpoint returns all PRD §2 counters; (6) interim SQL runbook retired (file deleted from repo). |
-| M5 | **Beta pilot live** | End S8 | (1) Every PRD §10 release-gate checkbox checked with evidence links; (2) doc 13 launch checklist executed; (3) doc 14 release gate signed; (4) pilot running in Satara + Ahilyanagar with ≥ 10 genuine approved listings and moderation SLA met for 95% of week-1 submissions; (5) G-01…G-12 baseline recorded; (6) zero open SEV-1 defects. |
+| M5 | **Beta pilot live** | End S8 | (1) Every PRD §10 release-gate checkbox checked with evidence links; (2) doc 13 launch checklist executed; (3) doc 14 release gate signed; (4) pilot running in Chhatrapati Sambhajinagar + Ahilyanagar with ≥ 10 genuine approved listings and moderation SLA met for 95% of week-1 submissions; (5) G-01…G-12 baseline recorded; (6) zero open SEV-1 defects. |
 
 ---
 
@@ -402,7 +402,7 @@ The critical path is **E-01 → E-02/E-03/E-05 → E-04 → E-06 → E-08 → E-
 | DLT registration (entity + header + Marathi templates) + MSG91 account | Founder | **S1 week 1** (PS-054) | 2–6 weeks incl. template rework rounds | PS-055 real SMS (S6) | Launch with in-app-only notifications; PRD §10 explicitly allows SMS to follow within 2 weeks of pilot; `FEATURE_SMS` stays off |
 | Designer gate R1 (tokens + components) | Designer | Kickoff S1 week 1 | 2 weeks | Styled UI from S3 | Ship unstyled-functional (§1.4); restyle later — behavior unaffected |
 | Designer gates R2/R3/R4/R5 | Designer | R2 by end S3 · R3 by end S4 · R4 by end S5 · R5 by end S6 | 2 weeks each | Visual polish per area; D4 prototype for UAT | Same unstyled fallback; UAT can run on the built app instead of the prototype |
-| Pilot village + Pashu Mitra recruitment (2 districts, ≥ 4 villages, 2–4 Pashu Mitras) | Founder | **S5 week 1** | 4–6 weeks of relationship-building ([02 §5.3–5.4](../02-research/README.md)) | PS-068/PS-070 (S7–S8) | Fall back to founder-led launch in 1 district (Satara) + dairy co-op channel; second district follows post-launch |
+| Pilot village + Pashu Mitra recruitment (2 districts, ≥ 4 villages, 2–4 Pashu Mitras) | Founder | **S5 week 1** | 4–6 weeks of relationship-building ([02 §5.3–5.4](../02-research/README.md)) | PS-068/PS-070 (S7–S8) | Fall back to founder-led launch in 1 district (Ahilyanagar — strongest co-op network) + dairy co-op channel; second district follows post-launch |
 | Legal counsel review (OLQ-1…12, final Privacy/T&C text) | Founder + counsel | **S6 week 1** | 2–4 weeks | PS-062 final text; 16 §10 G-9 | Doc 16 §9 product defaults apply until counsel answers ("none blocks the build"); launch on drafted texts with counsel sign-off tracked as a post-launch gate item only if counsel confirms in writing that drafts are acceptable interim |
 | Native Marathi copy reviewer | Founder | Book by **S5**, review in S6 | 1 week | PS-058 → release gate NFR-06 | Second reviewer candidate pre-identified (Pashu Mitra network); worst case founder + one native speaker split the catalog |
 | Google Places API key + billing cap | Founder | S2 (with PS-012) | Days | Village autocomplete assist | Feature degrades silently to free text by design (F-02 AC-3) — never blocking |

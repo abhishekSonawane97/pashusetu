@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
+| **Status** | Approved |
 | **Version** | 1.0 |
 | **Owner** | Founder (Abhishek) |
 | **Last updated** | 2026-07-04 |
@@ -470,19 +470,19 @@ Minimum **20 interviews** in the research window (matches Phase 1 success criter
 | Dairy farms / vets | **3** | 2 dairy farm owners or managers · 1 practicing veterinarian | P3, P6 |
 | **Total** | **20** | — | — |
 
-**Field clusters (3 districts, chosen for persona coverage + travel feasibility from the founder's base):**
-1. **Satara** (Western Maharashtra, home base) — smallholder dairy belt; Lonand weekly cattle bazar.
-2. **Sangli** — trader-dense corridor; Islampur area.
-3. **Dharashiv (Osmanabad)** (Marathwada) — goat/sheep economy, weaker connectivity, low-literacy stress cases; Tuljapur taluka.
+**Field clusters (3 districts — the two pilot districts per the 2026-07-05 founder decision in [../02-research/README.md](../02-research/README.md) §5.4, plus one contrast cluster):**
+1. **Ahilyanagar (Ahmednagar)** (pilot district 1) — dairy/co-op heartland; Sangamner–Rahuri belt, weekly cattle markets.
+2. **Chhatrapati Sambhajinagar (Aurangabad)** (pilot district 2, Marathwada) — buffalo + Osmanabadi goat economy, trader-dense markets; Paithan taluka.
+3. **Satara** (Western Maharashtra contrast cluster, home base) — smallholder dairy belt for persona validation; Lonand weekly cattle bazar.
 
 ### 4.2 Recruitment channels
 
 | Channel | How | Expected yield |
 |---|---|---|
-| Krishi Vigyan Kendra (KVK) | Visit KVK Satara & KVK Dharashiv; ask extension officers to introduce 3–4 progressive + 3–4 ordinary farmers | 6–8 farmers |
+| Krishi Vigyan Kendra (KVK) | Visit KVK Rahuri (Ahilyanagar) & KVK Chhatrapati Sambhajinagar; ask extension officers to introduce 3–4 progressive + 3–4 ordinary farmers | 6–8 farmers |
 | Dairy co-op collection centers | Morning milk-pouring hours (6:30–9:00) at 2 village centers per district; secretary introduces sellers | 4–6 farmers, 2 dairy contacts |
 | Veterinary clinics / animal husbandry officers | Taluka vet clinic waiting area (with the vet's permission); recruits the vet interview itself | 2–3 farmers + 1 vet |
-| Weekly cattle mandis | Lonand (Satara) and one Marathwada mandi on market day; traders are concentrated and idle between deals | 4–5 traders |
+| Weekly cattle mandis | One Ahilyanagar-belt mandi (Sangamner–Rahuri) and one Marathwada mandi near Chhatrapati Sambhajinagar on market day; traders are concentrated and idle between deals | 4–5 traders |
 | Snowball referrals | Every interview ends with a referral ask (F15 for farmers; standing rule in §3 for all segments) | buffer of 3–5 |
 
 **Incentive policy:** no cash incentives (it biases answers and sets a precedent); offer tea/snacks at mandi interviews and a promise to share the app when it launches. Recorded as the standing policy for all Phase 1 research.
@@ -525,9 +525,9 @@ Sprint 1 runs **Mon 2026-07-06 → Fri 2026-07-17** (see [../15-project-plan/REA
 | Days | Activity | Output |
 |---|---|---|
 | Jul 06–07 | Recruit via KVK/co-op calls; print paper mocks + consent scripts; pilot 1 interview locally, fix wording | Confirmed schedule of ≥14 interviews |
-| Jul 08–10 | Field cluster 1: Satara (co-op mornings, Lonand mandi day) | 7–8 interviews |
-| Jul 11–13 | Field cluster 2: Sangli + start Dharashiv travel | 6–7 interviews |
-| Jul 14–15 | Field cluster 3: Dharashiv (Tuljapur) — low-literacy quota focus | 5–6 interviews |
+| Jul 08–10 | Field cluster 1: Ahilyanagar (co-op mornings, Sangamner–Rahuri mandi day) | 7–8 interviews |
+| Jul 11–13 | Field cluster 2: Chhatrapati Sambhajinagar (Paithan taluka; Marathwada mandi day) — low-literacy quota focus | 6–7 interviews |
+| Jul 14–15 | Field cluster 3: Satara contrast cluster (Lonand mandi day) | 5–6 interviews |
 | Jul 16 | Affinity mapping + persona validation with designer | Clustered board; persona deltas |
 | Jul 17 | Synthesis readout; publish `PP-01…PP-20`; hypothesis verdicts | Research findings in doc 02; PRD change requests filed |
 
