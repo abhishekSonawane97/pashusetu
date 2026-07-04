@@ -1,12 +1,325 @@
-// PashuSetu Prisma schema — models land in PS-015 from docs/07-database/README.md §2.
-// Prisma 7: connection URLs live in prisma.config.ts (CLI/migrations use the
-// DIRECT non-pooled URL per doc 07 §8.3); the runtime client uses the pooled
-// DATABASE_URL via a driver adapter in lib/prisma.ts (doc 09 §6).
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  // Prisma 7 note (implementation finding, PS-001/PS-002, 2026-07-05): `url` and
+  // `directUrl` are no longer allowed in schema files. The same split now lives in
+  // prisma.config.ts (datasource.url = DIRECT_URL — CLI/migrations/studio) and in
+  // lib/prisma.ts (runtime client on the pooled DATABASE_URL via driver adapter).
+  // Semantics of the two URLs are unchanged — see §8.3.
+}
+
+// ---------- Enums (Postgres enum types, snake_case names) ----------
+
+enum Species {
+  COW
+  BUFFALO
+  BULL_OX
+  GOAT
+  SHEEP
+
+  @@map("species")
+}
+
+enum Sex {
+  FEMALE
+  MALE
+
+  @@map("sex")
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  SOLD
+  REJECTED
+  EXPIRED
+  ARCHIVED
+
+  @@map("listing_status")
+}
+
+enum LanguagePref {
+  MR
+  EN
+
+  @@map("language_pref")
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+
+  @@map("user_status")
+}
+
+enum InterestType {
+  CALL
+  WHATSAPP
+  INTEREST
+
+  @@map("interest_type")
+}
+
+enum ReportReason {
+  FAKE
+  SOLD_ALREADY
+  WRONG_INFO
+  SPAM
+  ILLEGAL
+  OTHER
+
+  @@map("report_reason")
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+
+  @@map("report_status")
+}
+
+enum NotificationChannel {
+  SMS
+  INAPP
+
+  @@map("notification_channel")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+
+  @@map("notification_status")
+}
+
+enum ModerationAction {
+  APPROVE
+  REJECT
+  BAN
+  UNBAN
+  RESOLVE_REPORT
+  DISMISS_REPORT
+  AUTO_HIDE
+
+  @@map("moderation_action")
+}
+
+// ---------- Models ----------
+
+model User {
+  id           String       @id @default(cuid())
+  firebaseUid  String       @unique @map("firebase_uid")
+  phone        String       @unique // E.164, e.g. +919876543210 (BR-010)
+  name         String
+  isFarmer     Boolean      @default(true) @map("is_farmer")
+  isBuyer      Boolean      @default(true) @map("is_buyer")
+  isAdmin      Boolean      @default(false) @map("is_admin") // set manually only (BR-012)
+  districtId   String?      @map("district_id")
+  taluka       String?
+  village      String?
+  languagePref LanguagePref @default(MR) @map("language_pref")
+  status       UserStatus   @default(ACTIVE)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  district          District?       @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  listings          Listing[]       @relation("SellerListings")
+  favorites         Favorite[]
+  interestEvents    InterestEvent[] @relation("BuyerInterestEvents")
+  reports           Report[]        @relation("ReporterReports")
+  notifications     Notification[]
+  adminActions      ModerationLog[] @relation("ModerationAdmin")
+  moderationEntries ModerationLog[] @relation("ModerationTargetUser")
+
+  @@index([districtId], map: "users_district_idx")
+  @@map("users")
+}
+
+model District {
+  id        String   @id @default(cuid())
+  nameEn    String   @unique @map("name_en")
+  nameMr    String   @map("name_mr")
+  state     String   @default("MH") // fixed "MH" in MVP; column is the multi-state extension point
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users    User[]
+  listings Listing[]
+
+  @@map("districts")
+}
+
+model Breed {
+  id        String   @id @default(cuid())
+  species   Species
+  nameEn    String   @map("name_en")
+  nameMr    String   @map("name_mr")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  listings Listing[]
+
+  @@unique([species, nameEn], map: "breeds_species_name_key") // also serves GET /meta/breeds?species=
+  @@map("breeds")
+}
+
+model Listing {
+  id                  String        @id @default(cuid())
+  sellerId            String        @map("seller_id")
+  species             Species
+  breedId             String?       @map("breed_id") // required at submit (BR-022); nullable for DRAFT (P-8)
+  description         String?       @db.Text // 10–1000 chars at submit (BR-025); nullable for DRAFT (P-8)
+  sex                 Sex? // required at submit (BR-022)
+  ageMonths           Int?          @map("age_months") // 1–300 (BR-022)
+  weightKg            Int?          @map("weight_kg") // optional, 5–1500 (BR-022)
+  milkYieldLpd        Decimal?      @map("milk_yield_lpd") @db.Decimal(4, 1) // 0–60 L/day; 0 = dry (BR-022)
+  lactationNumber     Int?          @map("lactation_number") // 0–15; 0 = not yet calved (BR-022)
+  isPregnant          Boolean?      @map("is_pregnant")
+  isVaccinated        Boolean?      @map("is_vaccinated")
+  priceInr            Int?          @map("price_inr") // ₹500–₹10,00,000 at submit (BR-026)
+  negotiable          Boolean       @default(true) // UI copy only, never behavior (BR-026)
+  districtId          String?       @map("district_id") // required at submit (BR-022)
+  taluka              String?
+  village             String? // required at submit (BR-022)
+  status              ListingStatus @default(DRAFT)
+  rejectionReason     String?       @map("rejection_reason") // taxonomy code + free text (BR-043)
+  declarationAccepted Boolean       @default(false) @map("declaration_accepted") // BR-027
+  declarationAt       DateTime?     @map("declaration_at") // refreshed on every submit (BR-027)
+  approvedAt          DateTime?     @map("approved_at") // set on every T-03 approval
+  expiresAt           DateTime?     @map("expires_at") // approval/renewal + 30 days (BR-073)
+  soldAt              DateTime?     @map("sold_at") // set by T-06
+  viewCount           Int           @default(0) @map("view_count") // BR-034: +1 per public detail fetch
+  duplicateOfId       String?       @map("duplicate_of_id") // BR-029 heuristic match, advisory only
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  seller      User      @relation("SellerListings", fields: [sellerId], references: [id], onDelete: Restrict)
+  breed       Breed?    @relation(fields: [breedId], references: [id], onDelete: Restrict)
+  district    District? @relation(fields: [districtId], references: [id], onDelete: Restrict)
+  duplicateOf Listing?  @relation("ListingDuplicateOf", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  flaggedAsDuplicate Listing[] @relation("ListingDuplicateOf")
+
+  images         ListingImage[]
+  favorites      Favorite[]
+  interestEvents InterestEvent[]
+  reports        Report[]
+  moderationLogs ModerationLog[]
+
+  // §4 explains every index and which required pattern it serves.
+  @@index([status, species, districtId, createdAt(sort: Desc), id(sort: Desc)], map: "listings_search_idx")
+  @@index([status, createdAt(sort: Desc)], map: "listings_status_created_idx")
+  @@index([status, districtId, createdAt(sort: Desc)], map: "listings_status_district_idx")
+  @@index([status, species, createdAt(sort: Desc)], map: "listings_status_species_idx")
+  @@index([status, breedId, createdAt(sort: Desc)], map: "listings_status_breed_idx")
+  @@index([status, priceInr], map: "listings_status_price_idx")
+  @@index([sellerId, status], map: "listings_seller_idx")
+  @@index([status, expiresAt], map: "listings_expiry_idx")
+  @@map("listings")
+}
+
+model ListingImage {
+  id        String   @id @default(cuid())
+  listingId String   @map("listing_id")
+  r2Key     String   @unique @map("r2_key") // one R2 object attaches to exactly one listing
+  url       String // public URL of the served WebP variant set (pipeline in doc 09)
+  sortOrder Int      @map("sort_order") // 0–4; 0 = cover photo (BR-023)
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, sortOrder], map: "listing_images_listing_idx")
+  @@map("listing_images")
+}
+
+model Favorite {
+  userId    String   @map("user_id")
+  listingId String   @map("listing_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId]) // canonical (user_id, listing_id) uniqueness; idempotent favoriting (BR-070)
+  @@index([userId, createdAt(sort: Desc)], map: "favorites_user_recent_idx")
+  @@index([listingId], map: "favorites_listing_idx")
+  @@map("favorites")
+}
+
+model InterestEvent {
+  id        String       @id @default(cuid())
+  listingId String       @map("listing_id")
+  buyerId   String       @map("buyer_id")
+  type      InterestType
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  buyer   User    @relation("BuyerInterestEvents", fields: [buyerId], references: [id], onDelete: Restrict)
+
+  @@index([listingId, createdAt(sort: Desc)], map: "interest_events_listing_idx")
+  @@index([buyerId, createdAt(sort: Desc)], map: "interest_events_buyer_idx")
+  @@map("interest_events")
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  listingId  String       @map("listing_id")
+  reporterId String       @map("reporter_id")
+  reason     ReportReason
+  details    String? // ≤ 500 chars; mandatory for OTHER (BR-050, service layer)
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  listing  Listing @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  reporter User    @relation("ReporterReports", fields: [reporterId], references: [id], onDelete: Restrict)
+
+  // Plus a PARTIAL unique index (one OPEN report per listing per reporter, BR-050) added by raw SQL — §9.2.
+  @@index([listingId, status], map: "reports_listing_status_idx")
+  @@index([reporterId, createdAt(sort: Desc)], map: "reports_reporter_idx")
+  @@index([status, createdAt], map: "reports_status_created_idx")
+  @@map("reports")
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String              @map("user_id")
+  type      String // template id, e.g. "NTF-LISTING-APPROVED" (BR-071); string, not enum — additive without migration
+  payload   Json // jsonb: { listingId?, reasonCode?, reasonText?, buyerName?, expiresAt? }
+  channel   NotificationChannel
+  status    NotificationStatus  @default(PENDING)
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status], map: "notifications_user_status_idx")
+  @@index([userId, createdAt(sort: Desc)], map: "notifications_user_recent_idx")
+  @@index([status, createdAt], map: "notifications_dispatch_idx")
+  @@index([createdAt], map: "notifications_purge_idx")
+  @@map("notifications")
+}
+
+model ModerationLog {
+  id        String           @id @default(cuid())
+  adminId   String           @map("admin_id") // system actions use the seeded System user (BR-046)
+  listingId String?          @map("listing_id") // nullable: ban/unban and account-deletion entries (BR-015)
+  userId    String?          @map("user_id") // target user for BAN/UNBAN/deletion entries
+  action    ModerationAction
+  reason    String?
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  admin   User     @relation("ModerationAdmin", fields: [adminId], references: [id], onDelete: Restrict)
+  listing Listing? @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  user    User?    @relation("ModerationTargetUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([listingId], map: "moderation_log_listing_idx")
+  @@index([userId], map: "moderation_log_user_idx")
+  @@index([action, createdAt(sort: Desc)], map: "moderation_log_action_idx")
+  @@index([createdAt(sort: Desc)], map: "moderation_log_recent_idx")
+  @@map("moderation_log")
 }
