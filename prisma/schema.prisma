@@ -1,13 +1,12 @@
-// PashuSetu Prisma schema.
-// Datasource per docs/07-database/README.md §8: pooled Neon URL at runtime,
-// direct (non-pooled) URL for migrations. Models land in PS-015 from doc 07 §2.
+// PashuSetu Prisma schema — models land in PS-015 from docs/07-database/README.md §2.
+// Prisma 7: connection URLs live in prisma.config.ts (CLI/migrations use the
+// DIRECT non-pooled URL per doc 07 §8.3); the runtime client uses the pooled
+// DATABASE_URL via a driver adapter in lib/prisma.ts (doc 09 §6).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }

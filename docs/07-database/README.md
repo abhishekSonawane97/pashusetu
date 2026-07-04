@@ -65,9 +65,12 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL") // Neon pooled (-pooler) + ?pgbouncer=true
-  directUrl = env("DIRECT_URL")   // Neon direct: migrations & prisma studio
+  provider = "postgresql"
+  // Prisma 7 note (implementation finding, PS-001/PS-002, 2026-07-05): `url` and
+  // `directUrl` are no longer allowed in schema files. The same split now lives in
+  // prisma.config.ts (datasource.url = DIRECT_URL — CLI/migrations/studio) and in
+  // lib/prisma.ts (runtime client on the pooled DATABASE_URL via driver adapter).
+  // Semantics of the two URLs are unchanged — see §8.3.
 }
 
 // ---------- Enums (Postgres enum types, snake_case names) ----------
@@ -998,7 +1001,7 @@ Scale triggers and the dedicated-backend extraction path are owned by [../11-arc
 
 - **Runtime (`DATABASE_URL`)**: Neon **pooled** connection string (the `-pooler` host) — PgBouncer in **transaction mode** — with `?sslmode=require&pgbouncer=true&connect_timeout=15`. The `pgbouncer=true` flag makes Prisma skip prepared statements and wrap operations so they are transaction-mode-safe. This is mandatory on Vercel: each serverless function instance opens its own Prisma client, and burst concurrency would exhaust Neon's direct connection slots without the pooler (which multiplexes thousands of client connections onto few Postgres backends).
 - **Per-instance limit**: `connection_limit=5` on the runtime URL — enough for a route handler's internal parallelism, small enough that ~40 warm instances stay far below the pooler's backend budget.
-- **Migrations & studio (`DIRECT_URL`)**: the direct (non-pooler) host. `prisma migrate` requires session-level features (advisory locks) that transaction-mode PgBouncer does not provide; Prisma's `directUrl` datasource field handles the split natively (§2 datasource block).
+- **Migrations & studio (`DIRECT_URL`)**: the direct (non-pooler) host. `prisma migrate` requires session-level features (advisory locks) that transaction-mode PgBouncer does not provide. Prisma 7 update (2026-07-05): the split is configured in `prisma.config.ts` (`datasource.url` = `DIRECT_URL` for all CLI commands) while the runtime `PrismaClient` receives the pooled `DATABASE_URL` through a driver adapter in `lib/prisma.ts` — the schema file itself no longer carries URLs (§2 datasource block).
 - **Transactions**: interactive transactions (quota checks, report auto-hide, ban archival) work through transaction-mode PgBouncer because each `$transaction` occupies one pooled backend for its duration — kept short by design (every transaction in this system touches ≤ a few hundred rows).
 
 ---
