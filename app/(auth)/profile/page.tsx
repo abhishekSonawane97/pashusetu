@@ -8,6 +8,8 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { apiFetch } from '@/lib/api/client'
+import { Button } from '@/components/ui/Button'
+import { SelectField, TextField } from '@/components/ui/Field'
 
 type District = { id: string; nameEn: string; nameMr: string }
 
@@ -67,26 +69,27 @@ function ProfileSetup() {
   }
 
   return (
-    <section>
-      <h1>तुमची माहिती भरा</h1>
-      <p>फक्त नाव आणि जिल्हा — एका मिनिटात पूर्ण होईल.</p>
-      <form onSubmit={submit}>
-        <label htmlFor="name">तुमचे नाव *</label>
-        <input
-          id="name"
+    <section className="flex flex-col gap-5 pt-6">
+      <div>
+        <h1 className="text-[22px] font-bold">तुमची माहिती भरा</h1>
+        <p className="mt-2 text-[16px] text-[var(--color-text-2)]">
+          फक्त नाव आणि जिल्हा — एका मिनिटात पूर्ण होईल.
+        </p>
+      </div>
+      <form className="flex flex-col gap-5" onSubmit={submit}>
+        <TextField
+          label="तुमचे नाव"
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoComplete="name"
-          aria-invalid={!!fieldErrors.name}
+          error={fieldErrors.name ? 'नाव तपासा (किमान 2 अक्षरे, फोन नंबर नको)' : null}
         />
-        {fieldErrors.name && <p role="alert">नाव तपासा (किमान 2 अक्षरे, फोन नंबर नको)</p>}
 
-        <label htmlFor="district">जिल्हा *</label>
-        <select
-          id="district"
+        <SelectField
+          label="जिल्हा निवडा"
           value={districtId}
           onChange={(e) => setDistrictId(e.target.value)}
-          aria-invalid={!!fieldErrors.districtId}
+          error={fieldErrors.districtId ? 'जिल्हा निवडा' : null}
         >
           <option value="">जिल्हा निवडा</option>
           {districts.map((d) => (
@@ -94,22 +97,23 @@ function ProfileSetup() {
               {d.nameMr} ({d.nameEn})
             </option>
           ))}
-        </select>
-        {fieldErrors.districtId && <p role="alert">जिल्हा निवडा</p>}
+        </SelectField>
 
-        <label htmlFor="village">गाव (ऐच्छिक)</label>
-        <input
-          id="village"
+        <TextField
+          label="गाव (ऐच्छिक)"
           value={village}
           onChange={(e) => setVillage(e.target.value)}
-          aria-invalid={!!fieldErrors.village}
+          error={fieldErrors.village ? 'गावाचे नाव तपासा (फोन नंबर नको)' : null}
         />
-        {fieldErrors.village && <p role="alert">गावाचे नाव तपासा (फोन नंबर नको)</p>}
 
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={busy || !name.trim() || !districtId}>
-          {busy ? 'जतन करत आहे…' : 'पुढे जा'}
-        </button>
+        {error && (
+          <p role="alert" className="text-[14px] text-[var(--color-error)]">
+            {error}
+          </p>
+        )}
+        <Button type="submit" loading={busy} disabled={!name.trim() || !districtId}>
+          पुढे जा
+        </Button>
       </form>
     </section>
   )

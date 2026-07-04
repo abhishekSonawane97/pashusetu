@@ -1,26 +1,47 @@
 @import 'tailwindcss';
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Design tokens are the source of truth for all values (design/README.md §"Design Tokens").
+   tokens.css defines the :root custom properties; the @theme block below maps them onto
+   Tailwind utilities so `bg-primary`, `text-error`, `rounded-card`, etc. resolve to them. */
+@import './tokens.css';
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: var(--color-primary);
+  --color-on-primary: var(--color-on-primary);
+  --color-text: var(--color-text);
+  --color-text-2: var(--color-text-2);
+  --color-text-3: var(--color-text-3);
+  --color-surface: var(--color-surface);
+  --color-surface-2: var(--color-surface-2);
+  --color-muted: var(--color-muted);
+  --color-success: var(--color-success);
+  --color-success-bg: var(--color-success-bg);
+  --color-error: var(--color-error);
+  --color-error-bg: var(--color-error-bg);
+  --color-warning: var(--color-warning);
+  --color-warning-bg: var(--color-warning-bg);
+  --color-dark: var(--color-dark);
+  --color-border-input: var(--border-input);
+  --color-border-card: var(--border-card);
+
+  --radius-DEFAULT: var(--radius);
+  --radius-card: var(--radius-card);
+  --radius-sheet: var(--radius-sheet);
+  --radius-full: var(--radius-full);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-header: var(--shadow-header);
+
+  /* next/font injects these; --font-latin carries Lato (Latin + digits),
+     --font-devanagari carries Noto Sans Devanagari (design tokens §Type). */
+  --font-sans: var(--font-latin), var(--font-devanagari), Arial, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Marathi-first body: Devanagari line-height >= 1.6 (tokens §Type). Latin digits only. */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: var(--type-body-lg);
+  -webkit-text-size-adjust: 100%;
 }
+
+/* Sunlight rule (tokens §Elevation): elevated surfaces always keep a visible border. */

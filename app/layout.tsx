@@ -1,17 +1,20 @@
 import type { Metadata } from 'next'
-import { Noto_Sans, Noto_Sans_Devanagari } from 'next/font/google'
+import { Lato, Noto_Sans_Devanagari } from 'next/font/google'
 import './globals.css'
 
-// Doc 10 §2 hard constraint: Noto Sans Devanagari for Marathi (default script),
-// paired with Noto Sans for Latin. Marathi-first per locked decision D8.
-const notoSans = Noto_Sans({
+// Type pairing per the designer's tokens.css (§Type, CR-01): Lato carries Latin
+// + digits, Noto Sans Devanagari carries the Marathi (default) script.
+// Marathi-first per locked decision D8; self-hosted via next/font.
+const lato = Lato({
   variable: '--font-latin',
   subsets: ['latin'],
+  weight: ['400', '700'],
 })
 
 const notoSansDevanagari = Noto_Sans_Devanagari({
   variable: '--font-devanagari',
   subsets: ['devanagari'],
+  weight: ['400', '700'],
 })
 
 export const metadata: Metadata = {
@@ -29,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="mr"
-      className={`${notoSansDevanagari.variable} ${notoSans.variable} h-full antialiased`}
+      className={`${notoSansDevanagari.variable} ${lato.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

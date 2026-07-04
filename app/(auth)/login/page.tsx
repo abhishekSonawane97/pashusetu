@@ -15,6 +15,8 @@ import {
 } from 'firebase/auth'
 import { getFirebaseAuth } from '@/lib/firebase/client'
 import { apiFetch } from '@/lib/api/client'
+import { Button } from '@/components/ui/Button'
+import { TextField } from '@/components/ui/Field'
 import {
   MAX_WRONG_ATTEMPTS,
   isValidPhone,
@@ -145,46 +147,49 @@ function LoginFlow() {
   if (step === 'banned') {
     // Full-screen banned block (BR-014): grievance contact, session signed out.
     return (
-      <section aria-live="assertive">
-        <h1>खाते बंद आहे</h1>
-        <p>नियमांच्या उल्लंघनामुळे तुमचे खाते बंद आहे. संपर्क: support@pashusetu.in / हेल्पलाइन</p>
-        <Link href="/">मुख्य पानावर परत जा</Link>
+      <section aria-live="assertive" className="flex flex-col gap-4 pt-8">
+        <h1 className="text-[22px] font-bold text-[var(--color-error)]">खाते बंद आहे</h1>
+        <p className="text-[18px] leading-[1.6]">
+          नियमांच्या उल्लंघनामुळे तुमचे खाते बंद आहे. संपर्क: support@pashusetu.in / हेल्पलाइन
+        </p>
+        <Link href="/" className="font-bold text-[var(--color-primary)]">
+          मुख्य पानावर परत जा
+        </Link>
       </section>
     )
   }
 
   if (step === 'phone') {
     return (
-      <section>
-        <h1>विक्रेत्याशी बोलण्यासाठी आधी लॉगिन करा</h1>
-        <p>तुमचा मोबाईल नंबर टाका. आम्ही SMS ने कोड पाठवू.</p>
+      <section className="flex flex-col gap-5 pt-6">
+        <div>
+          <h1 className="text-[22px] font-bold">विक्रेत्याशी बोलण्यासाठी आधी लॉगिन करा</h1>
+          <p className="mt-2 text-[16px] text-[var(--color-text-2)]">
+            तुमचा मोबाईल नंबर टाका. आम्ही SMS ने कोड पाठवू.
+          </p>
+        </div>
         <form
+          className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault()
             if (isValidPhone(phone)) void sendOtp()
             else setError('बरोबर 10 अंकी मोबाईल नंबर टाका')
           }}
         >
-          <label htmlFor="phone">मोबाईल नंबर</label>
-          <input
-            id="phone"
+          <TextField
+            label="मोबाईल नंबर"
+            hint="हा नंबर फक्त लॉगिनसाठी वापरला जाईल"
             type="tel"
             inputMode="numeric"
             autoComplete="tel-national"
             placeholder="10 अंकी नंबर"
             value={phone}
             onChange={(e) => setPhone(normalizePhoneInput(e.target.value))}
-            aria-invalid={!!error}
-            aria-describedby={error ? 'phone-error' : undefined}
+            error={error}
           />
-          {error && (
-            <p id="phone-error" role="alert">
-              {error}
-            </p>
-          )}
-          <button type="submit" disabled={busy || !isValidPhone(phone)}>
-            {busy ? 'पाठवत आहे…' : 'OTP पाठवा'}
-          </button>
+          <Button type="submit" loading={busy} disabled={!isValidPhone(phone)}>
+            OTP पाठवा
+          </Button>
         </form>
         <div id="recaptcha-container" />
       </section>
@@ -192,44 +197,48 @@ function LoginFlow() {
   }
 
   return (
-    <section>
-      <h1>SMS मधील 6 अंकी कोड टाका</h1>
-      <p>
-        +91 {phone} वर कोड पाठवला आहे.{' '}
-        <button type="button" onClick={() => setStep('phone')}>
-          नंबर बदला
-        </button>
-      </p>
+    <section className="flex flex-col gap-5 pt-6">
+      <div>
+        <h1 className="text-[22px] font-bold">SMS मधील 6 अंकी कोड टाका</h1>
+        <p className="mt-2 text-[16px] text-[var(--color-text-2)]">
+          +91 {phone} वर कोड पाठवला आहे.{' '}
+          <button
+            type="button"
+            className="font-bold text-[var(--color-primary)] underline"
+            onClick={() => setStep('phone')}
+          >
+            नंबर बदला
+          </button>
+        </p>
+      </div>
       <form
+        className="flex flex-col gap-5"
         onSubmit={(e) => {
           e.preventDefault()
           void verifyOtp()
         }}
       >
-        <label htmlFor="otp">OTP कोड</label>
-        <input
-          id="otp"
+        <TextField
+          label="OTP कोड"
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
           maxLength={6}
           value={otp}
           onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          aria-invalid={!!error}
-          aria-describedby={error ? 'otp-error' : undefined}
+          error={error}
         />
-        {error && (
-          <p id="otp-error" role="alert">
-            {error}
-          </p>
-        )}
-        <button type="submit" disabled={busy || otp.length !== 6 || codeInvalidated}>
-          {busy ? 'तपासत आहे…' : 'पुढे जा'}
-        </button>
+        <Button type="submit" loading={busy} disabled={otp.length !== 6 || codeInvalidated}>
+          पुढे जा
+        </Button>
       </form>
-      <button type="button" disabled={resendWait > 0 || busy} onClick={() => void sendOtp()}>
+      <Button
+        variant="ghost"
+        disabled={resendWait > 0 || busy}
+        onClick={() => void sendOtp()}
+      >
         {resendWait > 0 ? `पुन्हा पाठवा — ${resendWait} से` : 'OTP पुन्हा पाठवा'}
-      </button>
+      </Button>
       <div id="recaptcha-container" />
     </section>
   )

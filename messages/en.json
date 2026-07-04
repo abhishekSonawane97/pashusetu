@@ -25,5 +25,119 @@
     "REPORT_ALREADY_EXISTS": "You have already reported this listing.",
     "LISTING_NOT_REPORTABLE": "This listing cannot be reported.",
     "UNSUPPORTED_MEDIA_TYPE": "Unsupported request type."
+  },
+  "lang": {
+    "title": "Choose language"
+  },
+  "common": {
+    "continue": "Continue",
+    "save": "Save"
+  },
+  "s01": {
+    "free": "This app is completely free",
+    "howto": "See how to use the app"
+  },
+  "s02": {
+    "title": "Enter mobile number",
+    "send": "Send OTP",
+    "invalid": "Enter a valid 10-digit number",
+    "trust": "Used only for login"
+  },
+  "wall": {
+    "contact": "Log in first to talk to the seller"
+  },
+  "s03": {
+    "wrong": "Wrong OTP. Try again.",
+    "resend": "Send OTP again",
+    "resent": "OTP sent again",
+    "change": "Change number"
+  },
+  "s04": {
+    "name": "Your name",
+    "district": "Choose district",
+    "role_min": "Choose at least one",
+    "role_sell": "I want to sell an animal",
+    "role_buy": "I want to buy an animal"
+  },
+  "s05": {
+    "search_ph": "Search for an animal",
+    "install": "Keep PashuSetu on your phone"
+  },
+  "s06": {
+    "empty": "Nothing found. Change filters.",
+    "clear": "Clear filters",
+    "end": "You have seen all listings",
+    "clear_all": "Clear all"
+  },
+  "s07": {
+    "trust_badge": "Checked listing",
+    "negotiable": "Negotiable",
+    "call": "Call",
+    "interest": "Send interest",
+    "interest_ok": "The seller has been informed",
+    "sold": "This animal has been sold",
+    "unavailable": "This listing is no longer available",
+    "ratelimit": "Daily limit reached. Try tomorrow.",
+    "report": "Report"
+  },
+  "s09": {
+    "other": "Other listings by this seller"
+  },
+  "w": {
+    "q_species": "Which animal are you selling?",
+    "breed": "Choose breed",
+    "save_exit": "Save and exit",
+    "saved": "Saved",
+    "photo_nudge": "3+ photos sell faster",
+    "photo_big": "Photo too big, pick another",
+    "photo_tip": "Shoot in daylight, full animal visible",
+    "price": "Set the price",
+    "negotiable": "Price negotiable",
+    "village": "Write the village",
+    "declaration": "I declare that I am the lawful owner of this animal, that this sale complies with the laws of the State of Maharashtra, and that this animal is not being sold for slaughter.",
+    "decl_hint": "Cannot send without accepting declaration",
+    "privacy": "Number shown only to logged-in buyers",
+    "submit": "Send for review",
+    "submitted": "Sent for review; reply within 24 hours"
+  },
+  "s11": {
+    "pending_note": "Under review — approx. 24 hours",
+    "mark_sold": "Mark as sold",
+    "sold_confirm": "Mark sold? Cannot be undone.",
+    "renew": "Renew for 30 days",
+    "fix_resend": "Fix and resend",
+    "archive_confirm": "After removing it cannot be reopened"
+  },
+  "s12": {
+    "warning": "Changes send the listing back to review",
+    "price_saved": "Price updated"
+  },
+  "s13": {
+    "empty": "Nothing saved yet"
+  },
+  "s14": {
+    "empty": "No notifications yet"
+  },
+  "s15": {
+    "phone_fixed": "Phone number cannot be changed",
+    "logout": "Log out",
+    "logout_confirm": "Log out?"
+  },
+  "s17": {
+    "success": "Complaint recorded, we will check soon",
+    "duplicate": "Complaint already recorded"
+  },
+  "global": {
+    "offline": "No internet — showing older data",
+    "banned": "Your account has been suspended."
+  },
+  "status": {
+    "draft": "Draft",
+    "pending": "In review",
+    "approved": "Live",
+    "rejected": "Rejected",
+    "sold": "Sold",
+    "expired": "Expired",
+    "archived": "Archived"
   }
 }

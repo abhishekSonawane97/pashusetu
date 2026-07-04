@@ -1,0 +1,70 @@
+/* PashuSetu design tokens — v1.2 (5 Jul 2026)
+   Source: Dev-Handoff-Doc.html §2/§3. All text/bg pairings >= 4.5:1. */
+:root {
+  /* Color roles */
+  --color-primary: #C2185B;      /* single primary CTA + links only; founder may re-skin */
+  --color-on-primary: #FFFFFF;
+  --color-text: #3B3B3B;
+  --color-text-2: #636363;
+  --color-text-3: #737373;       /* placeholders only, never actionable */
+  --color-surface: #FFFFFF;
+  --color-surface-2: #F8F8F8;
+  --color-muted: #E4E5E5;
+  --color-disabled-bg: #F3F4F6;
+  --color-disabled-fg: #6E6E6E;
+  --border-input: #BBC7CC;
+  --border-card: #E5E5E5;
+  --color-success: #15803D;  --color-success-bg: #DFF0D8;
+  --color-error: #B3261E;    --color-error-bg: #FBE4E2;   /* never #FF0000 for text */
+  --color-warning: #8A5600;  --color-warning-bg: #FCF1DC;
+  --color-dark: #18336D;     /* admin chrome, SOLD */
+
+  /* Status badges (label ALWAYS present) */
+  --status-draft-bg: #F3F4F6;    --status-draft-fg: #4E4E4E;    /* अपूर्ण */
+  --status-pending-bg: #FCF1DC;  --status-pending-fg: #8A5600;  /* तपासणीत */
+  --status-approved-bg: #DFF0D8; --status-approved-fg: #15803D; /* चालू */
+  --status-rejected-bg: #FBE4E2; --status-rejected-fg: #B3261E; /* नाकारली */
+  --status-sold-bg: #E3E9F6;     --status-sold-fg: #18336D;     /* विकले गेले */
+  --status-expired-bg: #F0ECE3;  --status-expired-fg: #6B5B3E;  /* मुदत संपली */
+  --status-archived-bg: #E4E5E5; --status-archived-fg: #4E4E4E; /* बंद */
+
+  /* Type — Lato carries Latin + digits, Noto Sans Devanagari carries Devanagari.
+     Devanagari line-height >= 1.6 body / 1.4 headings. No all-caps on Devanagari. */
+  --font-stack: "Lato", "Noto Sans Devanagari", Arial, "Helvetica Neue", sans-serif;
+  --type-display: 700 26px/1.45 var(--font-stack);
+  --type-h1: 700 22px/1.45 var(--font-stack);
+  --type-h2: 700 20px/1.5 var(--font-stack);
+  --type-body-lg: 400 18px/1.6 var(--font-stack);  /* default Marathi body + input values */
+  --type-body: 400 16px/1.6 var(--font-stack);
+  --type-label: 700 16px/1.6 var(--font-stack);
+  --type-caption: 400 14px/1.5 var(--font-stack);  /* never sole carrier of essential info */
+
+  /* Spacing (4px grid); screen edge margin 16px @360 */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+
+  /* Radius */
+  --radius: 4px;        /* inputs, buttons, badges */
+  --radius-card: 5px;
+  --radius-sheet: 8px;  /* bottom-sheet top corners */
+  --radius-full: 999px;
+
+  /* Elevation — always pair with a visible border (sunlight rule) */
+  --shadow-card: 0 2px 4px -2px rgba(0,0,0,.10), 0 4px 6px -1px rgba(0,0,0,.10);
+  --shadow-header: 1px 1.7px 4px 0 rgba(0,0,0,.30);
+
+  /* Component sizes */
+  --h-button: 52px;       /* 56px on splash */
+  --h-input: 52px;
+  --h-price-input: 60px;
+  --h-stepper-cell: 48px;
+  --h-contact-btn: 54px;
+  --touch-min: 48px;      /* min target, >= 8px gaps (user app) */
+
+  /* Motion — max 300ms critical path; degrade to instant on low-end */
+  --t-fast: 120ms ease;
+  --t-base: 180ms ease;
+
+  /* The ONLY gradient allowed (wizard step header) */
+  --wizard-header-gradient: linear-gradient(#6E6E6E, #4E4E4E);
+}
