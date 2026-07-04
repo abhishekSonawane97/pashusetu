@@ -35,16 +35,16 @@ This repository currently contains the complete **Phase 1 blueprint** — every 
 
 ## Status tracker
 
-| Deliverable                                                                       | Status                                     |
-| --------------------------------------------------------------------------------- | ------------------------------------------ |
-| All 17 doc areas written (34 markdown files)                                      | ✅ Complete                                |
-| Cross-doc adversarial consistency verification (Wave 4)                           | ✅ Complete                                |
-| Pilot districts (founder decision 2026-07-05)                                     | ✅ Chhatrapati Sambhajinagar + Ahilyanagar |
+| Deliverable                                                                       | Status                                            |
+| --------------------------------------------------------------------------------- | ------------------------------------------------- |
+| All 17 doc areas written (34 markdown files)                                      | ✅ Complete                                       |
+| Cross-doc adversarial consistency verification (Wave 4)                           | ✅ Complete                                       |
+| Pilot districts (founder decision 2026-07-05)                                     | ✅ Chhatrapati Sambhajinagar + Ahilyanagar        |
 | Founder approval of product direction                                             | 🔄 PRD approved; docs 02–16 approval pass pending |
 | Designer kickoff (send doc 10)                                                    | ✅ Handed off 2026-07-05; first delivery expected |
-| Field research (20 interviews, doc 03 plan)                                       | ☐ Pending — parallel to Sprint 1           |
-| External long-poles: MSG91 DLT registration, Firebase/Neon/R2/Vercel provisioning | ☐ Pending — start now (DLT is the long pole) |
-| Sprint 1: walking skeleton                                                        | 🔄 In progress — PS-001 repo scaffold done |
+| Field research (20 interviews, doc 03 plan)                                       | ☐ Pending — parallel to Sprint 1                  |
+| External long-poles: MSG91 DLT registration, Firebase/Neon/R2/Vercel provisioning | ☐ Pending — start now (DLT is the long pole)      |
+| Sprint 1: walking skeleton                                                        | 🔄 In progress — PS-001 repo scaffold done        |
 
 ## Development
 
