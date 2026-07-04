@@ -61,14 +61,19 @@ describe('errorResponse envelope', () => {
     expect(body.error.details.retryAfterSeconds).toBe(17)
   })
 
-  it('message is Marathi by default and English for Accept-Language: en (doc 08 §1.5)', async () => {
-    const mr = await errorResponse(AppError.listingNotFound(), req()).json()
-    const en = await errorResponse(
+  it('message localization per doc 08 §1.5: mr → Marathi; absent/other → English', async () => {
+    const mr = await errorResponse(
       AppError.listingNotFound(),
-      req({ 'accept-language': 'en-IN,en;q=0.9' }),
+      req({ 'accept-language': 'mr' }),
+    ).json()
+    const absent = await errorResponse(AppError.listingNotFound(), req()).json()
+    const other = await errorResponse(
+      AppError.listingNotFound(),
+      req({ 'accept-language': 'hi-IN' }),
     ).json()
     expect(mr.error.message).toBe('जाहिरात सापडली नाही.')
-    expect(en.error.message).toBe('Listing not found.')
+    expect(absent.error.message).toBe('Listing not found.')
+    expect(other.error.message).toBe('Listing not found.')
   })
 
   it('unknown errors → 500 INTERNAL with no internals leaked', async () => {

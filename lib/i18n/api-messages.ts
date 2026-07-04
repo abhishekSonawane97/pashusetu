@@ -8,11 +8,12 @@ import en from '@/messages/en.json'
 
 export type ApiLocale = 'mr' | 'en'
 
+// doc 08 §1.5: Accept-Language is `mr` or `en`; anything else or absent → `en`.
+// (`message` is a debugging aid — the CLIENT renders Marathi-first UI copy from
+// its own F-12 catalogs keyed by error.code, so `en` is the safe API default.)
 export function resolveLocale(acceptLanguage: string | null): ApiLocale {
-  if (!acceptLanguage) return 'mr'
-  // First supported language wins; anything not explicitly English stays Marathi-first.
-  const first = acceptLanguage.split(',')[0]?.trim().toLowerCase() ?? ''
-  return first.startsWith('en') ? 'en' : 'mr'
+  const first = acceptLanguage?.split(',')[0]?.trim().toLowerCase() ?? ''
+  return first === 'mr' || first.startsWith('mr-') ? 'mr' : 'en'
 }
 
 type Catalog = { apiErrors?: Record<string, string> }

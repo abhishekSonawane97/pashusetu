@@ -11,4 +11,9 @@ export default defineConfig({
     // driver adapter in lib/prisma.ts, never this URL.
     url: process.env.DIRECT_URL,
   },
+  migrations: {
+    // doc 07 §6.4 — run automatically by migrate dev/reset; explicitly via
+    // `pnpm prisma db seed` in CI preview branches and once per fresh prod DB.
+    seed: 'tsx prisma/seed.ts',
+  },
 })
