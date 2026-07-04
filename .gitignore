@@ -1,18 +1,31 @@
 # Dependencies
 node_modules/
+/.pnp
+.pnp.*
 
 # Next.js / build output
 .next/
 out/
-dist/
+build/
+*.tsbuildinfo
+next-env.d.ts
 
-# Env & secrets
-.env
-.env.*
+# Testing
+coverage/
+
+# Env & secrets — .env.example is the only committed env file
+.env*
 !.env.example
+
+# Vercel
+.vercel
+
+# Prisma local
+prisma/*.db
 
 # OS / editor
 .DS_Store
+*.pem
 *.swp
 .idea/
 .vscode/
@@ -20,6 +33,6 @@ dist/
 # Logs
 *.log
 npm-debug.log*
-
-# Prisma
-prisma/*.db
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
