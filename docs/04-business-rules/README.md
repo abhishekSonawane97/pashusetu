@@ -131,7 +131,7 @@ R = required at submit (`DRAFT` may be saved partially filled; the guard runs at
 
 | Rule | Value |
 |---|---|
-| Photos per listing | **min 1, max 5** (UI recommends 3+ with a Marathi nudge: "किमान ३ फोटो टाकल्यास जनावर लवकर विकले जाते" — "With at least 3 photos the animal sells faster") |
+| Photos per listing | **min 3, max 5** (foundation §4; the create UI explains the minimum with a Marathi nudge: "किमान ३ फोटो टाकल्यास जनावर लवकर विकले जाते" — "With at least 3 photos the animal sells faster") |
 | Max file size | **5 MB per photo** (validated at `POST /uploads/presign` and re-validated on attach) |
 | Accepted upload formats | **JPEG, PNG, WebP** (content-type validated at presign; magic-bytes re-check server-side on attach) |
 | Stored/served format | Server generates and serves **WebP variants** (original kept in R2; sizes defined in [../09-backend/README.md](../09-backend/README.md)) |
@@ -248,7 +248,7 @@ Complete transition table. "System" = scheduled job or automatic server logic; e
 | Id | From | To | Trigger (API / event) | Actor | Guards | Side-effects |
 |---|---|---|---|---|---|---|
 | T-01 | — | `DRAFT` | `POST /listings` | Seller | User `ACTIVE`; profile complete (BR-013); ACTIVE count < 10 (BR-024) | Row created; `created_at` set |
-| T-02 | `DRAFT` | `PENDING` | `POST /listings/{id}/submit` | Seller | Actor is seller; field matrix valid (BR-022); ≥1 photo (BR-023); description passes BR-025 + BR-065; price in bounds (BR-026); declaration accepted (BR-027) | `declaration_accepted=true`, `declaration_at=now`; duplicate flag computed (BR-029); admin in-app notification `NTF-ADMIN-PENDING` |
+| T-02 | `DRAFT` | `PENDING` | `POST /listings/{id}/submit` | Seller | Actor is seller; field matrix valid (BR-022); ≥3 photos (BR-023); description passes BR-025 + BR-065; price in bounds (BR-026); declaration accepted (BR-027) | `declaration_accepted=true`, `declaration_at=now`; duplicate flag computed (BR-029); admin in-app notification `NTF-ADMIN-PENDING` |
 | T-03 | `PENDING` | `APPROVED` | `POST /admin/listings/{id}/approve` | Admin | Actor `is_admin`; seller still `ACTIVE` | `approved_at=now` (set on every approval); **`expires_at = now + 30 days`** (always reset, including re-approval after edit or auto-hide); `moderation_log` `APPROVE`; seller notified `NTF-LISTING-APPROVED` (SMS + in-app); any OPEN reports that triggered an auto-hide must already be resolved/dismissed (BR-052) |
 | T-04 | `PENDING` | `REJECTED` | `POST /admin/listings/{id}/reject` | Admin | Actor `is_admin`; **reason mandatory** (taxonomy BR-043; `OTHER` requires free text) | `rejection_reason` stored; `moderation_log` `REJECT` with reason; seller notified `NTF-LISTING-REJECTED` (SMS + in-app, includes reason) |
 | T-05 | `REJECTED` | `PENDING` | `POST /listings/{id}/submit` (resubmit after edit) | Seller | Same guards as T-02 (declaration re-affirmed) | Same side-effects as T-02; `rejection_reason` cleared |
@@ -491,7 +491,7 @@ A ban (BR-014) is warranted when either:
 
 ### BR-071 — Notification triggers
 
-Channels per the canonical model: `SMS` (transactional SMS provider, configured in [../13-deployment/README.md](../13-deployment/README.md)) and `INAPP` (rows in `notifications`, surfaced via `GET /users/me/notifications`). Every event below writes an `INAPP` row; `SMS` is additional where marked. Notification rows are purged after **90 days** (retention decision).
+Channels per the canonical model: `SMS` (transactional SMS provider, configured in [../13-deployment/README.md](../13-deployment/README.md)) and `INAPP` (rows in `notifications`, surfaced via `GET /users/me/notifications`). `INAPP` is the MVP delivery of foundation §4's "basic push" — an in-app notification bell; there is no separate web/PWA push channel in MVP. Every event below writes an `INAPP` row except `NTF-USER-BANNED` and `NTF-USER-UNBANNED`, which are SMS-only (a banned user cannot read in-app notifications, BR-014); `SMS` is additional where marked. Notification rows are purged after **90 days** (retention decision).
 
 | Event | Recipient | Channel | Template id | Timing / notes |
 |---|---|---|---|---|
@@ -599,7 +599,7 @@ Single source of truth for every numeric limit on the platform. Docs 05/08/09/12
 | 4 | Reports | **5 / day / user** | All listings, rolling 24h | API | `RATE_LIMITED` (429) | BR-051 |
 | 5 | Open report per listing per reporter | **1** | Per (listing, reporter) | API + DB | `REPORT_ALREADY_EXISTS` (409) | BR-050 |
 | 6 | Active listings | **10 / user** | Non-terminal statuses | API (create txn) | `LISTING_LIMIT_REACHED` (409) | BR-024 |
-| 7 | Photos per listing | **1 min – 5 max** | Per listing | API (attach/submit) | `PHOTO_LIMIT_EXCEEDED` (409) | BR-023 |
+| 7 | Photos per listing | **3 min – 5 max** | Per listing | API (attach/submit) | `PHOTO_LIMIT_EXCEEDED` (409) | BR-023 |
 | 8 | Photo file size | **≤ 5 MB** | Per file, JPEG/PNG/WebP only | Presign + attach | `INVALID_UPLOAD` (422) | BR-023 |
 | 9 | Description length | **10–1000 characters** | Per listing | API | `VALIDATION_ERROR` (422) | BR-025 |
 | 10 | Price bounds | **₹500 – ₹10,00,000** (integer INR) | Per listing | API | `VALIDATION_ERROR` (422) | BR-026 |
@@ -631,7 +631,7 @@ Every business-behavior question raised in the Phase-1 plan ([../02-research/sou
 | Can sold listings be edited? | BR-028, BR-032 (never — SOLD is terminal) |
 | Can users report fake listings? | BR-050, BR-052 |
 | Maximum listings? | BR-024 (10 active per user) |
-| Photo limits? | BR-023 (1–5 photos, ≤5 MB, JPEG/PNG/WebP) |
+| Photo limits? | BR-023 (3–5 photos, ≤5 MB, JPEG/PNG/WebP) |
 | Video limits? | BR-023 (no video in MVP) |
 | Listing expiry? | BR-072, BR-073, BR-074 (30 days, 3-day warning, one-tap renew) |
 | Moderation process? | BR-040–BR-046 |
@@ -644,7 +644,7 @@ Every business-behavior question raised in the Phase-1 plan ([../02-research/sou
 ## Acceptance checklist
 
 - [x] Every rule has a stable `BR-xx` id; ids are unique and grouped by series (01x accounts, 02x listings, 03x lifecycle, 04x moderation, 05x reports, 06x contact/privacy, 07x favorites/notifications/expiry, 08x content, 09x limits)
-- [x] All canonical values reproduced exactly: photos 1–5 / ≤5 MB / JPEG-PNG-WebP / WebP variants / no video; 10 active listings; 30-day expiry with one-tap renew and no re-moderation; price-only edit exception; SOLD not editable/renewable; 24h moderation SLA; ≥3 open reports auto-hide; duplicate heuristic (same seller + species + ±10% price + 7 days, admin warning only); manual bans archiving all listings; OTP via Firebase client SDK; 60 writes/min; 20 interests/day; 5 reports/day; public browse; login-gated contact; phone reveal only via interest endpoint with logging; cursor pagination 20/50; mandatory seller declaration with stored `declaration_accepted` + timestamp
+- [x] All canonical values reproduced exactly: photos 3–5 / ≤5 MB / JPEG-PNG-WebP / WebP variants / no video; 10 active listings; 30-day expiry with one-tap renew and no re-moderation; price-only edit exception; SOLD not editable/renewable; 24h moderation SLA; ≥3 open reports auto-hide; duplicate heuristic (same seller + species + ±10% price + 7 days, admin warning only); manual bans archiving all listings; OTP via Firebase client SDK; 60 writes/min; 20 interests/day; 5 reports/day; public browse; login-gated contact; phone reveal only via interest endpoint with logging; cursor pagination 20/50; mandatory seller declaration with stored `declaration_accepted` + timestamp
 - [x] State machine covers every canonical transition (T-01–T-12), including both `APPROVED → PENDING` paths (non-price edit, auto-hide), `EXPIRED → APPROVED` renew, and non-terminal → `ARCHIVED` via seller archive and admin ban
 - [x] Disallowed transitions explicitly listed with `INVALID_STATE_TRANSITION` behavior (incl. `SOLD` → anything, `ARCHIVED` → anything)
 - [x] Transition table specifies Trigger, Actor, Guards, and Side-effects (notifications, `expires_at`, `moderation_log`) for every transition

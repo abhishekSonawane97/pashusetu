@@ -103,3 +103,15 @@ No event fires for returning-user logins (server truth: `users` table). No OTP-s
 - Backend-sent OTP or MSG91 OTP fallback (explicit non-goal, PRD A-05).
 - WhatsApp OTP, Truecaller one-tap verification, device management, session revocation on ban (`revokeRefreshTokens`) — Phase 2 candidates (PRD F-01 future improvements).
 - Number-change / re-verification flow for recycled numbers — Phase 2.
+
+## Acceptance checklist
+
+- [x] All mandatory sections of README §2 present in order, plus this checklist per foundation §7
+- [x] OTP send/verify is Firebase client SDK only (locked decision D3); backend exposes no OTP endpoint and never sends auth SMS per BR-010 / BR-090 #1
+- [x] One phone = one account (BR-010), role-less accounts (BR-011), profile-completeness gate (BR-013), and BANNED handling (BR-014, 403 `USER_BANNED` on all endpoints except `GET /users/me`) all cited from doc 04 without contradiction
+- [x] Resend/lockout rules stated decision-completely (60 s timer, 30 s minimum cooldown, 3rd wrong attempt invalidates the code) and restated verbatim in the acceptance criteria
+- [x] Only canonical `/api/v1` endpoints referenced (`GET /api/v1/users/me`, `POST /api/v1/users`); error codes match the doc 08 registry (`UNAUTHENTICATED`, `USER_BANNED`, `PROFILE_INCOMPLETE`, `USER_ALREADY_EXISTS`)
+- [x] Screens cited as S-02/S-03/S-04 per doc 06 Flow D, including the login-wall `returnTo` pending-action contract (doc 06 §3.2)
+- [x] Analytics limited to the frozen `signup_complete` event fired by profile.md; OTP-step funnel gap documented as an accepted MVP blind spot
+- [x] All five states (loading/empty/error/success/edge) defined; Marathi strings are Devanagari with English gloss
+- [x] ≥ 6 testable acceptance criteria; no TBD/TODO; no contradiction with D1–D10 or docs 04/06/08/12

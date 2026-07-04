@@ -25,7 +25,7 @@
 | P-5 | **Timestamps are `timestamptz`-semantics UTC** (Prisma `DateTime` → Postgres `timestamp(3)` stored/read as UTC; the API serializes ISO 8601 UTC). IST is a rendering concern only. | No timezone math in the DB. |
 | P-6 | **Money is integer INR** (`price_inr int`, no paise — BR-026). Never float, never numeric for money. | Exact arithmetic, Indian digit grouping is a UI concern. |
 | P-7 | **Enums live in Postgres as real enum types**, snake_case type names via `@@map` on each Prisma enum (`listing_status`, `report_reason`, …). Adding a value is an additive migration; removing one follows expand–contract (§7.4). | Type safety end to end. |
-| P-8 | **Draft-tolerant nullability.** A `DRAFT` listing may be saved with any subset of fields (F-03 AC-1, wizard autosave in [../06-user-flows/README.md](../06-user-flows/README.md) Flow A). Therefore every field that is *required only at submit* (BR-022) is **nullable in the DB** and enforced as required by the service layer at `POST /listings/{id}/submit`, plus DB `CHECK` backstops (§9). Fields known at creation (`seller_id`, `species`, `breed_id`) are `NOT NULL`. | The DB never blocks a legitimate autosave; the state machine guard (T-02) is the required-ness gate. |
+| P-8 | **Draft-tolerant nullability.** A `DRAFT` listing may be saved with any subset of fields (F-03 AC-1, wizard autosave in [../06-user-flows/README.md](../06-user-flows/README.md) Flow A). Therefore every field that is *required only at submit* (BR-022) is **nullable in the DB** and enforced as required by the service layer at `POST /listings/{id}/submit`, plus DB `CHECK` backstops (§9). Fields known at creation (`seller_id`, `species`) are `NOT NULL`. | The DB never blocks a legitimate autosave; the state machine guard (T-02) is the required-ness gate. |
 | P-9 | **Read-optimized indexing.** The workload is extremely read-heavy (public browse/SEO) with tiny write volume (≤ 50 listing submissions/day, NFR-12). We index generously for every search/filter/sort/job pattern (§4) and accept the negligible write overhead. | p95 `GET /listings` ≤ 500 ms (NFR-03) achievable on index scans alone. |
 | P-10 | **Referential integrity fails loudly.** `onDelete: Restrict` is the default; `Cascade` only where a child row is meaningless without its parent *and* deletion is an intended flow (BR-015). No polymorphic FKs, no relationMode emulation — real Postgres foreign keys. | See per-relation justification in §2.1. |
 
@@ -231,7 +231,7 @@ model Listing {
   id                  String        @id @default(cuid())
   sellerId            String        @map("seller_id")
   species             Species
-  breedId             String        @map("breed_id")
+  breedId             String?       @map("breed_id") // required at submit (BR-022); nullable for DRAFT (P-8)
   description         String?       @db.Text // 10–1000 chars at submit (BR-025); nullable for DRAFT (P-8)
   sex                 Sex? // required at submit (BR-022)
   ageMonths           Int?          @map("age_months") // 1–300 (BR-022)
@@ -258,7 +258,7 @@ model Listing {
   updatedAt           DateTime      @updatedAt @map("updated_at")
 
   seller      User      @relation("SellerListings", fields: [sellerId], references: [id], onDelete: Restrict)
-  breed       Breed     @relation(fields: [breedId], references: [id], onDelete: Restrict)
+  breed       Breed?    @relation(fields: [breedId], references: [id], onDelete: Restrict)
   district    District? @relation(fields: [districtId], references: [id], onDelete: Restrict)
   duplicateOf Listing?  @relation("ListingDuplicateOf", fields: [duplicateOfId], references: [id], onDelete: SetNull)
   flaggedAsDuplicate Listing[] @relation("ListingDuplicateOf")
@@ -445,7 +445,7 @@ erDiagram
         string id PK
         string seller_id FK
         species species
-        string breed_id FK
+        string breed_id FK "nullable"
         string description "nullable text"
         sex sex "nullable"
         int age_months "nullable"
@@ -523,7 +523,7 @@ erDiagram
 
     districts o|--o{ users : "district_id"
     districts o|--o{ listings : "district_id"
-    breeds ||--o{ listings : "breed_id"
+    breeds o|--o{ listings : "breed_id"
     users ||--o{ listings : "seller_id"
     listings o|--o{ listings : "duplicate_of_id"
     listings ||--o{ listing_images : "listing_id"
@@ -546,7 +546,7 @@ erDiagram
 ### 4.1 Default sort & cursor pagination (decision)
 
 - **Default public sort is newest-first: `ORDER BY created_at DESC, id DESC`** on `status = APPROVED`. `created_at` (not `approved_at`) is deliberately the ranking key: a listing's rank is fixed at creation, so **renewals (T-08) and edit-re-approvals (T-03 after T-09) cannot bump a listing back to the top of the feed** — an anti-gaming property that keeps the market honest and the keyset stable.
-- **Cursor pagination (BR-011: default 20, max 50) is keyset-based on `(created_at, id)`.** The opaque `cursor` is base64url of `{"k":[<created_at ISO>,<id>]}`; the next page is fetched with a row-value comparison `WHERE (created_at, id) < ($1, $2)` which the composite indexes below serve directly. `id` (cuid, unique) is the total-order tiebreaker, so concurrent inserts/removals never duplicate or skip pages (FR-06).
+- **Cursor pagination (BR-090 #12: default 20, max 50) is keyset-based on `(created_at, id)`.** The opaque `cursor` is base64url of `{"k":[<created_at ISO>,<id>]}`; the next page is fetched with a row-value comparison `WHERE (created_at, id) < ($1, $2)` which the composite indexes below serve directly. `id` (cuid, unique) is the total-order tiebreaker, so concurrent inserts/removals never duplicate or skip pages (FR-06).
 - Price sorts (`price_asc` / `price_desc`) swap the keyset to `(price_inr, id)` using `listings_status_price_idx`.
 - Every other list endpoint uses the same pattern on its own recency index: favorites `(created_at DESC)` per user, notifications `(created_at DESC)` per user, seller's own listings, admin queues, audit log.
 
@@ -563,7 +563,7 @@ erDiagram
 | `listings_seller_idx` — `listings(seller_id, status)` | `GET /users/me/listings`; **BR-024 quota count** (`COUNT(*) WHERE seller_id=? AND status IN (non-terminal)`); ban archival (T-12); duplicate heuristic candidate scan (BR-029) | Covers the mandated `listings(seller_id)` pattern as its prefix. Per-seller row counts are ≤ tens, so the status-tab grouping and recency sort happen trivially in memory — no third column needed. |
 | `listings_expiry_idx` — `listings(status, expires_at)` | Daily expiry job (BR-072): `WHERE status='APPROVED' AND expires_at < now()` and the 3-day warning window (BR-073) | Serves the mandated `listings(expires_at)` job pattern — with `status` leading it is strictly better than a bare `expires_at` index, because the job only ever looks at APPROVED rows (a partial index in disguise, without needing raw SQL). |
 | `users_district_idx` — `users(district_id)` | Admin stats groupings by district (`GET /admin/stats`); FK-side lookups | Cheap; keeps district joins off seq scans as users grow. Admin user search by phone hits the `phone` unique index; name search is ILIKE over ≤ ~12 k rows (seq scan acceptable at MVP scale — recorded decision, revisit with pg_trgm post-MVP). |
-| `breeds_species_name_key` — `breeds(species, name_en) UNIQUE` | `GET /meta/breeds?species=` (prefix on `species`); seed upsert natural key | One index does uniqueness, the species-filtered lookup, and stable alphabetical-within-species reads. A separate `breeds(species)` index would be redundant. |
+| `breeds_species_name_key` — `breeds(species, name_en) UNIQUE` | `GET /meta/breeds?species=` (prefix on `species`); seed upsert natural key | One index does uniqueness and the species-filtered lookup; the response ordering (species, then seed order with Local/Crossbred last, per doc 08 API-04) is applied in app code over the ≤ 32 cached rows. A separate `breeds(species)` index would be redundant. |
 | `districts.name_en UNIQUE` | Seed upsert natural key; admin lookups | 36 rows — the PK and this unique are all this table ever needs. |
 | `listing_images_listing_idx` — `listing_images(listing_id, sort_order)` | Fetch a listing's photos in display order; count-before-attach for the 5-photo cap (BR-023) | Photos are always read ordered by `sort_order`; index returns them pre-sorted. |
 | `favorites` PK — `(user_id, listing_id)` | Idempotent favorite/unfavorite (BR-070); "is this favorited?" per card | Composite PK **is** the canonical uniqueness constraint — a second row is impossible by construction. |
@@ -581,7 +581,7 @@ erDiagram
 | `notifications_purge_idx` — `notifications(created_at)` | 90-day retention purge (BR-071): `DELETE WHERE created_at < now() - 90 days` | Purge crosses all statuses, so the dispatch index prefix does not serve it. |
 | `moderation_log_listing_idx` — `moderation_log(listing_id)` | Per-listing moderation history in S-20 (rejection counter, BR-044) | Direct lookup on review. |
 | `moderation_log_user_idx` — `moderation_log(user_id)` | Per-user history in S-22 (ban criteria evidence, BR-054) | Direct lookup on review. |
-| `moderation_log_action_idx` — `moderation_log(action, created_at DESC)` | `GET /admin/audit-log` filtered by action + date range (BR-046) | The two supported filters, pre-sorted. |
+| `moderation_log_action_idx` — `moderation_log(action, created_at DESC)` | `GET /admin/audit-log` filtered by action + date range (BR-046) | Action + date-range filters, pre-sorted. The third API-33 filter, `adminId`, runs as a filtered scan over the ≤ ~12 k-row ledger (recorded decision — no `admin_id`-leading index at MVP scale). |
 | `moderation_log_recent_idx` — `moderation_log(created_at DESC)` | Unfiltered audit-log default view; SLA turnaround metrics (G-07) | Cursor pagination over the whole ledger. |
 | `users.firebase_uid UNIQUE`, `users.phone UNIQUE` | Token → user resolution on **every authenticated request** (FR-01); one-phone-one-account (BR-010) | The hottest lookup in the system and a hard business rule, in one constraint each. |
 | `listing_images.r2_key UNIQUE` | Attach endpoint replay protection (§2.1) | Integrity + security in one constraint. |
@@ -640,7 +640,7 @@ Types are the generated Postgres types. "R@submit" = nullable in DB, required by
 | id | text (cuid) | no | cuid() | PK; public URL id (`/listings/{id}`) | — |
 | seller_id | text | no | — | FK → users (Restrict) | BR-020 |
 | species | species | no | — | COW \| BUFFALO \| BULL_OX \| GOAT \| SHEEP; fixed at creation (S-10a) | BR-022 |
-| breed_id | text | no | — | FK → breeds (Restrict); must match `species` (service layer) | BR-022 |
+| breed_id | text | yes | null | R@submit; FK → breeds (Restrict); must match `species` (service layer) | BR-022 |
 | description | text | yes | null | R@submit; 10–1000 Unicode chars; CHECK ≤ 1000; no phone numbers (app regex) | BR-025, BR-065 |
 | sex | sex | yes | null | R@submit; COW ⇒ FEMALE, BULL_OX ⇒ MALE (service layer) | BR-022 |
 | age_months | integer | yes | null | R@submit; CHECK 1–300 | BR-022 |
@@ -659,7 +659,7 @@ Types are the generated Postgres types. "R@submit" = nullable in DB, required by
 | declaration_accepted | boolean | no | false | CHECK: must be true in any status other than DRAFT/ARCHIVED | BR-027 |
 | declaration_at | timestamp(3) | yes | null | Refreshed on every submit | BR-027 |
 | approved_at | timestamp(3) | yes | null | Set on every T-03 approval; unchanged by renewal (T-08) | BR-031 |
-| expires_at | timestamp(3) | yes | null | Approval/renewal + 30 days; preserved on re-approval after auto-hide | BR-073 |
+| expires_at | timestamp(3) | yes | null | Approval/renewal + 30 days; reset on **every** T-03 approval (including re-approval after edit or auto-hide) and every T-08 renewal | BR-073 |
 | sold_at | timestamp(3) | yes | null | Set by T-06; feeds G-08 | BR-031 |
 | view_count | integer | no | 0 | +1 per public detail fetch of APPROVED (no dedup in MVP); CHECK ≥ 0 | BR-034 |
 | duplicate_of_id | text | yes | null | Self-FK (SetNull); BR-029 heuristic match, advisory admin badge only | BR-029 |
@@ -1078,7 +1078,7 @@ ALTER TABLE "reports"
 - [x] Uniqueness constraints present: `users.firebase_uid`, `users.phone`, favorites composite PK `(user_id, listing_id)`, `breeds(species, name_en)`, `districts.name_en`, `listing_images.r2_key`, partial unique `reports(listing_id, reporter_id) WHERE OPEN`
 - [x] Mermaid `erDiagram` matches the Prisma schema 1:1 (all tables, all columns, PK/FK/UK marks, nullability comments) with valid syntax (no parentheses in labels, quoted comments)
 - [x] Index strategy table lists every declared index with query pattern + justification, and explicitly covers all mandated patterns: listings(status, district_id), listings(status, species), listings(status, price_inr), listings(seller_id), listings(expires_at) (as `(status, expires_at)` for the BR-072 job), interest_events(listing_id), reports(listing_id, status), notifications(user_id, status), and the main search composite (status, species, district_id, created_at DESC)
-- [x] Default sort stated (newest-first `created_at DESC, id DESC`, with the anti-gaming rationale) and cursor pagination specified as keyset on `(created_at, id)` with opaque base64url cursors per BR-011/FR-06
+- [x] Default sort stated (newest-first `created_at DESC, id DESC`, with the anti-gaming rationale) and cursor pagination specified as keyset on `(created_at, id)` with opaque base64url cursors per BR-090 #12/FR-06
 - [x] Data dictionary covers every column of every table with type, nullability, default, meaning, and BR references (price bounds BR-026 in app layer + CHECK, photos BR-023, declaration BR-027, etc.)
 - [x] Seed plan lists all 36 Maharashtra districts with EN + Devanagari MR names, the full canonical breed list (verbatim, incl. both Red Kandhari and Lal Kandhari) plus the required Local/Crossbred option per species and a decided BULL_OX breed set; System user (BR-046) and founder admin bootstrap (BR-012) procedures included; `prisma/seed.ts` idempotent-upsert approach shown with natural keys
 - [x] Migration strategy covers `prisma migrate dev`/`deploy` flow, Neon branch-per-PR previews (with mermaid diagram), a 7-point review rule set forbidding destructive changes without expand–contract, and a full worked expand–contract walkthrough (village → village_name rename in three releases)

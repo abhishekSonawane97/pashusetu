@@ -69,7 +69,7 @@ Every non-2xx response has exactly this shape:
 | Code | HTTP status | Meaning | When |
 |---|---|---|---|
 | `UNAUTHENTICATED` | 401 | No, malformed, invalid, or expired Firebase ID token | Missing `Authorization` header; token fails Admin-SDK verification. Client: force token refresh, retry once, then open the login sheet (doc 06 login-wall) |
-| `FORBIDDEN` | 403 | Authenticated, but this caller may not do this | Non-admin on `/admin/*` (BR-012); non-owner mutating a listing (BR-033); self-actions (interest/favorite/report on own listing — BR-050, BR-062, BR-070); incomplete profile (specific: `PROFIDE_INCOMPLETE`, see below) |
+| `FORBIDDEN` | 403 | Authenticated, but this caller may not do this | Non-admin on `/admin/*` (BR-012); non-owner mutating a listing (BR-033); self-actions (interest/favorite/report on own listing — BR-050, BR-062, BR-070); incomplete profile (specific: `PROFILE_INCOMPLETE`, see below) |
 | `BANNED` | 403 | Caller's `users.status = BANNED` (BR-014) | Emitted on the wire as the specific code `USER_BANNED`. Client: full-screen block with grievance contact |
 | `NOT_FOUND` | 404 | Resource does not exist — or exists but is not visible to this caller | Unknown id; non-`APPROVED` listing fetched publicly (specific: `LISTING_NOT_FOUND`, BR-034); `GET /users/me` before `POST /users` |
 | `VALIDATION_ERROR` | 400 or 422 | Request rejected by validation. **400** = malformed request (unparseable JSON, bad enum, bad cursor, non-integer, `minPrice > maxPrice`); **422** = well-formed but violates a domain field rule (BR-022, BR-025, BR-026, BR-090 #9/#10/#12) | `details.fields` maps each offending field to a reason |
@@ -103,7 +103,7 @@ The server always emits the **most specific** registered code; a base code is em
 
 No other code may be emitted by MVP code. Adding a code requires a version-1.x update to this table (additive change, §5).
 
-### 1.4 Pagination (BR-011 / BR-090 #12)
+### 1.4 Pagination (BR-090 #12)
 
 All list endpoints (including admin) use **opaque cursor pagination**:
 
@@ -113,7 +113,7 @@ All list endpoints (including admin) use **opaque cursor pagination**:
 | `limit` | Default **20**, min 1, max **50**. `limit > 50` or `< 1` → 422 `VALIDATION_ERROR` (BR-090 #12); non-integer → 400 |
 | `cursor` | Opaque base64url keyset token minted by the server. Clients MUST NOT parse or construct it. Malformed/expired cursor → 400 `VALIDATION_ERROR`; the client silently restarts from page one (doc 06 Flow E) |
 | Response | `{ "items": [ ... ], "nextCursor": "<opaque>" }` — `nextCursor` is `null` on the last page. No `total` field is returned (keyset pagination; counts where needed are separate fields, e.g. `meta.activeCount` in API-14) |
-| Stability | Cursors are keyset-based (e.g. `(approved_at, id)` for search), so concurrent inserts/removals never duplicate or skip items |
+| Stability | Cursors are keyset-based (e.g. `(created_at, id)` for search — [../07-database/README.md](../07-database/README.md) §4.1), so concurrent inserts/removals never duplicate or skip items |
 | Exemption | `GET /meta/breeds` and `GET /meta/districts` return bounded reference lists (≤ ~40 rows) **without** pagination — deliberate exemption, stated here so no other doc restates BR-090 #12 for them |
 
 ### 1.5 Localization
@@ -131,7 +131,7 @@ All list endpoints (including admin) use **opaque cursor pagination**:
 
 | Aspect | Contract |
 |---|---|
-| IDs | **All entity ids are opaque cuid strings** — users, listings, images, reports, notifications, moderation-log rows, and also seeded reference rows (breeds, districts; their cuids are fixed deterministically by the seed script and identical across environments — [../07-database/README.md](../07-database/README.md)). Clients treat every id as an opaque string |
+| IDs | **All entity ids are opaque cuid strings** — users, listings, images, reports, notifications, moderation-log rows, and also seeded reference rows (breeds, districts). Seed rows are addressed by natural keys, so their cuids are **per-environment** ([../07-database/README.md](../07-database/README.md) P-3): clients must obtain them at runtime from `GET /meta/breeds` / `GET /meta/districts`, never hardcode them. Clients treat every id as an opaque string |
 | Timestamps | ISO 8601 UTC with milliseconds and `Z` suffix: `"2026-07-02T05:10:00.000Z"`. All comparisons/formatting are client-side in device-local time |
 | Money | `priceInr` is an **integer number of rupees** (no paise, no floats, no strings) — bounds per BR-026 (₹500–₹10,00,000) |
 | Field naming | **camelCase in every JSON payload**, mapping 1:1 to the snake_case DB columns of the canonical data model (`age_months` ↔ `ageMonths`, `milk_yield_lpd` ↔ `milkYieldLpd`, `price_inr` ↔ `priceInr`, …) |
@@ -280,22 +280,22 @@ Rules baked into `ListingDetail`:
 - `viewer` is present only when a valid `Authorization` header accompanied the request; anonymous responses carry `"viewer": null`. It powers the heart state (F-08) and the owner shortcut on S-07.
 - **Owner/admin extension:** when the caller is the listing's seller or an admin, the object additionally includes `rejectionReason` (`{ "code": "<BR-043 code>", "detail": "<free text or null>" }` or `null`), `expiresAt`, `soldAt`, `declarationAccepted`, `declarationAt`, `updatedAt`. Public responses omit these six fields entirely.
 
-**`OwnListingItem`** — element of API-14: `ListingCard` **plus** `status`, `rejectionReason`, `expiresAt`, `soldAt`, `viewCount`, `interestCount` (total `interest_events` rows, F-07 AC-1), `imageCount`, `pendingSince` (time the row entered `PENDING`, else `null` — feeds the BR-041 SLA copy), `createdAt`, `updatedAt`. `thumbnailUrl` is `null` for photo-less drafts.
+**`OwnListingItem`** — element of API-14: `ListingCard` **plus** `status`, `rejectionReason`, `expiresAt`, `soldAt`, `viewCount`, `interestCount` (total `interest_events` rows, F-07 AC-1), `imageCount`, `pendingSince` (derived, no stored column: equals `updated_at` while `status = PENDING` — the BR-040 queue key, so it resets if the seller edits a `PENDING` listing — else `null`; feeds the BR-041 SLA copy), `createdAt`, `updatedAt`. `thumbnailUrl` is `null` for photo-less drafts.
 
 **`NotificationItem`** — element of API-23:
 
 ```json
 {
   "id": "clxnt01ee0001l904rs7tu8v9",
-  "type": "LISTING_APPROVED",
-  "payload": { "listingId": "clx4l01bb0001l404gt6yh1n2", "listingTitleMr": "गीर गाय — सातारा" },
+  "type": "NTF-LISTING-APPROVED",
+  "payload": { "listingId": "clx4l01bb0001l404gt6yh1n2" },
   "channel": "INAPP",
   "status": "SENT",
   "createdAt": "2026-07-02T05:10:01.000Z"
 }
 ```
 
-`type` enum (fixed here; 1:1 with the BR-071 template ids): `LISTING_APPROVED`, `LISTING_REJECTED` (`payload.reasonCode`, `payload.reasonMr`), `INTEREST_RECEIVED` (`payload.buyerName`), `EXPIRY_WARNING`, `LISTING_EXPIRED`, `LISTING_HIDDEN`, `ADMIN_PENDING`, `ADMIN_AUTOHIDE`, `USER_BANNED`, `USER_UNBANNED`. Every payload carries `listingId` where a listing is the subject (deep-link target per S-14).
+`type` enum — the BR-071 template ids **verbatim**, exactly as stored in `notifications.type` ([../04-business-rules/README.md](../04-business-rules/README.md) BR-071, [../07-database/README.md](../07-database/README.md) §5.9; no transform on the wire): `NTF-LISTING-APPROVED`, `NTF-LISTING-REJECTED` (`payload.reasonCode`, `payload.reasonText`), `NTF-INTEREST-RECEIVED` (`payload.buyerName`), `NTF-EXPIRY-WARNING` (`payload.expiresAt`), `NTF-LISTING-EXPIRED`, `NTF-LISTING-HIDDEN`, `NTF-ADMIN-PENDING`, `NTF-ADMIN-AUTOHIDE`, `NTF-USER-BANNED`, `NTF-USER-UNBANNED`. `payload` keys come only from the doc 07 set `{ listingId?, reasonCode?, reasonText?, buyerName?, expiresAt? }`; every payload carries `listingId` where a listing is the subject (deep-link target per S-14).
 
 ---
 
@@ -398,7 +398,7 @@ No parameters. **Response — 200** `UserProfile` (includes own `phone` — BR-0
 }
 ```
 
-Seeded catalog (owned by [../07-database/README.md](../07-database/README.md)): cow — Gir, Sahiwal, Holstein Friesian (HF), Jersey, Khillar, Dangi, Deoni, Gaolao, Red Kandhari, Lal Kandhari, local/crossbred; buffalo — Murrah, Jafarabadi, Mehsana, Nagpuri, Pandharpuri, Surti; goat — Osmanabadi, Sangamneri, Boer, Sirohi, local; sheep — Deccani, Madgyal, local. Every species has a local/crossbred option so `breedId` is always satisfiable (BR-022).
+Seeded catalog — 32 rows (owned by [../07-database/README.md](../07-database/README.md) §6.2): cow — Gir, Sahiwal, Holstein Friesian (HF), Jersey, Khillar, Dangi, Deoni, Gaolao, Red Kandhari, Lal Kandhari, local/crossbred; buffalo — Murrah, Jafarabadi, Mehsana, Nagpuri, Pandharpuri, Surti, local/crossbred; bull_ox — Khillar, Gir, Dangi, Gaolao, Deoni, local/crossbred; goat — Osmanabadi, Sangamneri, Boer, Sirohi, local/crossbred; sheep — Deccani, Madgyal, local/crossbred. Every species has a local/crossbred option so `breedId` is always satisfiable (BR-022).
 
 **Errors:** `VALIDATION_ERROR` 400 (unknown `species`). **Side effects:** none.
 
@@ -438,7 +438,7 @@ No parameters. **Response — 200**, not paginated, ordered by `nameEn`:
 | **Purpose** | Public search over `APPROVED` listings with filters, sort, cursor pagination — the buyer core loop (F-04, S-06) |
 | **Rate limit** | None (read) |
 
-Summary here; **full deep spec incl. every param, sort semantics and the visibility rule is §4.** Returns `{ "items": [ListingCard], "nextCursor": "…" }`, only `status = APPROVED`, default 20/max 50 per page (BR-011).
+Summary here; **full deep spec incl. every param, sort semantics and the visibility rule is §4.** Returns `{ "items": [ListingCard], "nextCursor": "…" }`, only `status = APPROVED`, default 20/max 50 per page (BR-090 #12).
 
 ---
 
@@ -565,7 +565,7 @@ Provided fields are validated immediately; **completeness** (the R-columns of th
 
 | Field | Type | Required | Validation |
 |---|---|---|---|
-| `declarationAccepted` | boolean | yes | Must be literally `true` (BR-027; BR-012 declaration text is rendered by S-10e) → else 422 `DECLARATION_REQUIRED` |
+| `declarationAccepted` | boolean | yes | Must be literally `true` (BR-027; the BR-027 declaration text — legal wording owned with [../16-legal/README.md](../16-legal/README.md) — is rendered by S-10e) → else 422 `DECLARATION_REQUIRED` |
 
 **Submit guards (all must pass — T-02):** required-field matrix per species/sex complete and valid (BR-022) · ≥ 1 image attached (BR-023) · description 10–1000 chars, no phone patterns (BR-025, BR-065) · price in bounds (BR-026). Failures return one 422 `VALIDATION_ERROR` with the complete `details.fields` map so the wizard can jump to the first bad step.
 
@@ -989,15 +989,15 @@ The reporter's identity is never exposed to the seller in any payload or notific
   "items": [
     {
       "id": "clxnt01ee0001l904rs7tu8v9",
-      "type": "LISTING_APPROVED",
-      "payload": { "listingId": "clx4l01bb0001l404gt6yh1n2", "listingTitleMr": "गीर गाय — सातारा" },
+      "type": "NTF-LISTING-APPROVED",
+      "payload": { "listingId": "clx4l01bb0001l404gt6yh1n2" },
       "channel": "INAPP",
       "status": "SENT",
       "createdAt": "2026-07-02T05:10:01.000Z"
     },
     {
       "id": "clxnt01ee0002l904tt5uu6v7",
-      "type": "INTEREST_RECEIVED",
+      "type": "NTF-INTEREST-RECEIVED",
       "payload": { "listingId": "clx4l01bb0001l404gt6yh1n2", "buyerName": "सुनील" },
       "channel": "INAPP",
       "status": "READ",
@@ -1047,7 +1047,7 @@ All `/admin/*` endpoints: **Auth = Admin** (server-side `is_admin` check per req
 | `status` | string | no | Any listing status; **default `PENDING`** |
 | `cursor`, `limit` | — | no | §1.4 (admin lists paginate too — BR-090 #12) |
 
-Ordering: `status=PENDING` → **oldest-first FIFO by `updated_at`** (BR-040); every other status → `updated_at` desc.
+Ordering: `status=PENDING` → **oldest-first FIFO by `updated_at`** (BR-040); every other status → `created_at` desc (keyset `(created_at, id)`, served by `listings_status_created_idx` — [../07-database/README.md](../07-database/README.md) §4.2).
 
 **Response — 200** — items are `ListingDetail` (with owner-extension fields) **plus**:
 
@@ -1074,7 +1074,7 @@ Ordering: `status=PENDING` → **oldest-first FIFO by `updated_at`** (BR-040); e
       "moderation": {
         "pendingSince": "2026-07-03T06:00:00.000Z",
         "queueAgeHours": 7.5,
-        "duplicateOfListingIds": ["clx4l01bb0002l404pr9zk3m8"],
+        "duplicateOfListingId": "clx4l01bb0002l404pr9zk3m8",
         "possibleContactInfo": false,
         "openReportCount": 0,
         "rejectionCount": 1,
@@ -1086,7 +1086,7 @@ Ordering: `status=PENDING` → **oldest-first FIFO by `updated_at`** (BR-040); e
 }
 ```
 
-`moderation.duplicateOfListingIds` = BR-029 heuristic matches (warning only); `possibleContactInfo` = BR-065 soft flag; `autoHidden` = arrived via T-10 (red "reports" badge, BR-040); `queueAgeHours` feeds the 18 h amber / 24 h red SLA badges (BR-041). `rejectionCount ≥ 3` renders the "repeat" badge (BR-044).
+`moderation.duplicateOfListingId` = the BR-029 heuristic match (warning only; maps 1:1 to `listings.duplicate_of_id`, `null` when no match); `possibleContactInfo` = BR-065 soft flag; `autoHidden` = arrived via T-10 (red "reports" badge, BR-040); `moderation.pendingSince` is derived, not stored: it is the row's `updated_at` while `status = PENDING` (the BR-040 queue key — it resets when the seller edits a `PENDING` listing), and `queueAgeHours` = now − `pendingSince`, feeding the 18 h amber / 24 h red SLA badges (BR-041). `rejectionCount ≥ 3` renders the "repeat" badge (BR-044).
 
 **Errors:** `FORBIDDEN` 403 · `VALIDATION_ERROR` 400. **Side effects:** none (admin views never bump `view_count` — BR-034).
 
@@ -1470,7 +1470,7 @@ All filters combine with AND. Filter state is fully URL-encodable for shareable 
 
 | `sort` | Order | Keyset |
 |---|---|---|
-| `newest` | Most recently approved first | `(approved_at DESC, id DESC)` |
+| `newest` | Most recently created first (`created_at`, not `approved_at`, is the ranking key — anti-gaming decision, [../07-database/README.md](../07-database/README.md) §4.1: renewals and edit-re-approvals cannot bump a listing back to the top) | `(created_at DESC, id DESC)` |
 | `price_asc` | Cheapest first | `(price_inr ASC, id ASC)` |
 | `price_desc` | Most expensive first | `(price_inr DESC, id DESC)` |
 
@@ -1525,7 +1525,7 @@ Example — `GET /api/v1/listings?species=COW&districtId=clxd1st0032l004satara00
       "approvedAt": "2026-07-02T05:10:00.000Z"
     }
   ],
-  "nextCursor": "eyJwIjo2NTAwMCwiaWQiOiJjbHg0bDAxYmIwMDAxbDQwNGd0NnloMW4yIn0"
+  "nextCursor": "eyJrIjpbNjUwMDAsImNseDRsMDFiYjAwMDFsNDA0Z3Q2eWgxbjIiXX0"
 }
 ```
 
@@ -1561,7 +1561,7 @@ Example — `GET /api/v1/listings?species=COW&districtId=clxd1st0032l004satara00
 - [x] All four key flows present as valid mermaid `sequenceDiagram` blocks: (a) first login → `POST /users` → `GET /users/me`; (b) create listing end-to-end with presign (`key`, `uploadUrl`, `expiresIn`, required `headers`, R2 PUT semantics) and attach; (c) buyer contact with seller name/phone/`whatsappUrl` reveal; (d) moderation approve/reject with notification side effects
 - [x] Search deep spec: complete query param table (`species`, `breedId`, `districtId`, `minPrice`, `maxPrice`, `sort=newest|price_asc|price_desc`, `cursor`, `limit`), keyset sort semantics, `ListingCard` shape with first-image thumbnail URL, and the exact visibility rule — only `status=APPROVED` returned; owner sees own non-approved via `/users/me/listings` only (BR-034)
 - [x] Versioning policy (v1 frozen, additive-only, breaking ⇒ `/api/v2`, 90-day deprecation with `Deprecation`/`Sunset` headers) and OpenAPI stance (this markdown is source of truth; `openapi.yaml` generated in Sprint 1, task referenced to doc 15) present
-- [x] All business-rule constants match canonical values and are cited by BR id: photos 1–5 ≤ 5 MB JPEG/PNG/WebP with WebP variants (BR-023), 10 active listings (BR-024), 30-day expiry + one-tap renew without re-moderation (BR-073/074), price-only edit exception & SOLD immutability (BR-028), 24 h SLA (BR-041), ≥ 3 open reports auto-hide (BR-045), duplicate heuristic admin-warning-only (BR-029), ban archives all listings (BR-014), OTP client-SDK-only + 60/min + 20/day + 5/day (BR-090), public browse & phone reveal only via logged interest endpoint (BR-060/061/062), cursor pagination 20/50 (BR-011), mandatory declaration with stored `declaration_accepted` + timestamp (BR-027)
+- [x] All business-rule constants match canonical values and are cited by BR id: photos 1–5 ≤ 5 MB JPEG/PNG/WebP with WebP variants (BR-023), 10 active listings (BR-024), 30-day expiry + one-tap renew without re-moderation (BR-073/074), price-only edit exception & SOLD immutability (BR-028), 24 h SLA (BR-041), ≥ 3 open reports auto-hide (BR-045), duplicate heuristic admin-warning-only (BR-029), ban archives all listings (BR-014), OTP client-SDK-only + 60/min + 20/day + 5/day (BR-090), public browse & phone reveal only via logged interest endpoint (BR-060/061/062), cursor pagination 20/50 (BR-090 #12), mandatory declaration with stored `declaration_accepted` + timestamp (BR-027)
 - [x] Marathi sample data is real Devanagari in a rural-friendly register with context (names, villages, descriptions, report details, WhatsApp prefill), consistent with the doc 04/06 canonical strings
 - [x] All four mermaid blocks are `sequenceDiagram`s with plain-text messages (no braces/parentheses constructs that break parsing); mentally validated
 - [x] Zero "TBD"/"TODO"/open questions; every non-canonical value chosen and stated (presign 600 s, image CDN host, notification `type` enum, `expectedUpdatedAt` guard, `sellerId` filter, null policy, cursor encoding); zero contradictions with locked decisions D1–D10

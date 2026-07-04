@@ -104,3 +104,14 @@ Read-only surface — no user input except taps. Rendered-field rules:
 - Vet certificates, seller ratings, similar-listings module, district price context — Phase 2/3 (PRD F-05 future improvements).
 - A public "recently sold" showcase — SOLD listings 404 publicly in MVP (BR-034; Phase 2 idea).
 - Per-viewer view-count deduplication — Phase 2 refinement (BR-034).
+
+## Acceptance checklist
+
+- [x] All 12 mandatory sections of README §2 present in order, plus this checklist per foundation §7
+- [x] Visibility rules match BR-034 exactly: public fetch APPROVED-only, owner/admin see any status with a banner, everything else 404 `LISTING_NOT_FOUND`
+- [x] Phone concealment restated per BR-062/BR-066 — no seller phone in payload, SSR HTML, SEO/OG metadata, or the S-09 sheet — with the automated phone-concealment test cited (doc 14)
+- [x] `view_count` semantics match BR-034: increments on every public detail fetch, no deduplication in MVP, never for owner/admin, fire-and-forget (FR-09), read by the seller on S-11
+- [x] Only canonical `/api/v1` endpoints referenced; contact, favorite, and report contracts delegated to contact-seller.md, favorites.md, reporting.md
+- [x] Screens cited as S-07/S-08/S-09 per doc 06 Flow C; carousel, attribute table, description collapse, seller sheet, share prefill, owner view, and unavailable/sold states all specified
+- [x] SEO/SSR meets NFR-09 (unique Marathi title/meta, `Product` JSON-LD, canonical URL, hreflang, OG card image) and performance budgets NFR-01/NFR-02 (preloaded LCP image, detail WebP variants ≤ 180 KB)
+- [x] Analytics limited to the frozen `listing_view` event; Marathi strings are Devanagari with English gloss; ≥ 6 testable acceptance criteria; no TBD/TODO; no contradiction with D1–D10 or docs 04/06/08

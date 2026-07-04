@@ -109,3 +109,14 @@ No frozen NFR-10 client event covers this surface. Measurement is server-side pr
 - Sold-price capture at mark-sold, listing performance insights, bulk renew, share-my-listing shortcuts — Phase 2/3 (PRD F-07 future improvements).
 - Un-archive / restore of ARCHIVED listings — does not exist (BR-032).
 - Admin editing of listing content — admins only approve/reject/ban (BR-028).
+
+## Acceptance checklist
+
+- [x] All 12 mandatory sections of README §2 present in order, plus this checklist per foundation §7
+- [x] Status → allowed-actions matrix matches BR-028/BR-031/BR-032 exactly: DRAFT edit-all; PENDING edit-all with FIFO re-queue warning (BR-040); APPROVED price-only stays live, any other change → PENDING via resubmit (T-09) with declaration re-affirmed (BR-027); REJECTED edit + resubmit (T-05); EXPIRED renew-only, no edit; SOLD/ARCHIVED terminal and read-only
+- [x] Price-only exception computed server-side from the changed-field set (`price_inr`/`negotiable` only, BR-028/BR-073); renew only from EXPIRED, `expires_at = now + 30 days`, `approved_at` unchanged, no re-moderation, unlimited one-tap renewals (BR-074, T-08); no un-archive (BR-032)
+- [x] Error codes match the doc 08 registry: 403 `FORBIDDEN` for non-owner mutations, 409 `EDIT_NOT_ALLOWED` / `INVALID_STATE_TRANSITION` via status preconditions on every transition (BR-033); mark-sold idempotent on double-tap
+- [x] Rejection reason shown verbatim in Marathi with BR-043 label + free text; 3+ rejections badge the listing for admin account review (BR-044); quota meter "7/10" tracks BR-024 with ARCHIVED freeing a slot
+- [x] Only canonical `/api/v1` paths from doc 08 referenced; screens cited as S-11/S-12 per doc 06 Flow B; Marathi strings are Devanagari with English gloss
+- [x] Analytics adds no new client events (README §3.4); measurement is server-side via `GET /api/v1/admin/stats` feeding G-08/G-11/G-12
+- [x] All five states defined; ≥ 6 testable acceptance criteria; no TBD/TODO; no contradiction with D1–D10 or docs 04/06/08

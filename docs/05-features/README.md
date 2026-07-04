@@ -51,6 +51,7 @@ Every file in this folder contains exactly these sections, in this order:
 10. **Analytics** — events logged, drawn from the frozen NFR-10 list (see §3.4).
 11. **Acceptance criteria** — numbered, testable, minimum 6.
 12. **Out of scope** — what this feature deliberately does not do in MVP, with the Phase 2/3 pointer where one exists.
+13. **Acceptance checklist** — final section per [../00-foundation/README.md](../00-foundation/README.md) §7: checkable boxes restating the file's own success parameters.
 
 ---
 
@@ -106,7 +107,7 @@ Simple, rural-friendly Devanagari: short sentences, everyday words (जनाव
 ## Acceptance checklist
 
 - [x] Index table lists all 12 features with file link, PRD F-id, priority (matching PRD §4 priorities), and dependency column
-- [x] All 12 feature files exist in this folder and follow the §2 structure (header table, purpose, user stories, preconditions, S-xx workflow, fields & validation with EN+MR errors, BR-cited business logic, canonical API table, five states, analytics, ≥ 6 acceptance criteria, out-of-scope)
+- [x] All 12 feature files exist in this folder and follow the §2 structure (header table, purpose, user stories, preconditions, S-xx workflow, fields & validation with EN+MR errors, BR-cited business logic, canonical API table, five states, analytics, ≥ 6 acceptance criteria, out-of-scope, acceptance checklist)
 - [x] Shared conventions define the five mandatory states, error display rules (incl. error-envelope mapping and banned/blocked handling), and offline default: no write queue-and-retry in MVP — retry UI instead
 - [x] Analytics restricted to the frozen NFR-10 event list; no invented client events
 - [x] All endpoint references match the canonical `/api/v1` surface; pagination, auth, and error-envelope conventions restated once here and reused by all files

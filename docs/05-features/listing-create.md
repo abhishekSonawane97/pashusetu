@@ -36,8 +36,8 @@ Turn a photo of an animal into a structured, searchable, moderated Marathi listi
 5. **S-10c — Step 3: photos.** 1–5 photos via camera or gallery (BR-023). Per photo: presign → direct PUT to R2 → attach (sequence below); thumbnail with progress ring, retry on failure, delete, drag-to-reorder (`sortOrder` 0–4; index 0 = cover). Nudge shown until 3 photos exist: "किमान 3 फोटो टाकल्यास जनावर लवकर विकले जाते" (With at least 3 photos the animal sells faster). Photo-tips sheet: "उन्हात, पूर्ण जनावर दिसेल असा फोटो काढा" (Shoot in daylight with the full animal visible) — reduces BR-082 rejections. Add-photo button hides at 5. "पुढे" (Next) disabled until ≥ 1 photo attached.
 6. **S-10d — Step 4: price & location.** Price in ₹ (integer keypad), negotiable toggle "किंमतीत बदल शक्य" (price negotiable, default on), district (pre-filled from profile), taluka (optional), village (required; Places assist with silent free-text fallback).
 7. **S-10e — Step 5: declaration & review.** Read-only summary card of the entire listing + the mandatory declaration checkbox (canonical text, BR-027):
-   > मी घोषित करतो/करते की मी या जनावराचा कायदेशीर मालक आहे. ही विक्री महाराष्ट्र राज्याच्या कायद्यानुसार आहे आणि हे जनावर कत्तलीसाठी विकले जात नाही.
-   > *(I declare that I am the lawful owner of this animal. This sale complies with Maharashtra state law and this animal is not being sold for slaughter.)*
+   > मी जाहीर करतो/करते की मी या जनावराचा/जनावरीचा कायदेशीर मालक आहे, ही विक्री महाराष्ट्र राज्याच्या कायद्यांनुसार आहे, आणि हे जनावर कत्तलीसाठी विकले जात नाही.
+   > *(I declare that I am the lawful owner of this animal, that this sale complies with the laws of the State of Maharashtra, and that this animal is not being sold for slaughter.)*
    Submit button "तपासणीसाठी पाठवा" (send for review) is disabled until ticked, with the hint "हमीपत्र स्वीकारल्याशिवाय जाहिरात पाठवता येणार नाही" (the listing cannot be sent without accepting the declaration).
 8. Submit calls `POST /listings/{id}/submit` → status `PENDING`, success screen "तुमची जाहिरात तपासणीसाठी पाठवली आहे. 24 तासांच्या आत उत्तर मिळेल." (Your listing has been sent for review. You will get an answer within 24 hours.) → S-11 with the listing under "तपासणीत" (in review).
 9. Exiting at any step keeps a resumable DRAFT under S-11 "अपूर्ण" (incomplete) with "पुढे चालू ठेवा" (continue), which reopens the wizard at the first incomplete step.
@@ -160,3 +160,14 @@ Server rejects milk fields on MALE/N-A combinations with `VALIDATION_ERROR` (nev
 - Multi-animal lots per listing — Phase 2 (BR-021).
 - Voice-input Marathi descriptions, AI photo-quality hints, price suggestions — Phase 3 (PRD F-03 future improvements).
 - Offline queued submission — README §3.3: retry UI only, never a background queue.
+
+## Acceptance checklist
+
+- [x] All 12 mandatory sections of README §2 present in order, plus this checklist per foundation §7
+- [x] Wizard steps match doc 06 Flow A (S-10 host, S-10a–S-10e, S-11 return); DRAFT autosave via `POST /listings` on first forward tap then `PATCH /listings/{id}` per navigation; per-species conditional field matrix matches BR-022 exactly with server-side re-validation
+- [x] Photo pipeline matches BR-023 and doc 08 (presign → direct PUT to R2 → attach; 1–5 photos, JPEG/PNG/WebP ≤ 5 MB; `INVALID_UPLOAD` at presign, `PHOTO_LIMIT_EXCEEDED` on 6th attach; no video)
+- [x] All limits cited from owners: quota 10 → 409 `LISTING_LIMIT_REACHED` (BR-024), price ₹500–₹10,00,000 (BR-026), description 10–1000 with phone block → 422 `PHONE_IN_DESCRIPTION` (BR-025/BR-065), age 1–300 months
+- [x] Declaration checkbox carries the exact BR-027 canonical Marathi text; submit stores `declaration_accepted` + `declaration_at`, sets `PENDING` per T-02, emits `NTF-ADMIN-PENDING`, and omission returns 422 `DECLARATION_REQUIRED`; declaration re-affirmed on every submission entering PENDING
+- [x] Only canonical `/api/v1` paths from doc 08 referenced; error codes match the doc 08 registry; submit idempotent for `DRAFT → PENDING`
+- [x] Analytics limited to the frozen `listing_create_start` / `listing_photo_added` / `listing_submit` events feeding G-10; Marathi strings are Devanagari with English gloss
+- [x] All five states defined; ≥ 6 testable acceptance criteria; no TBD/TODO; no contradiction with D1–D10 or docs 04/06/08

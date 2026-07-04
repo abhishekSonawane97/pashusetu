@@ -96,3 +96,14 @@ Removals are measured server-side from the `favorites` table (no frozen event ex
 - Price-drop / back-in-market alerts on saved listings, folders/labels, compare view — Phase 2 (PRD F-08 future improvements).
 - Offline-cached favorites beyond the NFR-11 read cache — Phase 2.
 - Public favorite counts or "X people saved this" social proof — deliberately excluded in MVP.
+
+## Acceptance checklist
+
+- [x] All 12 mandatory sections of README §2 present in order, plus this checklist per foundation §7
+- [x] Favorite rules match BR-070 exactly: logged-in `ACTIVE` user with complete profile (BR-013), only APPROVED listings favoritable, own-listing favoriting → 403 `FORBIDDEN`, re-POST idempotent (DB unique constraint, no duplicate row), rows persist greyed-out when a listing leaves APPROVED
+- [x] Limits cited from BR-090: 200 favorites/user → 409 `FAVORITE_LIMIT_REACHED` (#11) with canonical MR copy; list cursor-paginated default 20 / max 50 (#12)
+- [x] Anonymous heart tap follows the login-wall contract (BR-061, doc 06 §3.2): login sheet, then the intended favorite auto-applies without a second tap
+- [x] Only the canonical `/api/v1` endpoints referenced (`POST`/`DELETE`/`GET /users/me/favorites`); screens cited as S-06/S-07/S-13 per doc 06 Flow C
+- [x] All five states defined (README §3.1), including greyed sold/expired/unavailable tags with Marathi copy and offline toggle-disable per README §3.3 (no queued writes)
+- [x] Analytics limited to the frozen `favorite_add` event; removals measured server-side (README §3.4); no public favorite counts (PRD F-08 AC-6)
+- [x] ≥ 6 testable acceptance criteria (8 present); Marathi strings in Devanagari with English gloss; no TBD; no contradiction with D1–D10 or docs 04/06/08

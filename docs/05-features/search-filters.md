@@ -48,9 +48,9 @@ The buyer-side core loop: browse and filter APPROVED listings by species, breed,
 | maxPrice | integer | No | ≥ 0 | Enter a valid price | बरोबर किंमत टाका |
 | sort | enum | No | `newest` (default) \| `price_asc` \| `price_desc` | — (client sends only valid values) | — |
 | cursor | opaque string | No | Server-issued; invalid/expired → 400, client silently restarts from page 1 | — (never user-visible) | — |
-| limit | integer | No | Default 20, max 50 — values > 50 clamped (BR-090 #12) | — | — |
+| limit | integer | No | Default 20, min 1, max 50 — `limit` > 50 or < 1 → 422 `VALIDATION_ERROR` (BR-090 #12, doc 08 §1.4) | — | — |
 
-Server violations → 400 `VALIDATION_ERROR`; the client's guards mean users never see these — a manipulated URL resets to the default search rather than crashing (PRD F-04 edge).
+Server violations → 400/422 `VALIDATION_ERROR` per doc 08 §1.3; the client's guards mean users never see these — a manipulated URL resets to the default search rather than crashing (PRD F-04 edge).
 
 ## Business logic
 
@@ -88,7 +88,7 @@ Server violations → 400 `VALIDATION_ERROR`; the client's guards mean users nev
 
 ## Acceptance criteria
 
-1. `GET /listings` accepts exactly `species`, `breedId`, `districtId`, `minPrice`, `maxPrice`, `sort` (`newest` default, `price_asc`, `price_desc`), `cursor`, `limit`; returns only APPROVED listings, default 20 per page, max 50 (clamped), with opaque `nextCursor` (null on last page).
+1. `GET /listings` accepts exactly `species`, `breedId`, `districtId`, `minPrice`, `maxPrice`, `sort` (`newest` default, `price_asc`, `price_desc`), `cursor`, `limit`; returns only APPROVED listings, default 20 per page, max 50 (`limit` > 50 or < 1 → 422 `VALIDATION_ERROR`, BR-090 #12), with opaque `nextCursor` (null on last page).
 2. Result cards show cover thumbnail, species icon, breed (localized), price as "₹65,000"-style Latin digits with Indian grouping, age, district, and the गाभण badge when applicable.
 3. Selecting a species restricts the breed picker to that species; changing species clears an incompatible breed filter; a mismatched `breedId` sent anyway returns 400 `VALIDATION_ERROR`.
 4. `minPrice > maxPrice` blocks Apply client-side with the inline MR error; manipulated URLs with invalid params cause a server 400 and a client reset to the default search — never a crash.
@@ -102,3 +102,13 @@ Server violations → 400 `VALIDATION_ERROR`; the client's guards mean users nev
 - **Free-text keyword search** (`q`): not in MVP — the canonical `GET /listings` has no text parameter; the S-05 search bar is a shortcut into the structured filter sheet. Text search on descriptions is a PRD F-04 future improvement.
 - Radius/nearby geolocation search, saved searches with alerts, milk-yield and age range filters, district price stats — Phase 2/3 (PRD F-04 future improvements).
 - Filtering by any non-APPROVED status — public search shows live listings only (BR-034).
+
+## Acceptance checklist
+
+- [x] All mandatory sections present in order, ending with this checklist per foundation §7; no TBD
+- [x] Only APPROVED listings returned (BR-034); public, anonymous, cookie-free access (BR-060); only canonical `/api/v1` paths referenced (`GET /listings`, `GET /meta/breeds`, `GET /meta/districts`)
+- [x] Pagination matches BR-090 #12 and doc 08 §1.4: default 20, min 1, max 50, `limit` > 50 or < 1 → 422 `VALIDATION_ERROR`; opaque server-issued cursor, invalid cursor → 400 with silent restart from page 1
+- [x] Enums match owner docs: species `COW|BUFFALO|BULL_OX|GOAT|SHEEP`, sort `newest|price_asc|price_desc`; server rejects mismatched `breedId`/`species` pairs
+- [x] Screens cited as S-05/S-06/S-07 per doc 06 Flow E; URL round-trip and SSR per NFR-09; p95 search latency ≤ 500 ms per NFR-03
+- [x] Analytics limited to the frozen `search_performed` and `filter_applied` events; Marathi strings are Devanagari with English gloss
+- [x] ≥ 6 testable acceptance criteria; all five states (loading/empty/error/success/edge) defined; free-text keyword search explicitly out of scope

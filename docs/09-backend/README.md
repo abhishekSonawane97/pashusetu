@@ -138,7 +138,7 @@ pashusetu/
 │   │   ├── msg91-sender.ts           # MSG91 SMS sender (PENDING → SENT|FAILED)
 │   │   └── dispatch.ts               # post-commit best-effort dispatch via waitUntil
 │   ├── rate-limit/
-│   │   └── write-limit.ts            # Postgres fixed-window 60/min/user (§10)
+│   │   └── write-limit.ts            # Postgres rolling-window 60/min/user (§10)
 │   ├── i18n/
 │   │   ├── request.ts                # next-intl request config: locale = user pref, default mr
 │   │   ├── enums.ts                  # Species/status/reason → message-key mapping (§13)
@@ -385,7 +385,7 @@ Rules (doc 12 §8.2, restated as code conventions):
 | `description` | `z.string().trim().min(10).max(1000)` in Unicode code points, then `noPhoneInText` | listings | BR-025 |
 | `noPhoneInText` | Normalize Devanagari digits `०-९` → ASCII, strip spaces/hyphens between digit runs, then reject on `/(\+?91[\s-]?)?[6-9]\d{9}/` **or** any run of 10+ digits → 422 `PHONE_IN_DESCRIPTION` | `description`, `village`, `taluka`, user `name`/`village` | BR-065 hard block |
 | `softContactFlag(text)` | Non-rejecting helper (exported from `lib/utils/phone.ts`, not a zod refinement): any 8–9 digit run after the same normalization → `possibleContactInfo` badge for API-25 | admin-service read path | BR-065 soft flag |
-| `paginationSchema` | `cursor: z.string().optional()` (opaque; decode failures → 400) + `limit: z.coerce.number().int().min(1).max(50).default(20)` (>50 → 422) | every list endpoint | BR-011, BR-090 #12 |
+| `paginationSchema` | `cursor: z.string().optional()` (opaque; decode failures → 400) + `limit: z.coerce.number().int().min(1).max(50).default(20)` (>50 → 422) | every list endpoint | BR-090 #12 |
 | `cuidSchema` | `/^c[a-z0-9]{20,}$/` | every path id | doc 08 §1.6 |
 | Enum schemas | `speciesSchema`, `sexSchema`, `interestTypeSchema`, `reportReasonSchema`, `listingStatusSchema` — `z.enum` of the exact doc 07 values | everywhere | BR-022, BR-050, BR-062 |
 
@@ -495,7 +495,9 @@ Implements doc 12 §6 (security controls) and doc 08 API-15/16/17 (wire contract
 After the service-layer checks (owner, editable state per BR-028, photo count < 5, content-type whitelist, `sizeBytes` 1–5,242,880 — doc 12 §6.1):
 
 ```ts
-const key = `listings/${listingId}/${createId()}.webp`;     // 100% server-generated (doc 12 §6.1)
+const key = `listings/${listingId}/original/${createId()}.${EXT[contentType]}`;
+// 100% server-generated (doc 12 §6.1); EXT maps the validated content type to
+//   jpg | png | webp — the doc 08 API-15 key shape `listings/{id}/original/{cuid}.{ext}`
 const url = await getSignedUrl(r2, new PutObjectCommand({
   Bucket: env.R2_BUCKET, Key: key,
   ContentType: contentType,          // signed header — a JPEG-signed URL can't PUT text/html
@@ -505,14 +507,14 @@ return { key, uploadUrl: url, expiresIn: 600, headers: { "Content-Type": content
 ```
 
 - **Expiry 600 s** — docs 08 (API-15) and 12 (§6.1) agree; doc 08 is the wire authority.
-- **Key scheme (doc 12 §6.1):** `listings/{listingId}/{imageCuid}.webp` in the **private** bucket. The uniform `.webp` suffix is a pipeline convention; the authoritative type is the enforced `Content-Type`, and originals are never served regardless.
+- **Key scheme (doc 08 API-15):** `listings/{listingId}/original/{imageCuid}.{ext}` in the **private** bucket, `{ext}` derived from the validated content type (`jpg`|`png`|`webp`) — the key travels in the API-15 response payload, so the doc 08 wire shape is authoritative. Doc 12 §6.1's security property is unchanged: the key is 100% server-generated with no client-contributed part, the authoritative type is the enforced `Content-Type`, and originals are never served regardless.
 - The signature binds bucket + key + type + length: oversize or retyped PUTs die at R2 (SEC-T05). Re-PUT within the window can only overwrite the caller's own not-yet-attached object — closed at attach.
 
 ### 7.3 Attach flow — `lib/services/image-service.ts` + `lib/r2/image-pipeline.ts` (API-16)
 
 Ordered exactly per doc 12 §6.2:
 
-1. Owner + state re-check; key-shape check `^listings/{id}/c[a-z0-9]{20,}\.webp$` with `{id}` equal to the route's listing id — foreign-namespace keys → 422 `INVALID_UPLOAD`.
+1. Owner + state re-check; key-shape check `^listings/{id}/original/c[a-z0-9]{20,}\.(jpg|png|webp)$` with `{id}` equal to the route's listing id — foreign-namespace keys → 422 `INVALID_UPLOAD`.
 2. **`HeadObject` on the private bucket before any DB row**: object must exist with `ContentLength ≤ 5 MB` (defense in depth). Missing/oversize → 422 `INVALID_UPLOAD`.
 3. `GetObject` bytes → **magic-bytes sniff** (`FF D8 FF` / `89 50 4E 47` / `RIFF…WEBP`); declared type untrusted. Mismatch → delete object + 422 (BR-023).
 4. **sharp pipeline** (the only image parser): `.rotate()` normalizes EXIF orientation → `metadata()` yields true width/height (overwrites client-sent values) → three WebP variants, `withoutEnlargement`, **never** `.withMetadata()` so EXIF/XMP/IPTC incl. GPS are stripped (doc 12 §6.3, unit-tested ST-07):
@@ -549,7 +551,7 @@ export interface NotificationSender {
 }
 ```
 
-Template ids map 1:1 to the BR-071 trigger table; API-23's `type` field carries the id minus the `NTF-` prefix (doc 08 §1.9). Channel fan-out per event (SMS+INAPP vs INAPP-only) follows the BR-071 table verbatim — `notification-service.ts` owns that mapping; callers name the event, never the channels.
+Template ids map 1:1 to the BR-071 trigger table; the stored `notifications.type` value (doc 07 §5.9) and API-23's wire `type` field (doc 08 §1.9) are this identical `NTF-*` template-id string — no prefix stripping anywhere. Channel fan-out per event (SMS+INAPP vs INAPP-only) follows the BR-071 table verbatim — `notification-service.ts` owns that mapping; callers name the event, never the channels.
 
 ### 8.2 Implementations
 
@@ -561,7 +563,7 @@ Template ids map 1:1 to the BR-071 trigger table; API-23's `type` field carries 
 
 **MVP = the `notifications` row is the outbox record; delivery is best-effort inline with status tracking.** Concretely: (a) rows are created **inside the triggering transaction** (BR-071 enforcement — the event and its notification commit or roll back together); (b) after commit, the route hands the new SMS row ids to `dispatch.ts`, which fires MSG91 calls via `waitUntil()` (`@vercel/functions`) so the user response is never blocked; (c) outcome is written back as `SENT`/`FAILED`. (d) **Retry:** the daily housekeeping cron (§9.3) re-attempts `FAILED` and stuck-`PENDING` SMS rows younger than 24 h once — this is the minimal "async with retry" that BR-071 requires and exactly what `notifications_dispatch_idx` was built for (doc 07 §4.2). A dedicated near-real-time retry worker / queue-backed outbox is **Phase 2**; at MVP volume (≤ a few hundred SMS/day) a daily retry pass plus INAPP redundancy is sufficient, and every notification-worthy event also has an INAPP row that never needs delivery infrastructure.
 
-Caps enforced in `notification-service.ts`: interest SMS ≤ **3/day/seller**, silent downgrade to INAPP-only (BR-090 #13 — counted from today's `SMS` rows of type `INTEREST_RECEIVED` for that user inside the creating tx); admin recipients for `NTF-ADMIN-*` = all `is_admin = true` users **except** the seeded System user (doc 07 §6.3).
+Caps enforced in `notification-service.ts`: interest SMS ≤ **3/day/seller**, silent downgrade to INAPP-only (BR-090 #13 — counted from today's `SMS` rows of type `NTF-INTEREST-RECEIVED` for that user inside the creating tx); admin recipients for `NTF-ADMIN-*` = all `is_admin = true` users **except** the seeded System user (doc 07 §6.3).
 
 ---
 
@@ -585,7 +587,7 @@ Caps enforced in `notification-service.ts`: interest SMS ≤ **3/day/seller**, s
 Two ordered passes, both batched (100 rows/iteration) and idempotent:
 
 1. **Expire:** select `id` where `status = 'APPROVED' AND expires_at < now()` (index `listings_expiry_idx`); per batch, one transaction: CAS `updateMany … WHERE status = 'APPROVED'` → `EXPIRED` + create `NTF-LISTING-EXPIRED` INAPP rows (INAPP-only per BR-071 — the SMS budget was spent on the warning). The CAS precondition makes double-runs and mid-run crashes harmless (BR-033).
-2. **Warn (T-3d):** select `APPROVED` with `expires_at` in `(now(), now() + 3 days]` **and** no existing notification row with `type = 'EXPIRY_WARNING'` and `payload.listingId = id` and `payload.expiresAt = expires_at` — the BR-071 dedup key (doc 07 §5.9) guarantees once-per-cycle even across re-runs. Create SMS + INAPP rows; dispatch SMS post-batch (§8.3).
+2. **Warn (T-3d):** select `APPROVED` with `expires_at` in `(now(), now() + 3 days]` **and** no existing notification row with `type = 'NTF-EXPIRY-WARNING'` and `payload.listingId = id` and `payload.expiresAt = expires_at` — the BR-071 dedup key (doc 07 §5.9) guarantees once-per-cycle even across re-runs. Create SMS + INAPP rows; dispatch SMS post-batch (§8.3).
 
 Each expired listing also gets `revalidatePath("/listings/{id}")` so its SSR page drops to the 404/unavailable state (§12). Job completion pings a Sentry Cron Monitor; a missed schedule or thrown error fires the doc 12 §9.5 "Cron failure" alert.
 
@@ -604,36 +606,38 @@ All four steps are order-independent and individually idempotent; each logs a on
 
 ## 10. Rate limiting
 
-Postgres-based, exactly the doc 12 §8.4 decision (no Redis/Upstash in MVP; revisit trigger recorded there). Two mechanisms:
+Postgres-based, per the doc 12 §8.4 decision (no Redis/Upstash in MVP; revisit trigger recorded there); window semantics per doc 04 BR-090 — every limit in the BR-090 table, including #2, is a **rolling** window. Two mechanisms:
 
-### 10.1 Fixed-window write limiter — `lib/rate-limit/write-limit.ts` (BR-090 #2)
+### 10.1 Rolling-window write limiter — `lib/rate-limit/write-limit.ts` (BR-090 #2)
 
 Table — deliberately **not** a Prisma model (infrastructure state, not domain data; keeps doc 07's canonical 10-model schema intact), created by a hand-written migration following the doc 07 §9.2 precedent, accessed via tagged-template `$queryRaw` (parameterized — SEC-T14 compliant):
 
 ```sql
 CREATE TABLE "rate_limits" (
-  "key"            text PRIMARY KEY,          -- "w:{userId}:{epochMinute}"
-  "count"          integer NOT NULL DEFAULT 1,
-  "window_ends_at" timestamptz NOT NULL
+  "key"            text PRIMARY KEY,          -- "w:{userId}"
+  "hits"           timestamptz[] NOT NULL,    -- write timestamps inside the trailing 60 s
+  "window_ends_at" timestamptz NOT NULL       -- newest hit + 60 s (GC watermark, §9.3)
 );
 CREATE INDEX "rate_limits_window_idx" ON "rate_limits" ("window_ends_at");  -- housekeeping GC
 ```
 
 ```ts
 export async function enforceWriteLimit(userId: string): Promise<void> {
-  const minute = Math.floor(Date.now() / 60_000);
-  const windowEndsAt = new Date((minute + 1) * 60_000);
-  const [{ count }] = await prisma.$queryRaw<{ count: number }[]>`
-    INSERT INTO rate_limits (key, count, window_ends_at)
-    VALUES (${"w:" + userId + ":" + minute}, 1, ${windowEndsAt})
-    ON CONFLICT (key) DO UPDATE SET count = rate_limits.count + 1
-    RETURNING count`;
+  const [{ count, oldest }] = await prisma.$queryRaw<{ count: number; oldest: Date }[]>`
+    INSERT INTO rate_limits (key, hits, window_ends_at)
+    VALUES (${"w:" + userId}, ARRAY[now()], now() + interval '60 seconds')
+    ON CONFLICT (key) DO UPDATE SET
+      hits = (SELECT coalesce(array_agg(t ORDER BY t), '{}')      -- drop hits older than 60 s,
+              FROM unnest(rate_limits.hits) AS t                  --   append the current one
+              WHERE t > now() - interval '60 seconds') || now(),
+      window_ends_at = now() + interval '60 seconds'
+    RETURNING array_length(hits, 1) AS count, hits[1] AS oldest`;
   if (count > 60) throw AppError.rateLimited(
-    Math.max(1, Math.ceil((windowEndsAt.getTime() - Date.now()) / 1000)));  // details.retryAfterSeconds
+    Math.max(1, Math.ceil((oldest.getTime() + 60_000 - Date.now()) / 1000)));  // details.retryAfterSeconds
 }
 ```
 
-One atomic statement per request — parallel racers each get a distinct `RETURNING count`, so the cap can never be exceeded (SEC-T11, verified by ST-06).
+One atomic statement per request — the upsert's row lock serializes parallel racers, so the cap can never be exceeded (SEC-T11, verified by ST-06). The window is **rolling** per BR-090 #2: 60 writes in any trailing 60 s, with no doubled budget across a minute boundary. `Retry-After` = seconds until the oldest still-counting hit leaves the window; rejected attempts are appended too, so a client hammering past the cap stays limited until it genuinely backs off (the array stays bounded by the client's own attempt rate over 60 s).
 
 ### 10.2 Domain-window limits — counted in-transaction
 
@@ -643,7 +647,7 @@ The daily limits are **not** counter rows: they are exact rolling-24 h counts ov
 
 | Endpoint set | Limit | Mechanism | Error |
 |---|---|---|---|
-| Every authenticated `POST`/`PATCH`/`DELETE` under `/api/v1` | 60/min/user (BR-090 #2) | §10.1 fixed window, called by the handler right after `requireProfile` | 429 `RATE_LIMITED` + `Retry-After` |
+| Every authenticated `POST`/`PATCH`/`DELETE` under `/api/v1` | 60/min/user, rolling 60 s (BR-090 #2) | §10.1 rolling window, called by the handler right after `requireProfile` | 429 `RATE_LIMITED` + `Retry-After` |
 | `POST /listings/{id}/interest` | 20/day/buyer, rolling 24 h, all types+listings (BR-064) | `COUNT(*)` on `interest_events` via `interest_events_buyer_idx` inside the reveal tx | 429 `RATE_LIMITED` |
 | `POST /listings/{id}/report` | 5/day/user rolling 24 h (BR-051) | `COUNT(*)` on `reports` via `reports_reporter_idx` inside the report tx | 429 `RATE_LIMITED` |
 | Stored quotas: 10 active listings / 5 photos / 200 favorites | BR-024/023/070 | Domain guards in their transactions (§6.3) — quotas, not rate limits | 409 `LIMIT_EXCEEDED` family |
@@ -761,10 +765,10 @@ How the layers are designed to be tested (implementation, CI wiring, coverage ta
 - [x] §4 validation: `lib/validation/<domain>.ts` mirroring doc 08 request schemas with inferred TS types as single source; shared refinements incl. E.164, price bounds BR-026, description 10–1000 BR-025, and the exact BR-065 phone-in-text regex (ASCII + Devanagari `०-९`, 10+-digit runs hard block, 8–9-digit soft flag computed at admin read time)
 - [x] §5 error model: `AppError` with closed code union from the doc 08 registry, services throw / one `withRoute()` catch maps to the envelope; Prisma mapping table (P2002→CONFLICT with target refinement, P2025→NOT_FOUND, P2003→VALIDATION_ERROR, P2034 retry-once, P2024/P1001→INTERNAL); no internals leaked; Sentry capture rules incl. `beforeSend` scrubbing and `details.eventId`
 - [x] §6 Prisma: `globalThis` singleton; pooled `DATABASE_URL` with `pgbouncer=true&connection_limit=5` + `DIRECT_URL` exactly per doc 07 §8.3; interactive-transaction whitelist (create-quota, image-attach count, report auto-hide, interest log-before-reveal, submit, admin mutations) with no-external-I/O and CAS rules
-- [x] §7 R2: S3 SDK presign with signed content-type + content-length (600 s per docs 08/12 — no conflict), doc 12 key scheme `listings/{listingId}/{cuid}.webp`, HEAD-before-DB-row attach, magic-bytes sniff, sharp pipeline stripping EXIF/GPS producing thumb 400/card 800/detail 1280 WebP variants (doc 08 wire contract wins over the task's 1600 px sketch; doc 12 suffix notation mapped to `thumb/card/detail` paths), public serving via `img.pashusetu.in`, deletion + GC backstop
+- [x] §7 R2: S3 SDK presign with signed content-type + content-length (600 s per docs 08/12 — no conflict), doc 08 API-15 key scheme `listings/{listingId}/original/{cuid}.{ext}` (server-generated per doc 12 §6.1), HEAD-before-DB-row attach, magic-bytes sniff, sharp pipeline stripping EXIF/GPS producing thumb 400/card 800/detail 1280 WebP variants (doc 08 wire contract wins over the task's 1600 px sketch; doc 12 suffix notation mapped to `thumb/card/detail` paths), public serving via `img.pashusetu.in`, deletion + GC backstop
 - [x] §8 notifications: `NotificationSender` interface (userId, templateId, params, channel); MSG91 implementation with DLT registration flagged as Sprint-1 external task (entity + sender ID `PSHSTU` + all BR-071 templates); in-app = DB rows born `SENT`; outbox stance stated — row in triggering tx + post-commit best-effort `waitUntil` dispatch with status tracking, daily single-retry pass in housekeeping (satisfying BR-071 "async with retry"), queue-backed worker Phase 2; 3 SMS/day/seller downgrade (BR-090 #13)
 - [x] §9 cron: `vercel.json` with `0 21 * * *` = 02:30 IST (BR-072 aligned) expiry job (batched CAS expiry + T-3d warning with the doc 07 §5.9 dedup key) and 03:00 IST housekeeping (orphan GC 24 h, notification purge 90 d, rate-limit GC, SMS retry); both idempotent, `CRON_SECRET` bearer-guarded, Sentry cron monitors
-- [x] §10 rate limiting: Postgres fixed-window per doc 12 §8.4 — exact `rate_limits` table DDL (hand-written migration, not a Prisma model — doc 07's 10-model schema untouched), atomic `INSERT … ON CONFLICT … RETURNING` helper, and the canonical endpoint→limit table (60/min writes, 20/day interest, 5/day reports in-tx, quotas as 409s, GETs unlimited, cron exempt)
+- [x] §10 rate limiting: Postgres rolling-window per BR-090 #2 (Postgres-not-Redis decision per doc 12 §8.4) — exact `rate_limits` table DDL (hand-written migration, not a Prisma model — doc 07's 10-model schema untouched), atomic `INSERT … ON CONFLICT … RETURNING` helper, and the canonical endpoint→limit table (60/min writes, 20/day interest, 5/day reports in-tx, quotas as 409s, GETs unlimited, cron exempt)
 - [x] §11 env catalog: all mandated vars (DATABASE_URL, DIRECT_URL, FIREBASE_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY, R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY/R2_BUCKET/R2_PUBLIC_BASE_URL, MSG91_AUTH_KEY/SENDER_ID, SENTRY_DSN, CRON_SECRET, NEXT_PUBLIC_FIREBASE_*, NEXT_PUBLIC_APP_URL) plus justified additions (R2_PUBLIC_BUCKET, kill switches, SENTRY_AUTH_TOKEN) with purpose / local-preview-prod placement / secret flag; AS-06 three-var split reconciled with doc 12
 - [x] §12 caching: breeds/districts revalidate 24 h (matching doc 08 cache headers); listing detail SSR/ISR with `revalidatePath` on every moderation/status event and view-count increments kept exclusively in API-07; search always dynamic; PWA shell static via Serwist
 - [x] §13 i18n: next-intl, `mr` default with `en` fallback (never reversed — D8), no URL locale segment (decision), server vs client message usage rules, API error localization via `Accept-Language`, enum→label mapping table with real Devanagari + glosses, CI key-parity check

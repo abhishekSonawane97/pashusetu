@@ -29,9 +29,9 @@ The platform's only conversion action (locked decision D6): three login-gated bu
 
 ## UX workflow
 
-1. On **S-07**, the sticky contact bar shows three icon+text buttons: **"कॉल करा"** (Call), **"व्हॉट्सॲप"** (WhatsApp), **"आवड कळवा"** (Send interest).
+1. On **S-07**, the sticky contact bar shows three icon+text buttons: **"कॉल करा"** (Call), **"WhatsApp"**, **"आवड कळवा"** (Send interest).
 2. Anonymous tap → login sheet (S-02/S-03) with the title "विक्रेत्याशी बोलण्यासाठी आधी लॉगिन करा" (To talk to the seller, log in first); after auth (and S-04 for new users) the original tap re-executes automatically; cancelling returns to S-07 with nothing lost (doc 06 login-wall contract).
-3. Logged-in tap → `POST /api/v1/listings/{id}/interest` with `{ "type": "CALL" | "WHATSAPP" | "INTEREST" }`. The server logs one `interest_events` row **first** (transactionally) and returns `{ sellerName, phone, whatsappUrl }` (BR-062).
+3. Logged-in tap → `POST /api/v1/listings/{id}/interest` with `{ "type": "CALL" | "WHATSAPP" | "INTEREST" }`. The server logs one `interest_events` row **first** (transactionally) and returns `{ id, listingId, type, createdAt, seller: { name, phone, whatsappUrl } }` (BR-062, API-21).
 4. On success, by type:
    - **CALL:** client opens `tel:+91XXXXXXXXXX` (E.164). A confirmation sheet also shows the number as text — desktops/tablets without telephony can dial manually.
    - **WHATSAPP:** client opens the server-built `whatsappUrl` (format below). If WhatsApp is not installed, the wa.me universal link opens in the browser/Play interstitial; the number stays visible in the sheet for a manual call.
@@ -71,14 +71,14 @@ Canonical prefill, generated in the buyer's `language_pref` (BR-063):
 
 | Field | Type | Required | Validation rule | Error message EN | Error message MR |
 |---|---|---|---|---|---|
-| type | enum | Yes | `CALL \| WHATSAPP \| INTEREST` — anything else → 422 `VALIDATION_ERROR` | Could not contact the seller. Try again. | विक्रेत्याशी संपर्क होऊ शकला नाही. पुन्हा प्रयत्न करा. |
+| type | enum | Yes | `CALL \| WHATSAPP \| INTEREST` — anything else → 400 `VALIDATION_ERROR` | Could not contact the seller. Try again. | विक्रेत्याशी संपर्क होऊ शकला नाही. पुन्हा प्रयत्न करा. |
 | id (route param) | string (cuid) | Yes | Listing must be APPROVED; else 404 `LISTING_NOT_FOUND` | This listing is no longer available | ही जाहिरात आता उपलब्ध नाही |
 
 ## Business logic
 
 - **Single reveal path:** the seller's phone appears in exactly one API response in the whole system — this endpoint's — and never in listing payloads, SSR HTML, sitemaps, or third-party notification payloads — BR-062, BR-066, PRD FR-08.
 - **Log before reveal:** one `interest_events` row (`listing_id`, `buyer_id`, `type`, `created_at`) is written transactionally before contact info is returned; repeat taps each log their own event (raw funnel data); the G-04 metric dedupes by distinct (listing, buyer) — BR-062.
-- All three types return the same response shape (`sellerName`, `phone`, `whatsappUrl`); only `INTEREST` additionally triggers a seller notification — CALL/WHATSAPP do not (the buyer is already contacting directly) — BR-062, BR-071.
+- All three types return the same response shape (`{ id, listingId, type, createdAt, seller: { name, phone, whatsappUrl } }` — API-21); only `INTEREST` additionally triggers a seller notification — CALL/WHATSAPP do not (the buyer is already contacting directly) — BR-062, BR-071.
 - **Rate limit:** 20 interest events / day / buyer, all types and listings combined, rolling 24 h, enforced atomically (count-then-insert in a transaction — a race on the 21st is correctly rejected) → 429 `RATE_LIMITED` with "आज खूप विक्रेत्यांशी संपर्क झाला आहे. कृपया उद्या पुन्हा प्रयत्न करा." — BR-064, BR-090 #3.
 - **Guards:** logged in + `ACTIVE` + complete profile (`UNAUTHENTICATED` / `USER_BANNED` / `PROFILE_INCOMPLETE`); listing APPROVED (`LISTING_NOT_FOUND`, e.g. sold/expired/hidden race, or seller banned → listings archived per BR-014); buyer ≠ seller → 403 `FORBIDDEN` (the UI already hides the bar for owners) — BR-062.
 - The wa.me URL is built server-side so the format is uniform and the phone never transits the client separately — BR-063.
@@ -112,7 +112,7 @@ Fired only on success so client events mirror `interest_events` server truth (G-
 ## Acceptance criteria
 
 1. All three buttons are login-gated: an anonymous tap opens the login sheet with "विक्रेत्याशी बोलण्यासाठी आधी लॉगिन करा", and after successful login (including first-time S-04) the original action resumes automatically; cancel returns to S-07 with nothing lost.
-2. `POST /listings/{id}/interest` writes exactly one `interest_events` row transactionally before returning `{ sellerName, phone, whatsappUrl }`; type `CALL` opens `tel:+91…`, type `WHATSAPP` opens the server-built `https://wa.me/91…?text=` URL with the canonical prefill in the buyer's language.
+2. `POST /listings/{id}/interest` writes exactly one `interest_events` row transactionally before returning `{ id, listingId, type, createdAt, seller: { name, phone, whatsappUrl } }`; type `CALL` opens `tel:+91…`, type `WHATSAPP` opens the server-built `https://wa.me/91…?text=` URL with the canonical prefill in the buyer's language.
 3. Type `INTEREST` logs the event, triggers the seller notification (in-app always; SMS within the 3/day/seller cap), and shows the buyer the confirmation toast plus the seller's number on screen.
 4. The seller's phone number appears in no other API response and never in server-rendered HTML — verified by the automated phone-concealment test in [../14-testing-qa/README.md](../14-testing-qa/README.md).
 5. The 21st interest event within a rolling 24 h returns 429 `RATE_LIMITED` with `details.retryAfterSeconds`, and the UI shows the canonical Marathi limit copy; enforcement is atomic under concurrent taps.
@@ -125,3 +125,12 @@ Fired only on success so client events mirror `interest_events` server truth (G-
 - **In-app chat** — Phase 2 by locked decision D6; not designed here beyond this note.
 - Masked/virtual numbers, callback scheduling, mutual number exchange — Phase 2 (PRD F-06 future improvements).
 - Any payment, escrow, or transaction step — the deal happens offline between parties (foundation §8, PRD §9).
+
+## Acceptance checklist
+
+- [x] All contact rules cited from the owning BR-060–BR-066 series: login wall (BR-061), log-before-reveal and single reveal path (BR-062, BR-066), server-built wa.me link with the canonical bilingual prefill (BR-063), 20/day/buyer rolling rate limit (BR-064)
+- [x] Endpoint matches doc 08 API-21 exactly: `POST /api/v1/listings/{id}/interest`, nested response `{ id, listingId, type, createdAt, seller: { name, phone, whatsappUrl } }`, errors 400 `VALIDATION_ERROR` / 404 `LISTING_NOT_FOUND` / 403 `FORBIDDEN` / 429 `RATE_LIMITED`
+- [x] Screens and labels reuse doc 06: S-07 contact bar (कॉल करा / WhatsApp / आवड कळवा), login sheet S-02/S-03 with automatic action resume (Flow C login-wall contract)
+- [x] Seller notification fires for `INTEREST` only (`NTF-INTEREST-RECEIVED`, in-app always, SMS within the 3/day/seller cap — BR-071, notifications.md); CALL/WHATSAPP trigger none
+- [x] All five states defined (loading, empty, error, success, edge); analytics limited to the three frozen success-only events; G-04 computed from `interest_events` server truth, not client events
+- [x] ≥ 6 testable acceptance criteria; no TBD/TODO; chat, masked numbers, and payments explicitly deferred per locked decision D6

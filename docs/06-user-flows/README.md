@@ -64,9 +64,9 @@ Owned and fully specified in [../04-business-rules/README.md](../04-business-rul
 | Id | Screen (EN) | Marathi name | Purpose | Entry points | Primary actions |
 |---|---|---|---|---|---|
 | S-01 | Splash & language pick | भाषा निवडा ("choose language") | First-run brand splash; pick मराठी (default, pre-selected) or English. Shown once; choice stored locally and later synced to `language_pref`. | First app open; cleared app data | Select language → continue to S-05 |
-| S-02 | Phone entry | मोबाईल नंबर टाका ("enter mobile number") | Collect 10-digit Indian mobile; trigger Firebase OTP send (client SDK, BR-09). Renders full-screen from Profile tab, or as a bottom sheet when invoked as a login wall. | Login wall (contact/favorite/report tap while anonymous), Sell tab while anonymous, Profile tab while anonymous | Enter number, "OTP पाठवा" (send OTP) → S-03; cancel → back to origin |
+| S-02 | Phone entry | मोबाईल नंबर टाका ("enter mobile number") | Collect 10-digit Indian mobile; trigger Firebase OTP send (client SDK, BR-09). Renders full-screen from Profile tab, or as a bottom sheet when invoked as a login wall. | Login wall (contact/favorite/report tap while anonymous), Sell tab while anonymous, Favorites tab while anonymous, Profile tab while anonymous | Enter number, "OTP पाठवा" (send OTP) → S-03; cancel → back to origin |
 | S-03 | OTP verify | OTP टाका ("enter OTP") | 6-digit code entry with 60 s timer, attempt counter, resend with 30 s cooldown. | S-02 after successful send | Verify → S-04 (new) or destination (returning); resend; change number → S-02 |
-| S-04 | Profile setup | प्रोफाइल तयार करा ("create profile") | First-login profile: name (required), district (picker, `GET /meta/districts`), taluka + village (optional), role flags "मला विकायचे आहे / मला विकत घ्यायचे आहे" (I want to sell / buy; both allowed, at least one required). Calls `POST /users`. | S-03 when `GET /users/me` returns not-found | Save → original destination or S-05 |
+| S-04 | Profile setup | प्रोफाइल तयार करा ("create profile") | First-login profile: name (required), district (picker, `GET /meta/districts`), taluka + village (optional), role flags "मला जनावर विकायचे आहे / मला जनावर विकत घ्यायचे आहे" (I want to sell / buy an animal; both allowed, at least one required). Calls `POST /users`. | S-03 when `GET /users/me` returns not-found | Save → original destination or S-05 |
 | S-05 | Home / browse | होम ("home") | Public landing: species category chips (गाय, म्हैस, बैल, शेळी, मेंढी), search bar, latest APPROVED listings feed, notification bell (badge, logged-in only). Bottom nav host. | S-01, app open (returning), bottom nav Home tab, deep link `/` | Tap category/search → S-06; tap card → S-07; bell → S-14 |
 | S-06 | Search results + filters sheet | शोधा ("search") | Filterable, cursor-paginated results (`GET /listings`, BR-11). Filters bottom sheet: species, breed, district, min/max price, sort (newest / price low→high / price high→low). Filters reflected in URL query for shareability. | S-05 chips/search, deep link `/listings?…`, "clear filters" reset | Apply/clear filters, infinite scroll, tap card → S-07 |
 | S-07 | Listing detail | जाहिरात तपशील ("listing details") | Public detail: photo carousel, price + negotiable badge, all attributes (breed, sex, age, milk yield, lactation, pregnant, vaccinated, weight), location (village, taluka, district), seller snippet, status banner when not APPROVED. Contact bar: कॉल करा / WhatsApp / आवड कळवा (call / WhatsApp / send interest). | S-05, S-06, S-13, S-14, shared deep link `/listings/{id}` | Contact (login-walled, BR-10), favorite, report → S-17, photos → S-08, seller → S-09 |
@@ -78,13 +78,13 @@ Owned and fully specified in [../04-business-rules/README.md](../04-business-rul
 | S-10c | — Step 3: photos | फोटो टाका ("add photos") | 1–5 photos (BR-01) via camera or gallery; presigned R2 upload (`POST /uploads/presign` then `POST /listings/{id}/images`); per-photo progress, retry, delete, reorder. | S-10b next, back from S-10d | Upload ≥ 1 photo → S-10d |
 | S-10d | — Step 4: price & location | किंमत व ठिकाण ("price & place") | Price in ₹ (integer), negotiable toggle ("किंमतीत बदल शक्य" — price negotiable), district (defaults from profile), taluka (optional), village. | S-10c next, back from S-10e | Set price + place → S-10e |
 | S-10e | — Step 5: declaration & review | हमीपत्र व अंतिम तपासणी ("declaration & final check") | Read-only summary card of the whole listing + mandatory seller declaration checkbox (BR-12). Submit calls `POST /listings/{id}/submit` → PENDING. | S-10d next | Accept declaration + "तपासणीसाठी पाठवा" (send for review) → S-11 |
-| S-11 | My listings | माझ्या जाहिराती ("my listings") | Seller hub: tabs for status groups — Drafts (अपूर्ण), In review (तपासणीत), Live (चालू), Sold (विकलेल्या), Rejected (नाकारलेल्या), Expired (मुदत संपलेल्या). Per-card actions by status; active-count meter "७/१०" (7/10) toward BR-02. Sell tab target. | Bottom nav Sell tab, post-submit redirect, S-14 notification taps | Resume draft → S-10, edit → S-12, mark sold, renew, archive, "+ नवीन जाहिरात" → S-10a |
+| S-11 | My listings | माझ्या जाहिराती ("my listings") | Seller hub: tabs for status groups — Drafts (अपूर्ण), In review (तपासणीत), Live (चालू), Sold (विकलेल्या), Rejected (नाकारलेल्या), Expired (मुदत संपलेल्या), Archived (बंद). Per-card actions by status; active-count meter "7/10" toward BR-02. Sell tab target. | Bottom nav Sell tab, post-submit redirect, S-14 notification taps | Resume draft → S-10, edit → S-12, mark sold, renew, archive, "+ नवीन जाहिरात" → S-10a |
 | S-12 | Edit listing | जाहिरात बदला ("change listing") | Same form fields as the wizard, single scrollable page, pre-filled. Warning banner on APPROVED listings: non-price edits send the listing back for review (BR-04). Also the resubmit path for REJECTED (rejection reason pinned on top). | S-11 edit action, S-07 "Edit" shortcut on own listing | Save (price-only → stays APPROVED) / save & resubmit → PENDING |
 | S-13 | Favorites | आवडत्या जाहिराती ("favorite listings") | Logged-in list of saved listings (`GET /users/me/favorites`); SOLD/EXPIRED items stay visible with a status tag. | Bottom nav Favorites tab | Tap card → S-07; unfavorite (swipe or heart) |
-| S-14 | Notifications | सूचना ("notifications") | In-app notification list (`GET /users/me/notifications`): approved, rejected (+reason), interest received, expiry reminder, expired. Opening an item calls `POST /notifications/{id}/read` and deep-links to its subject. | Bell on S-05, SMS deep links, Profile row on S-15 | Tap item → S-07 or S-11; mark read |
-| S-15 | Profile / settings | माझे प्रोफाइल ("my profile") | View/edit own profile (`GET/PATCH /users/me`): name, district, taluka, village, role flags; rows for language (→ S-16), notifications (→ S-14), help & grievance contact, T&C/privacy links, logout. | Bottom nav Profile tab | Edit fields, navigate rows, logout → S-05 |
+| S-14 | Notifications | सूचना ("notifications") | In-app notification list (`GET /users/me/notifications`): approved, rejected (+reason), interest received, expiry reminder, expired, auto-hidden (under review). Opening an item calls `POST /notifications/{id}/read` and deep-links to its subject. | Bell on S-05, SMS deep links, Profile row on S-15 | Tap item → S-07 or S-11; mark read |
+| S-15 | Profile / settings | माझे प्रोफाइल ("my profile") | View/edit own profile (`GET/PATCH /users/me`): name, district, taluka, village, role flags; rows for language (→ S-16), notifications (→ S-14), help & grievance contact, T&C/privacy links, "खाते हटवा" (delete my account — opens the BR-015 helpline-mediated deletion sheet, no self-service delete API), logout. | Bottom nav Profile tab | Edit fields, navigate rows, logout → S-05 |
 | S-16 | Language settings | भाषा बदला ("change language") | Switch मराठी ↔ English; persists to `language_pref` via `PATCH /users/me` (and locally for anonymous users). | S-15 row; long-press language hint on S-01 | Pick language → back to S-15, UI re-renders instantly |
-| S-17 | Report listing modal | तक्रार करा ("complain / report") | Modal over S-07: reason radio list (FAKE खोटी जाहिरात · SOLD_ALREADY आधीच विकले · WRONG_INFO चुकीची माहिती · SPAM स्पॅम · ILLEGAL बेकायदेशीर · OTHER इतर) + optional details. `POST /listings/{id}/report`, BR-09 (5/day). | Report button on S-07 (login-walled) | Submit → confirmation toast; cancel → S-07 |
+| S-17 | Report listing modal | तक्रार करा ("complain / report") | Modal over S-07: reason radio list (FAKE खोटी जाहिरात · SOLD_ALREADY आधीच विकले · WRONG_INFO चुकीची माहिती · SPAM स्पॅम · ILLEGAL बेकायदेशीर · OTHER इतर) + optional details. `POST /listings/{id}/report`, BR-09 (5/day). | Report button on S-07 (login-walled) | Submit → success sheet (report.success + ticket-id acknowledgment "तक्रार क्र. {ticketId} — आम्ही 15 दिवसांच्या आत उत्तर देऊ."); cancel → S-07 |
 | S-18 | Admin: login & guard | अ‍ॅडमिन प्रवेश ("admin entry") | `/admin` gate. Same Firebase phone OTP; server verifies `is_admin` on every `/admin/*` API call. Non-admins see access-denied with a link home. Desktop-first layout from here on. | Direct URL `/admin` | Login → S-19 (default redirect); denied → link to S-05 |
 | S-19 | Admin: pending queue | प्रलंबित जाहिराती ("pending listings") | `GET /admin/listings?status=PENDING`, oldest first; age badge per row (red past 24 h, BR-05); auto-hidden listings flagged "reports"; duplicate-warning icon (BR-07). | S-18 login, admin nav | Open row → S-20; filter by status |
 | S-20 | Admin: listing review detail | जाहिरात तपासणी ("listing inspection") | Full listing + photos (→ S-08), seller history (prior listings, prior rejections, open reports), duplicate-heuristic panel (BR-07), declaration timestamp. Approve / Reject (reason mandatory) / open seller in S-22. | S-19 row, S-21 report row, S-22 listing link | `POST /admin/listings/{id}/approve` or `/reject {reason}`; every action → `moderation_log` |
@@ -100,8 +100,8 @@ Next.js App Router routes (D1). Overlays (S-08, S-09, S-17) and the login sheet 
 |---|---|---|
 | S-01 | `/welcome` (redirected here from `/` only when no language stored) | Public |
 | S-05 | `/` | Public |
-| S-06 | `/listings` (+ query: `species`, `breedId`, `districtId`, `minPrice`, `maxPrice`, `sort`, `q`) | Public |
-| S-07 | `/listings/[id]` | Public (only APPROVED and SOLD render; others show a "not available" state, §4.3) |
+| S-06 | `/listings` (+ query: `species`, `breedId`, `districtId`, `minPrice`, `maxPrice`, `sort`) | Public |
+| S-07 | `/listings/[id]` | Public (only APPROVED renders publicly; SOLD and all other statuses 404 to the public — client-known SOLD shows the sold banner; owner/admin see any status with a banner, §4.3) |
 | S-08, S-09, S-17 | overlays on host route | as host |
 | S-02, S-03 | `/login?returnTo=<path>` (two steps, one route); also rendered as a bottom-sheet login wall over any screen | Public |
 | S-04 | `/profile/setup?returnTo=<path>` | Authenticated, profile missing |
@@ -215,8 +215,8 @@ flowchart TD
 | Non-price edit of live listing | Confirm dialog: "बदल केल्यास जाहिरात पुन्हा तपासणीत जाईल" (after changes the listing goes back for review); on confirm → PENDING | S-12 |
 | Price-only edit | Saves instantly, stays APPROVED, no dialog (BR-04) | S-12 |
 | Listing auto-hidden by reports while seller watches | Card moves to "तपासणीत" (in review); notification in S-14 | S-11, S-14 |
-| Expiry approaching | In-app reminder notification 3 days before `expires_at`; SMS + in-app on expiry day | S-14 |
-| Renew tapped when listing count already at 10 active | Renew still allowed only if resulting active count ≤ 10; otherwise blocked with BR-02 message | S-11 |
+| Expiry approaching | SMS + in-app reminder 3 days before `expires_at` (NTF-EXPIRY-WARNING); in-app only on expiry day (NTF-LISTING-EXPIRED) | S-14 |
+| Renew tapped when listing count already at 10 active | Always allowed — the EXPIRED listing already counts toward the BR-02 cap, so renewal never changes the active count (BR-024); only creating a NEW listing at the cap is blocked | S-11 |
 | Mark-sold mis-tap | Confirm dialog "विकले गेले म्हणून नोंद करायची का? हे परत बदलता येणार नाही." (Mark as sold? This cannot be undone.) | S-11 |
 | Rejected twice for same reason | Rejection reason history visible on S-12 banner so seller can fix properly | S-12 |
 
@@ -259,10 +259,10 @@ flowchart TD
 | Situation | Expected behavior | Screen |
 |---|---|---|
 | Listing turns SOLD between list and detail view | S-07 shows "हे जनावर विकले गेले आहे" banner; contact bar hidden; similar-listings CTA → S-06 | S-07 |
-| Shared link to PENDING/REJECTED/EXPIRED/ARCHIVED/DRAFT listing | "ही जाहिरात आता उपलब्ध नाही" (this listing is no longer available) state with browse CTA → S-05 (owner sees their own listing normally) | S-07 |
+| Shared link to SOLD/PENDING/REJECTED/EXPIRED/ARCHIVED/DRAFT listing | Public fetch returns 404 (BR-034): "ही जाहिरात आता उपलब्ध नाही" (this listing is no longer available) state with browse CTA → S-05 (owner sees their own listing normally) | S-07 |
 | Viewer is the listing's own seller | Contact bar replaced by "जाहिरात बदला" (edit listing) shortcut → S-12 | S-07 |
 | WhatsApp not installed | `wa.me` universal link opens in browser; revealed phone number stays visible on S-07 for a manual call | S-07 |
-| Interest rate limit reached (BR-09) | Toast "आजची मर्यादा संपली. उद्या पुन्हा प्रयत्न करा." (today's limit is over, try again tomorrow); browsing unaffected | S-07 |
+| Interest rate limit reached (BR-09) | Toast "आज खूप विक्रेत्यांशी संपर्क झाला आहे. कृपया उद्या पुन्हा प्रयत्न करा." (you have contacted many sellers today, please try again tomorrow — BR-064); browsing unaffected | S-07 |
 | Banned buyer taps contact | API 403; message directs to grievance contact (see §7); session signed out | S-07 |
 | Anonymous favorite tap | Login wall; favorite applied automatically after login | S-07 |
 | Login wall cancelled | Sheet closes; user remains on S-07 with nothing lost | S-07 |
@@ -453,7 +453,7 @@ flowchart TD
 | Report button on non-APPROVED listing | Report is offered only on APPROVED listings; SOLD and unavailable states hide it | S-07 |
 | Threshold crossed (3rd OPEN report) | Instant auto-hide → PENDING, `AUTO_HIDE` in `moderation_log`, admin notified (BR-06); seller sees "तपासणीत" in S-11 | S-11, S-21 |
 | Admin dismisses all reports on auto-hidden listing | Listing stays PENDING until admin explicitly approves on S-20 — no silent re-publish | S-20, S-21 |
-| Reporter checks outcome | MVP: no per-report status UI for reporters; confirmation toast only (kept out to save scope) | S-17 |
+| Reporter checks outcome | MVP: no per-report status UI for reporters (kept out to save scope); the submit success sheet shows report.success plus the acknowledgment "तक्रार क्र. {ticketId} — आम्ही 15 दिवसांच्या आत उत्तर देऊ." (ticketId = last 8 chars of the report id, uppercase — doc 16 §6.2) | S-17 |
 | Malicious mass-reporting ring | Caps (1/listing/user + 5/day) blunt it; admin dismisses and may ban reporters from S-22 (BR-08) | S-21, S-22 |
 | Seller of reported listing gets banned | All their listings → ARCHIVED; open reports on them resolved in the same admin action | S-22 |
 
@@ -554,7 +554,7 @@ Doc 10 owns the full copy deck; the strings below are canonical because flows in
 
 | Key | Marathi (Devanagari) | English gloss | Screen |
 |---|---|---|---|
-| declaration.text | मी घोषित करतो/करते की मी या जनावराचा कायदेशीर मालक आहे. ही विक्री महाराष्ट्र राज्याच्या कायद्यानुसार आहे आणि हे जनावर कत्तलीसाठी विकले जात नाही. | I declare that I am the lawful owner of this animal. This sale complies with Maharashtra state law and this animal is not being sold for slaughter. | S-10e |
+| declaration.text | मी जाहीर करतो/करते की मी या जनावराचा/जनावरीचा कायदेशीर मालक आहे, ही विक्री महाराष्ट्र राज्याच्या कायद्यांनुसार आहे, आणि हे जनावर कत्तलीसाठी विकले जात नाही. | I declare that I am the lawful owner of this animal, this sale complies with the laws of the State of Maharashtra, and this animal is not being sold for slaughter. (canonical wording owned by BR-027) | S-10e |
 | submit.success | तुमची जाहिरात तपासणीसाठी पाठवली आहे. २४ तासांच्या आत उत्तर मिळेल. | Your listing has been sent for review. You will get an answer within 24 hours. | S-10e |
 | loginwall.title | विक्रेत्याशी बोलण्यासाठी आधी लॉगिन करा | To talk to the seller, log in first | S-02 sheet |
 | otp.wrong | चुकीचा OTP. पुन्हा प्रयत्न करा. | Wrong OTP. Try again. | S-03 |
@@ -564,8 +564,8 @@ Doc 10 owns the full copy deck; the strings below are canonical because flows in
 | search.end | सर्व जाहिराती पाहिल्या | You have seen all listings | S-06 |
 | listing.soldBanner | हे जनावर विकले गेले आहे | This animal has been sold | S-07 |
 | listing.unavailable | ही जाहिरात आता उपलब्ध नाही | This listing is no longer available | S-07 |
-| interest.whatsappPrefill | नमस्कार, मी पशुसेतूवर तुमची जाहिरात पाहिली. जनावराबद्दल माहिती हवी आहे. | Hello, I saw your listing on PashuSetu. I want information about the animal. | S-07 |
-| interest.limit | आजची मर्यादा संपली. उद्या पुन्हा प्रयत्न करा. | Today's limit is over. Try again tomorrow. | S-07 |
+| interest.whatsappPrefill | नमस्कार! मी PashuSetu वर तुमची जाहिरात पाहिली — {speciesMr}, {breedMr}, ₹{price}. जनावर अजून विक्रीसाठी आहे का? जाहिरात: {listingUrl} | Hello! I saw your listing on PashuSetu — {speciesMr}, {breedMr}, ₹{price}. Is the animal still for sale? Listing: {listingUrl} (canonical template owned by BR-063; server-built) | S-07 |
+| interest.limit | आज खूप विक्रेत्यांशी संपर्क झाला आहे. कृपया उद्या पुन्हा प्रयत्न करा. | You have contacted many sellers today. Please try again tomorrow. (canonical copy owned by BR-064) | S-07 |
 | myListings.renew | ३० दिवसांसाठी पुन्हा सुरू करा | Restart for 30 days | S-11 |
 | myListings.markSold | विकले गेले म्हणून नोंद करा | Mark as sold | S-11 |
 | markSold.confirm | विकले गेले म्हणून नोंद करायची का? हे परत बदलता येणार नाही. | Mark as sold? This cannot be undone. | S-11 |
@@ -595,7 +595,7 @@ Stated success criterion (Phase 1 Sprint 6): **every screen is connected; no dea
 | Flow | How the user always has a way forward/back |
 |---|---|
 | A — Onboarding + first listing | Language pick cannot be skipped into a void (default मराठी proceeds); login wall is cancellable back to origin; OTP failure always resolves via retry/resend/change-number; every wizard step has Back + save-and-exit; drafts are resumable from S-11 forever; declaration decline leaves a resumable DRAFT, never a discard; the 10-listing cap message links to the S-11 actions (mark sold/archive) that free a slot. |
-| B — Listing lifecycle | Every non-terminal state has ≥ 1 seller action: PENDING → wait (visible SLA) or archive; REJECTED → edit+resubmit or archive; APPROVED → edit/mark-sold/archive; EXPIRED → renew or archive. Terminal SOLD/ARCHIVED point to creating the next listing. No state exists without a rendered next step in S-11. |
+| B — Listing lifecycle | Every non-terminal state has ≥ 1 seller action: PENDING → wait (visible SLA), edit (with the BR-040 queue-delay warning) or archive; REJECTED → edit+resubmit or archive; APPROVED → edit/mark-sold/archive; EXPIRED → renew or archive. Terminal SOLD/ARCHIVED point to creating the next listing. No state exists without a rendered next step in S-11. |
 | C — Buyer contact | Anonymous users are never trapped: the login wall is cancellable and returns to S-07. Sold/unavailable listings offer browse/similar CTAs instead of dead contact buttons. Rate-limit and 403 errors are informational toasts that leave browsing fully usable. |
 | D — Authentication | Every failure loops to a usable state: invalid phone → corrected input; send failure → retry; wrong code → retry then resend; timer expiry → resend; wrong number → change number. BANNED shows the grievance contact and returns the user to public browsing (S-05), which never requires login. |
 | E — Search & filter | Empty results offer reset and re-filter CTAs; network errors keep loaded results and offer retry; filter validation errors block only the Apply button, never navigation; back from S-07 restores filters + scroll, so exploration never loses context. |

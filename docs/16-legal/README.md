@@ -308,7 +308,7 @@ The heavier "significant social media intermediary" obligations (Chief Complianc
 
 ## 7. Content policy → enforcement mapping
 
-The prohibited content list below is the normative source for BR-08x, is summarised at the listing-creation screen, and is incorporated into T&C clause 4. Detection is layered: **(L1)** structural prevention (schema/enums make it impossible), **(L2)** 100% pre-publication human moderation, **(L3)** user reports + auto-hide, **(L4)** admin-side duplicate heuristic warning (same seller + same species + price within 10% within 7 days, BR-09x).
+The prohibited content list below is the normative source for BR-08x, is summarised at the listing-creation screen, and is incorporated into T&C clause 4. Detection is layered: **(L1)** structural prevention (schema/enums make it impossible), **(L2)** 100% pre-publication human moderation, **(L3)** user reports + auto-hide, **(L4)** admin-side duplicate heuristic warning (same seller + same species + price within 10% within 7 days, BR-029).
 
 | # | Prohibited content | Example | Detection | Action | Reference |
 |---|---|---|---|---|---|
@@ -345,7 +345,7 @@ The prohibited content list below is the normative source for BR-08x, is summari
 | Favorites | Neon PG | Deleted immediately with account deletion; otherwise life of account | Deletion job |
 | Reports (`reports`) | Neon PG | **36 months** after RESOLVED/DISMISSED | Monthly purge job |
 | Moderation log (`moderation_log`) | Neon PG | **5 years** (compliance audit trail) | Yearly purge job |
-| Notifications (`notifications`) | Neon PG | **12 months** | Monthly purge job |
+| Notifications (`notifications`) | Neon PG | **90 days** (per BR-071) | Daily housekeeping purge job |
 | Server access logs | Vercel | **90 days** (platform default window; not extended) | Vercel automatic |
 | Error traces | Sentry | **90 days** | Sentry automatic |
 | Database backups / PITR | Neon | **30 days** rolling; deleted/anonymised data therefore ages out of all backups within 30 days of purge | Neon automatic |

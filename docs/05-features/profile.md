@@ -104,3 +104,14 @@ Profile edits fire no client event (server truth: `users.updated_at`).
 - Verified-seller badge — Phase 2; schema keeps an extension point only (foundation glossary).
 - Phone-number change / account merge — not in MVP (one phone = one account, BR-010).
 - Account deletion UI — helpline-mediated per BR-015; surfaced in [settings.md](settings.md).
+
+## Acceptance checklist
+
+- [x] All 12 mandatory sections of README §2 present in order, plus this checklist per foundation §7
+- [x] Completeness gate matches BR-013 exactly (name + district; 403 `PROFILE_INCOMPLETE` on authenticated writes, never on browsing) with `returnTo` recovery via S-04
+- [x] `POST /users` once-per-account semantics and `USER_ALREADY_EXISTS` recovery per BR-010; phone read-only from Firebase with the S-15 immutability copy
+- [x] Role flags both default `true`, at least one required, and never used as permission gates per BR-011
+- [x] Fields & validation table decision-complete with EN + Devanagari MR errors; 36-district picker; digit-only/phone-number names rejected (feeds BR-066); `languagePref` defaults `MR` per BR-010
+- [x] Only canonical `/api/v1` endpoints referenced (`GET /meta/districts`, `POST /users`, `GET /users/me`, `PATCH /users/me`); screens cited as S-04/S-15 per doc 06 Flow A/D
+- [x] All five states defined including the Places API degradation edge; analytics limited to the frozen `signup_complete` event
+- [x] 8 testable acceptance criteria (≥ 6); no TBD; no contradiction with D1–D10 or docs 04/06/08

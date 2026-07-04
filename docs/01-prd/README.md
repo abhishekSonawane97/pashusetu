@@ -97,22 +97,22 @@ The 12 MVP features map 1:1 to the foundation IN-scope list ([../00-foundation/R
 
 ### 4.0 Business rules index (BR ids referenced below)
 
-Doc 04 owns the normative wording; this table fixes the ids and one-line meaning used throughout the doc set.
+Doc 04 owns the normative wording **and the canonical rule ids (three-digit `BR-0xx`)**. The two-digit ids below are **PRD-local aliases**, used only inside this document for readability; the last column maps each alias to the owning doc 04 rule(s). Downstream docs cite the doc 04 ids, never these aliases.
 
-| BR id | Rule (summary) |
-|---|---|
-| BR-01 | Photos: min 1, max 5 per listing (UI recommends 3+); each ≤ 5 MB; JPEG/PNG/WebP accepted; server stores WebP variants; no video in MVP |
-| BR-02 | Max 10 ACTIVE (non-terminal) listings per user |
-| BR-03 | Listing expires 30 days after approval; one-tap renew EXPIRED → APPROVED (+30 days) with no re-moderation if unedited |
-| BR-04 | Editing photos/description/attributes of an APPROVED listing returns it to PENDING; price-only change keeps APPROVED; SOLD listings cannot be edited or renewed |
-| BR-05 | Moderation SLA target: decision within 24 hours of submission |
-| BR-06 | ≥ 3 OPEN reports on a listing auto-move it to PENDING (hidden) and notify admin |
-| BR-07 | Duplicate heuristic (admin-side warning only): same seller + same species + price within 10%, posted within 7 days |
-| BR-08 | Bans are manual by admin; banning archives all the user's listings |
-| BR-09 | Rate limits: OTP handled entirely by Firebase client SDK (backend never sends OTP); API writes 60/min/user; interest events 20/day/buyer; reports 5/day/user |
-| BR-10 | Browse/search/detail are public; contact actions, favorites, listing creation require login; seller phone revealed ONLY via the interest endpoint after a logged-in buyer taps a contact action; every reveal logged as an interest event |
-| BR-11 | Pagination: cursor-based, default 20 per page, max 50 |
-| BR-12 | Every listing submission requires seller declaration acceptance (lawful ownership + sale complies with state law; NOT for slaughter); stored as `declaration_accepted` + timestamp |
+| PRD alias | Rule (summary) | Owning doc 04 rule(s) |
+|---|---|---|
+| BR-01 | Photos: min 1, max 5 per listing (UI recommends 3+); each ≤ 5 MB; JPEG/PNG/WebP accepted; server stores WebP variants; no video in MVP | BR-023 |
+| BR-02 | Max 10 ACTIVE (non-terminal) listings per user | BR-024 |
+| BR-03 | Listing expires 30 days after approval; one-tap renew EXPIRED → APPROVED (+30 days) with no re-moderation (EXPIRED listings are not editable, so renewal is always of unedited content) | BR-072, BR-073, BR-074 |
+| BR-04 | Editing photos/description/attributes of an APPROVED listing returns it to PENDING; price-only change keeps APPROVED; SOLD listings cannot be edited or renewed | BR-028 |
+| BR-05 | Moderation SLA target: decision within 24 hours of submission | BR-041 |
+| BR-06 | ≥ 3 OPEN reports on a listing auto-move it to PENDING (hidden) and notify admin | BR-045 |
+| BR-07 | Duplicate heuristic (admin-side warning only): same seller + same species + price within 10%, posted within 7 days | BR-029 |
+| BR-08 | Bans are manual by admin; banning archives all the user's listings | BR-014 |
+| BR-09 | Rate limits: OTP handled entirely by Firebase client SDK (backend never sends OTP); API writes 60/min/user; interest events 20/day/buyer; reports 5/day/user | BR-010, BR-090 |
+| BR-10 | Browse/search/detail are public; contact actions, favorites, listing creation require login; seller phone revealed ONLY via the interest endpoint after a logged-in buyer taps a contact action; every reveal logged as an interest event | BR-060–BR-066 |
+| BR-11 | Pagination: cursor-based, default 20 per page, max 50 | BR-090 #12 |
+| BR-12 | Every listing submission requires seller declaration acceptance (lawful ownership + sale complies with state law; NOT for slaughter); stored as `declaration_accepted` + timestamp | BR-027 |
 
 ---
 
@@ -200,11 +200,11 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 **Acceptance criteria**
 
 1. `POST /api/v1/listings` creates a DRAFT with any subset of fields; the draft persists across app restarts and is resumable from My Listings (F-07).
-2. Field validation (enforced client- and server-side): species ∈ {COW, BUFFALO, BULL_OX, GOAT, SHEEP}; breed must belong to the chosen species; sex ∈ {FEMALE, MALE}; `age_months` 1–300; `weight_kg` optional 5–1500; `price_inr` integer 500–5,000,000; `negotiable` boolean; description optional ≤ 1,000 characters; district required (seeded picker); village required (free text + Places assist); taluka optional.
-3. Milk fields (`milk_yield_lpd` 0–60, `lactation_number` 1–15, `is_pregnant`) are shown and accepted only when sex = FEMALE; `is_vaccinated` is asked for every listing. Server rejects milk fields on MALE listings with `VALIDATION_ERROR`.
+2. Field validation (enforced client- and server-side): species ∈ {COW, BUFFALO, BULL_OX, GOAT, SHEEP}; breed must belong to the chosen species; sex ∈ {FEMALE, MALE}; `age_months` 1–300; `weight_kg` optional 5–1500; `price_inr` integer 500–1,000,000 (₹500–₹10,00,000, BR-026); `negotiable` boolean; description **required**, 10–1,000 characters (BR-025); district required (seeded picker); village required (free text + Places assist); taluka optional.
+3. Milk fields (`milk_yield_lpd` 0–60, 0 = currently dry; `lactation_number` 0–15, 0 = not yet calved; `is_pregnant`) follow the BR-022 per-species matrix: `milk_yield_lpd` is **required** for COW, required for BUFFALO when sex = FEMALE, optional for female GOAT, and N/A for BULL_OX and SHEEP (never shown, must be null); `lactation_number`/`is_pregnant` follow the same matrix; `is_vaccinated` is asked for every listing. Server rejects matrix violations (e.g. `milk_yield_lpd` on a MALE or SHEEP listing) with `VALIDATION_ERROR`.
 4. Photo upload: client requests `POST /api/v1/uploads/presign` (validates content-type ∈ image/jpeg,image/png,image/webp and size ≤ 5 MB), PUTs directly to R2, then attaches via `POST /api/v1/listings/{id}/images`; min 1 / max 5 photos per listing; the UI nudges "किमान ३ फोटो टाका — जास्त फोटो, जास्त खरेदीदार" (Add at least 3 photos — more photos, more buyers); server generates and stores WebP variants.
 5. `POST /api/v1/listings/{id}/submit` succeeds only when: all required fields valid, ≥ 1 photo attached, and the seller declaration checkbox is accepted (BR-12); it sets status PENDING, stores `declaration_accepted = true` + `declaration_at`, and shows "तपासणीसाठी पाठवले. २४ तासांत मंजुरी अपेक्षित." (Sent for review. Approval expected within 24 hours.)
-6. Submitting an 11th active listing fails with HTTP 409 `LISTING_LIMIT_REACHED` and the Marathi message "एका वेळी जास्तीत जास्त १० जाहिराती. जुनी जाहिरात विकली/बंद करा." (Max 10 listings at a time. Mark an old one sold/closed.) — BR-02.
+6. Creating an 11th active listing (`POST /api/v1/listings`) fails with HTTP 409 `LISTING_LIMIT_REACHED` and the Marathi message "तुमच्या १० जाहिराती आधीच सुरू आहेत. नवीन जाहिरात टाकण्यासाठी जुनी जाहिरात 'विकले गेले' करा किंवा काढून टाका." (You already have 10 running listings. Mark an old one sold or remove it to post a new one.) — BR-02/BR-024.
 7. Editing an APPROVED listing's photos/description/attributes moves it back to PENDING with an explicit confirmation dialog first; a price-only change (with optional `negotiable` toggle) keeps it APPROVED and updates instantly — BR-04.
 8. The declaration text is shown in the active language before submit. Marathi: "मी घोषित करतो/करते की मी या जनावराचा कायदेशीर मालक आहे, ही विक्री महाराष्ट्र राज्याच्या कायद्यांनुसार आहे, आणि हे जनावर कत्तलीसाठी विकले जात नाही." (I declare I am the lawful owner of this animal, the sale complies with Maharashtra state law, and this animal is not being sold for slaughter.)
 
@@ -214,7 +214,7 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 
 - Upload interrupted mid-PUT (network drop): image never attached; orphaned R2 keys are garbage-collected by a daily job ([../09-backend/README.md](../09-backend/README.md)); user retries from the photo step without losing form data.
 - Double-tap on "Submit": endpoint is idempotent for DRAFT → PENDING; second call returns the already-PENDING listing, no duplicate.
-- HEIC/HEIF photo from an iPhone: rejected at presign with `UNSUPPORTED_MEDIA_TYPE`; client shows "फोटो JPEG/PNG मध्ये निवडा" and, where the browser supports it, transcodes via canvas before upload.
+- HEIC/HEIF photo from an iPhone: rejected at presign with 422 `INVALID_UPLOAD` (BR-023); client shows "फोटो JPEG/PNG मध्ये निवडा" and, where the browser supports it, transcodes via canvas before upload.
 - EXIF-rotated photos: server normalizes orientation when generating WebP variants, so no sideways cows.
 - Seller edits a listing while admin is reviewing it: the PENDING listing is updated in place; moderation always reviews the latest content (optimistic-lock conflict handling in F-10 AC-7).
 - Deleting the last remaining photo of a DRAFT: allowed (drafts may be photo-less); submitting remains blocked until ≥ 1 photo exists.
@@ -240,7 +240,7 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 2. Each result card shows: primary photo (WebP thumbnail), species icon, breed name (Marathi in MR mode), price with Indian digit grouping and Latin digits in both locales (e.g. "₹65,000" — never Devanagari digits, per F-12 AC-6), age, district name, and a "गाभण" (pregnant) badge when `is_pregnant = true`.
 3. Selecting a species restricts the breed picker to that species' breeds; changing species clears an incompatible breed filter; server rejects a `breedId` that does not match `species` with `VALIDATION_ERROR`.
 4. `minPrice > maxPrice`, negative prices, or an invalid/expired `cursor` return HTTP 400 `VALIDATION_ERROR`; the UI never sends such requests (client-side guards).
-5. Zero results shows the Marathi empty state "या शोधात जनावरे सापडली नाहीत. फिल्टर बदलून पाहा." (No animals found for this search. Try changing filters.) with a one-tap "फिल्टर काढा" (Clear filters) action.
+5. Zero results shows the Marathi empty state "काहीही सापडले नाही. फिल्टर बदलून पुन्हा पहा." (Nothing found. Change the filters and look again. — doc 06 `search.empty`) with a one-tap "फिल्टर काढा" (Clear filters) action.
 6. Filter and sort state is fully encoded in the URL query string; opening a shared URL reproduces the exact result view, server-side rendered.
 7. Infinite scroll loads the next cursor page automatically ≥ 300 px before the list end; a loading skeleton (not a spinner-only screen) is shown; scroll position is restored on back-navigation from a detail page.
 
@@ -275,7 +275,7 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 2. The photo carousel supports swipe, pinch-zoom on the open photo, and shows a position indicator ("2/5"); the first image is the LCP element and is preloaded (NFR-02).
 3. All populated attributes render as a labeled Marathi table; unset optional fields (e.g. weight) are omitted entirely — never shown as "null", "-" or "N/A".
 4. The seller block shows first name, village, district and member-since month — and never the phone number in page data or HTML source (BR-10); contact buttons are the only path to the number.
-5. `view_count` increments at most once per user (or anonymous session) per listing per day, and never for the listing's owner or admins; the owner sees the count on My Listings (F-07).
+5. `view_count` increments by 1 on every public detail fetch of an APPROVED listing — **no deduplication in MVP** (per-IP dedup is a Phase 2 refinement, BR-034) — and never for the listing's owner or admins; the owner sees the count on My Listings (F-07).
 6. The share action uses the Web Share API (fallback: copy link) with the prefilled Marathi text "PashuSetu वर हे जनावर पाहा: {url}" (See this animal on PashuSetu: {url}).
 7. A deleted/expired/sold listing URL shows a friendly 404 state "ही जाहिरात आता उपलब्ध नाही." (This listing is no longer available.) with a CTA back to search, returning HTTP 404 (and therefore dropping out of search indexes).
 
@@ -306,12 +306,12 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 
 **Acceptance criteria**
 
-1. All three buttons require login: an anonymous tap opens the login sheet with the context message "विक्रेत्याशी संपर्क करण्यासाठी लॉगिन करा" (Log in to contact the seller), and after successful login the original action resumes automatically.
+1. All three buttons require login: an anonymous tap opens the login sheet with the context message "विक्रेत्याशी बोलण्यासाठी आधी लॉगिन करा" (To talk to the seller, log in first — doc 06 `loginwall.title`), and after successful login the original action resumes automatically.
 2. `POST /api/v1/listings/{id}/interest` with `{ "type": "CALL" }` logs an `interest_events` row and returns the seller's E.164 phone; the client immediately opens `tel:+91...`. Type `WHATSAPP` behaves identically but opens `https://wa.me/91XXXXXXXXXX?text=` with the prefilled Marathi message "नमस्कार, मी PashuSetu वर तुमची जाहिरात पाहिली: {url}" (Hello, I saw your listing on PashuSetu: {url}).
 3. Type `INTEREST` logs the event, triggers a seller notification (F-11: SMS + in-app), and shows the buyer "विक्रेत्याला कळवले आहे" (The seller has been informed) plus the seller's phone number on screen for manual dialing.
 4. The seller's phone number never appears in any API response except this endpoint's, and never in server-rendered HTML (BR-10) — verified by an automated test in [../14-testing-qa/README.md](../14-testing-qa/README.md).
 5. Exceeding 20 interest events per buyer per day returns HTTP 429 `RATE_LIMITED` with "आजची संपर्क मर्यादा संपली. उद्या पुन्हा प्रयत्न करा." (Today's contact limit is over. Try again tomorrow.) — BR-09.
-6. A buyer tapping contact on their own listing gets HTTP 400 `CANNOT_CONTACT_OWN_LISTING`; the UI prevents this by hiding the buttons for owners (F-05 edge case).
+6. A buyer tapping contact on their own listing gets HTTP 403 `FORBIDDEN` with `details.reason = "OWN_LISTING"` (BR-062, doc 08 API-21); the UI prevents this by hiding the buttons for owners (F-05 edge case).
 7. The endpoint returns 404 `NOT_FOUND` if the listing is not APPROVED at the moment of the tap (sold/expired/hidden race), and the UI shows the unavailable state.
 
 **Business rules** — BR-09 (20/day/buyer), BR-10 (reveal-only-via-interest, every reveal logged). Details: [../04-business-rules/README.md](../04-business-rules/README.md).
@@ -319,7 +319,7 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 **Edge cases**
 
 - WhatsApp not installed: `wa.me` URL opens WhatsApp Web / Play Store interstitial — acceptable; the phone number is also visible in a toast so the buyer can call instead.
-- Repeat taps by the same buyer on the same listing same day: each tap logs an event (raw funnel data), but seller SMS for INTEREST is sent at most once per buyer-listing pair per day to prevent spam; the inquiry metric G-04 counts distinct listings, so it is unaffected.
+- Repeat taps by the same buyer on the same listing same day: each tap logs an event (raw funnel data), but INTEREST SMS to a seller is capped at 3/day/seller (rolling day, BR-090 #13) — further interest notifications are silently downgraded to in-app only; the inquiry metric G-04 counts distinct listings, so it is unaffected.
 - Seller got banned after approval but before the tap: listing was auto-archived by the ban (BR-08), so the endpoint 404s.
 - Buyer on a tablet/desktop without telephony: `tel:` fails silently on some platforms; the number remains visible in the confirmation sheet for manual dialing.
 - Two contact taps racing the 20/day limit: enforcement is atomic at the DB layer (count-then-insert in a transaction); worst case the 21st is correctly rejected.
@@ -333,7 +333,7 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 | Field | Value |
 |---|---|
 | **ID** | F-07 |
-| **Description** | Seller dashboard listing all own listings grouped by status tabs — प्रलंबित (Pending), सुरू (Active/Approved), संपलेल्या (Expired), विकल्या (Sold), नाकारल्या (Rejected), मसुदा (Draft), बंद (Archived) — with per-listing actions: edit, price update, mark sold, renew, archive, resume draft; plus view/interest counts. |
+| **Description** | Seller dashboard listing all own listings grouped by status tabs (labels per doc 06 S-11) — अपूर्ण (Draft), तपासणीत (Pending/In review), चालू (Live/Approved), विकलेल्या (Sold), नाकारलेल्या (Rejected), मुदत संपलेल्या (Expired), बंद (Archived) — with per-listing actions: edit, price update, mark sold, renew, archive, resume draft; plus view/interest counts. |
 | **Business purpose** | Keeps supply fresh (renew), keeps search honest (mark sold), and closes the rejection feedback loop (fix + resubmit) — the mechanics behind metrics G-08 and G-12. |
 | **User story** | As a farmer, I want to see the status of each of my listings and mark one sold in one tap so that buyers stop calling me after the deal is done. |
 | **Priority** | Must |
@@ -343,10 +343,10 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 
 1. `GET /api/v1/users/me/listings` returns all the seller's listings in every status, newest first, cursor-paginated (BR-11), each with `view_count` and total interest-event count.
 2. "विकले गेले" (Mark sold) is available only on APPROVED listings; it asks a one-tap confirmation, sets status SOLD + `sold_at`, and immediately removes the listing from public search; SOLD listings show no edit or renew actions (BR-04).
-3. "नूतनीकरण करा" (Renew) is available only on EXPIRED listings; one tap returns it to APPROVED with `expires_at = now + 30 days` and no re-moderation if unedited (BR-03); if the seller edits an EXPIRED listing instead, saving resubmits it as PENDING.
+3. "नूतनीकरण करा" (Renew) is available only on EXPIRED listings; one tap returns it to APPROVED with `expires_at = now + 30 days` and no re-moderation (BR-03/BR-074). EXPIRED listings cannot be edited — an edit attempt returns 409 `EDIT_NOT_ALLOWED` (BR-028); the seller renews first, then edits under the APPROVED rules (non-price edits then trigger re-moderation per BR-04).
 4. A REJECTED listing displays the admin's `rejection_reason` verbatim in Marathi with the CTA "दुरुस्त करून पुन्हा पाठवा" (Fix and resend); resubmitting moves it REJECTED → PENDING.
 5. Archive is available on any non-terminal status (DRAFT, PENDING, APPROVED, REJECTED, EXPIRED) with a confirmation warning that archived listings cannot be reopened; archived listings are visible under the बंद tab, read-only.
-6. Renewing or resubmitting is blocked when the seller already has 10 active listings, with the same `LISTING_LIMIT_REACHED` message as F-03 AC-6 (BR-02).
+6. The 10-active cap (BR-02/BR-024) is enforced only when creating a new listing (`LISTING_LIMIT_REACHED`, F-03 AC-6); renewing or resubmitting needs no extra quota check because EXPIRED and REJECTED listings already count toward the cap.
 7. Each PENDING listing shows "तपासणी सुरू आहे — साधारण २४ तास" (Under review — approx. 24 hours) with the submission timestamp, setting the SLA expectation (BR-05).
 
 **Business rules** — BR-02 (cap counts non-terminal statuses), BR-03 (renewal), BR-04 (edit/sold rules), BR-05 (SLA messaging). Details: [../04-business-rules/README.md](../04-business-rules/README.md).
@@ -357,7 +357,7 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 - Mark-sold double-tap: idempotent — second call returns the already-SOLD listing.
 - Listing expired while the seller had the screen open: renew action appears after pull-to-refresh; a stale mark-sold tap on it returns 409 and the UI refreshes the row.
 - Seller with 0 listings: empty state with "पहिली जाहिरात टाका" (Post your first listing) CTA into F-03.
-- A listing auto-hidden by reports (BR-06) appears under प्रलंबित with the note "तक्रारींमुळे तपासणीसाठी थांबवले आहे" (Paused for review due to reports).
+- A listing auto-hidden by reports (BR-06) appears under तपासणीत with the note "तक्रारींमुळे तपासणीसाठी थांबवले आहे" (Paused for review due to reports).
 
 **Future improvements** — Sold-price capture on mark-sold (feeds Phase 3 price AI); listing performance insights; bulk renew; share-my-listing shortcuts.
 
@@ -368,7 +368,7 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 | Field | Value |
 |---|---|
 | **ID** | F-08 |
-| **Description** | Logged-in users can save listings with a heart toggle on cards and detail pages, and view them under "जतन केलेल्या" (Saved). Uniqueness enforced per (user, listing). |
+| **Description** | Logged-in users can save listings with a heart toggle on cards and detail pages, and view them under "आवडत्या जाहिराती" (Favorite listings — doc 06 S-13). Uniqueness enforced per (user, listing). |
 | **Business purpose** | Buyers evaluate livestock over days and visits; favorites are the shortlist tool that brings them back (retention) and a strong demand signal for future features. |
 | **User story** | As a trader comparing several animals during the week, I want to save listings so that I can find them again quickly and decide which farms to visit. |
 | **Priority** | Should (in MVP; may ship in the last MVP sprint without blocking earlier betas) |
@@ -401,7 +401,7 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 | Field | Value |
 |---|---|
 | **ID** | F-09 |
-| **Description** | Logged-in users can flag a listing with a reason — enum FAKE ("खोटी जाहिरात"), SOLD_ALREADY ("आधीच विकले"), WRONG_INFO ("चुकीची माहिती"), SPAM ("स्पॅम"), ILLEGAL ("बेकायदेशीर"), OTHER ("इतर") — plus optional free-text details. Reports feed the admin queue; 3+ open reports auto-hide the listing. |
+| **Description** | Logged-in users can flag a listing with a reason — enum FAKE ("खोटी जाहिरात"), SOLD_ALREADY ("आधीच विकले गेले"), WRONG_INFO ("चुकीची माहिती"), SPAM ("स्पॅम"), ILLEGAL ("बेकायदेशीर"), OTHER ("इतर") — plus free-text details (optional except for OTHER, BR-050). Reports feed the admin queue; 3+ open reports auto-hide the listing. |
 | **Business purpose** | Community policing scales moderation beyond one admin and is a core trust mechanism ("Trust Over Speed"); the auto-hide rule caps the damage window of a bad listing that slipped through. |
 | **User story** | As a buyer who called a seller and found the animal was already sold, I want to report the listing so that other buyers don't waste their time. |
 | **Priority** | Must |
@@ -412,9 +412,9 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 1. "तक्रार करा" (Report) on the detail page opens a sheet with the six reason options as large tappable rows (icon + Marathi text) and an optional details field (≤ 500 chars); submission calls `POST /api/v1/listings/{id}/report`.
 2. A successful report shows "तक्रार नोंदवली. आम्ही तपासू." (Report recorded. We will check.) and creates an OPEN `reports` row.
 3. When a listing reaches 3 OPEN reports, it transitions APPROVED → PENDING automatically (hidden from public), an `AUTO_HIDE` entry is written to `moderation_log`, and the admin is notified in-app (BR-06); the count check and transition are atomic.
-4. One OPEN report per user per listing: a second report while the first is OPEN returns 409 `ALREADY_REPORTED` ("तुमची तक्रार आधीच नोंदलेली आहे" — Your report is already recorded).
+4. One OPEN report per user per listing: a second report while the first is OPEN returns 409 `REPORT_ALREADY_EXISTS` ("तुमची तक्रार आधीच नोंदलेली आहे" — Your report is already recorded).
 5. More than 5 reports by one user in a day returns 429 `RATE_LIMITED` (BR-09).
-6. Reporting your own listing is blocked with 400 `VALIDATION_ERROR`; reporting a non-APPROVED listing returns 404 (public users cannot see such listings anyway).
+6. Reporting your own listing is blocked with 403 `FORBIDDEN` (reporter ≠ seller, BR-050); reporting a non-APPROVED listing returns 409 `LISTING_NOT_REPORTABLE` (public users cannot see such listings anyway).
 7. The reporter's identity is never revealed to the seller in any UI or notification.
 
 **Business rules** — BR-06 (auto-hide at ≥ 3), BR-09 (5/day/user). Details: [../04-business-rules/README.md](../04-business-rules/README.md).
@@ -422,9 +422,9 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 **Edge cases**
 
 - Two reports land simultaneously as #2 and #3: the transactional count guarantees exactly one AUTO_HIDE transition and one admin notification.
-- Admin dismisses all reports on an auto-hidden listing: the listing returns to APPROVED via the admin approve action with its original `expires_at` preserved (it does not gain 30 fresh days).
+- Admin dismisses all reports on an auto-hidden listing: the listing returns to APPROVED via the normal admin approve action, which — like every approval — resets `expires_at = now + 30 days` (T-03/BR-045/BR-073); there is no automatic restore, a human always re-approves.
 - Coordinated malicious reporting (3 accounts targeting a rival seller): the listing hides but the admin sees reporter details and can dismiss + ban abusers (F-10); accepted MVP trade-off, favoring buyer protection over seller convenience.
-- Reason OTHER with empty details: allowed; admin triage handles it (details strongly encouraged in UI copy).
+- Reason OTHER with empty details: rejected — `details` is **mandatory for OTHER** (BR-050, 422 `VALIDATION_ERROR`); for all other reasons details stay optional (strongly encouraged in UI copy).
 
 **Future improvements** — Reporter feedback ("your report led to removal"); reporter reputation weighting; photo-evidence attachment; auto-detection of repeated offender patterns.
 
@@ -445,8 +445,8 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 
 1. All `/api/v1/admin/*` endpoints return 403 `FORBIDDEN` for any caller whose user row lacks `is_admin = true` (checked server-side per request; no client-side-only gating) — see [../12-security/README.md](../12-security/README.md).
 2. `GET /api/v1/admin/listings?status=PENDING` lists the queue oldest-submitted first, showing per row: photos, all attributes, seller profile summary (name, district, join date, prior listing count, prior rejections), and queue age with a visual warning at > 18 h (SLA guard, BR-05).
-3. `POST /api/v1/admin/listings/{id}/approve` sets APPROVED, `approved_at = now`, `expires_at = now + 30 days`, logs APPROVE in `moderation_log`, and triggers the seller notification (F-11). For a listing re-approved after report-driven auto-hide, the original `expires_at` is preserved instead.
-4. `POST /api/v1/admin/listings/{id}/reject` requires a non-empty reason (400 otherwise); the panel offers one-tap Marathi reason templates — "फोटो अस्पष्ट आहेत" (Photos unclear), "माहिती अपूर्ण आहे" (Information incomplete), "किंमत अवास्तव आहे" (Price unrealistic), "नियमांचे उल्लंघन" (Rules violation / suspected slaughter intent) — plus free text; the reason reaches the seller verbatim (F-07 AC-4, F-11).
+3. `POST /api/v1/admin/listings/{id}/approve` sets APPROVED, `approved_at = now`, `expires_at = now + 30 days`, logs APPROVE in `moderation_log`, and triggers the seller notification (F-11). **Every** approval — including re-approval after an edit or a report-driven auto-hide — resets `expires_at = now + 30 days` (T-03/BR-073; partial windows never carry over).
+4. `POST /api/v1/admin/listings/{id}/reject` requires `reason` to be one of the eight BR-043 taxonomy codes, offered as one-tap options with their canonical Marathi seller-facing labels — `SLAUGHTER_INTENT` (कत्तलीच्या उद्देशाचा संशय), `POOR_PHOTOS` (फोटो स्पष्ट नाहीत), `WRONG_CATEGORY` (चुकीची जात/प्रकार निवडला आहे), `DUPLICATE` (हीच जाहिरात आधीच टाकली आहे), `FRAUD_SUSPECTED` (माहिती खोटी असल्याचा संशय), `PRICE_ABUSE` (किंमत अवास्तव आहे), `CONTACT_IN_DESCRIPTION` (वर्णनात फोन नंबर/संपर्क लिहू नका), `OTHER` (इतर कारण) — with free-text `detail` optional except **mandatory for `OTHER`** (missing/unknown reason or missing OTHER detail → `VALIDATION_ERROR`, doc 08 API-27); the Marathi reason label (plus any detail) reaches the seller verbatim (F-07 AC-4, F-11).
 5. The queue shows a duplicate warning banner "संभाव्य डुप्लिकेट" when the BR-07 heuristic matches (same seller + species + price within 10% + within 7 days), linking the suspected sibling listing; it is advisory only and never blocks approval.
 6. `GET /api/v1/admin/reports?status=OPEN` lists open reports grouped by listing with reason counts; resolve (`POST .../resolve` — upholds the report; admin then rejects/archives the listing) and dismiss (`POST .../dismiss`) both require the report id and log RESOLVE_REPORT / DISMISS_REPORT.
 7. `POST /api/v1/admin/users/{id}/ban` requires a reason, sets user status BANNED, archives all their listings in the same transaction (BR-08), logs BAN, and sends the ban SMS (F-11); unban restores ACTIVE but does not restore archived listings.
@@ -481,12 +481,12 @@ Doc 04 owns the normative wording; this table fixes the ids and one-line meaning
 
 **Acceptance criteria**
 
-1. Every trigger event in the FR-04 table writes a `notifications` row with `type`, `payload` (jsonb: listingId, reason, buyerName as applicable), `channel` and `status = PENDING`; the SMS worker sends via MSG91 and updates status to SENT or FAILED.
-2. SMS templates are Marathi Unicode, ≤ 350 characters, each containing a short link. Approved: "PashuSetu: तुमची जाहिरात मंजूर झाली! ती आता ३० दिवस खरेदीदारांना दिसेल. {link}". Rejected: "PashuSetu: तुमची जाहिरात मंजूर झाली नाही. कारण: {reason}. दुरुस्त करून पुन्हा पाठवा: {link}". Interest: "PashuSetu: {buyerName} यांनी तुमच्या जाहिरातीत आवड दाखवली आहे. {link}".
-3. Failed SMS sends are retried up to 3 times with exponential backoff; after the third failure status is FAILED and the in-app copy still exists (in-app is the always-on fallback).
+1. Every trigger event in the FR-04 table writes a `notifications` row with `type`, `payload` (jsonb: listingId, reason as applicable — buyer identity is never included, BR-071), `channel` and `status = PENDING`; the SMS worker sends via MSG91 and updates status to SENT or FAILED.
+2. SMS templates are Marathi Unicode, ≤ 350 characters, with copy locked in BR-071 (doc 04). Approved (`NTF-LISTING-APPROVED`): "PashuSetu: तुमची जाहिरात मंजूर झाली! ती आता खरेदीदारांना दिसत आहे. {listingUrl}". Rejected (`NTF-LISTING-REJECTED`): "PashuSetu: तुमची जाहिरात मंजूर झाली नाही. कारण: {reasonMr}. कृपया दुरुस्त करून पुन्हा पाठवा.". Interest (`NTF-INTEREST-RECEIVED`): "PashuSetu: एका खरेदीदाराने तुमच्या जनावरात रस दाखवला आहे. अ‍ॅपमध्ये पाहा. {listingUrl}" (deliberately nameless — no {buyerName} variable exists in the DLT slot set).
+3. SMS dispatch is async and best-effort after the DB commit (the notification row is created inside the triggering transaction); failed sends are marked FAILED, and the daily housekeeping job re-attempts FAILED and stuck-PENDING SMS rows younger than 24 h **once per run**, after which they are abandoned ([../09-backend/README.md](../09-backend/README.md) §8.3); the in-app copy still exists (in-app is the always-on fallback).
 4. SMS sends are queued outside 08:00–21:00 IST and flushed at the next window start (quiet-hours rule); in-app rows are created immediately regardless of time.
 5. The bell icon shows the unread count (max display "9+"); `GET /api/v1/users/me/notifications` returns newest first, cursor-paginated; tapping an item marks it read via `POST /api/v1/notifications/{id}/read` and deep-links to the relevant listing.
-6. Per-buyer-per-listing INTEREST SMS to a seller is capped at 1/day (F-06 edge case); all interest taps still appear in-app.
+6. INTEREST SMS to a seller is capped at 3/day/seller (rolling day, BR-071/BR-090 #13); the 4th and later interest notifications in a day are silently downgraded to in-app only — all interest taps still appear in-app (F-06 edge case).
 7. Notifications render in the recipient's `language_pref` (in-app); SMS is always Marathi in MVP (single DLT template set).
 
 **Business rules** — BR-09 (SMS never used for OTP — Firebase owns OTP). Details: [../04-business-rules/README.md](../04-business-rules/README.md).
@@ -591,13 +591,14 @@ SOLD and ARCHIVED are terminal — they never return to market. Only APPROVED li
 |---|---|---|---|---|
 | N-01 | Listing approved | SMS + INAPP | Seller | Template in F-11 AC-2 |
 | N-02 | Listing rejected | SMS + INAPP | Seller | Includes `rejection_reason` verbatim |
-| N-03 | Interest received (type INTEREST) | SMS + INAPP | Seller | SMS capped 1/day per buyer-listing pair |
-| N-04 | Contact tap (type CALL or WHATSAPP) | INAPP | Seller | The call itself is the contact; no SMS |
+| N-03 | Interest received (type INTEREST) | INAPP always; SMS for the first 3 interest SMS per seller per day | Seller | Further ones silently downgraded to INAPP-only (BR-071/BR-090 #13) |
+| N-04 | Contact tap (type CALL or WHATSAPP) | — none | — | No notification (BR-062): the call itself is the contact; the tap is logged as an interest event only |
 | N-05 | Listing expiring in 3 days | SMS + INAPP | Seller | "3 दिवसांत संपेल — नूतनीकरण करा: {link}" |
 | N-06 | Listing expired | INAPP | Seller | Renew deep link |
 | N-07 | Listing auto-hidden by reports | INAPP | Seller + Admin | BR-06; seller copy avoids revealing reporters |
 | N-08 | New listing entered PENDING | INAPP | Admin | Feeds queue badge in F-10 |
 | N-09 | Account banned | SMS | User | Includes grievance contact per IT Rules 2021 |
+| N-10 | Account unbanned | SMS | User | `NTF-USER-UNBANNED` (BR-071) |
 
 ### FR-05 — Rate limiting
 
@@ -605,11 +606,11 @@ Per BR-09: API write endpoints 60/min/user; interest 20/day/buyer; reports 5/day
 
 ### FR-06 — Pagination
 
-All list endpoints use opaque cursor pagination (BR-11): request `?cursor=<opaque>&limit=<n>`, default 20, hard max 50 (larger values clamped to 50); response carries `items[]` and `nextCursor` (null on last page). Cursors are keyset-based so concurrent inserts/removals never duplicate or skip pages.
+All list endpoints use opaque cursor pagination (BR-11): request `?cursor=<opaque>&limit=<n>`, default 20, hard max 50 — `limit > 50` or `< 1` is rejected with 422 `VALIDATION_ERROR` (BR-090 #12, doc 08 §1.4), never clamped; response carries `items[]` and `nextCursor` (null on last page). Cursors are keyset-based so concurrent inserts/removals never duplicate or skip pages.
 
 ### FR-07 — Error envelope & core codes
 
-Every non-2xx API response uses `{ "error": { "code": "STRING_CODE", "message": "...", "details": {...} } }`. Core codes used in this PRD: `VALIDATION_ERROR` (400), `UNAUTHENTICATED` (401), `FORBIDDEN` / `USER_BANNED` (403), `NOT_FOUND` (404), `ALREADY_REPORTED` / `LISTING_LIMIT_REACHED` / `INVALID_STATE_TRANSITION` (409), `UNSUPPORTED_MEDIA_TYPE` (415), `RATE_LIMITED` (429), `INTERNAL` (500). The full registry is owned by [../08-api/README.md](../08-api/README.md). `message` is developer-facing English; the client maps `code` to localized user copy (F-12).
+Every non-2xx API response uses `{ "error": { "code": "STRING_CODE", "message": "...", "details": {...} } }`. Core codes used in this PRD: `VALIDATION_ERROR` (400 malformed request or 422 domain field rule, per doc 08 §1.3), `UNAUTHENTICATED` (401), `FORBIDDEN` / `USER_BANNED` (403), `NOT_FOUND` (404), `REPORT_ALREADY_EXISTS` / `LISTING_NOT_REPORTABLE` / `LISTING_LIMIT_REACHED` / `INVALID_STATE_TRANSITION` / `EDIT_NOT_ALLOWED` (409), `UNSUPPORTED_MEDIA_TYPE` (415, non-JSON request body only), `INVALID_UPLOAD` (422), `RATE_LIMITED` (429), `INTERNAL` (500). The full registry is owned by [../08-api/README.md](../08-api/README.md). `message` is developer-facing English; the client maps `code` to localized user copy (F-12).
 
 ### FR-08 — Seller phone reveal policy
 
@@ -617,11 +618,11 @@ The seller's phone number appears in exactly one API response in the whole syste
 
 ### FR-09 — View counting
 
-`view_count` increments on listing-detail render, deduplicated per (viewer identity or anonymous session cookie) per listing per day, excluding the owner and admins. Counting is best-effort (fire-and-forget write); it is a seller-facing engagement signal, not a billing-grade metric.
+`view_count` increments by 1 on every public detail fetch of an APPROVED listing — **no deduplication in MVP** (per-IP dedup is a Phase 2 refinement, BR-034) — excluding the owner and admins. Counting is best-effort (fire-and-forget write); it is a seller-facing engagement signal, not a billing-grade metric.
 
 ### FR-10 — Expiry sweep
 
-A scheduled job (Vercel Cron, hourly) transitions APPROVED listings with `expires_at < now` to EXPIRED and enqueues N-05 (at T-3 days) and N-06 notifications. The job is idempotent and safe to re-run; specifics in [../09-backend/README.md](../09-backend/README.md) and [../13-deployment/README.md](../13-deployment/README.md).
+A scheduled job (Vercel Cron, daily at 02:30 IST / 21:00 UTC per BR-072) transitions APPROVED listings with `expires_at < now` to EXPIRED and enqueues N-05 (at T-3 days) and N-06 notifications. The job is idempotent and safe to re-run; specifics in [../09-backend/README.md](../09-backend/README.md) and [../13-deployment/README.md](../13-deployment/README.md).
 
 ### FR-11 — Duplicate warning
 
@@ -810,9 +811,9 @@ AI price estimation (trained on Phase 2 sold-price data) · transport partner ma
 - [x] All NFRs carry numeric budgets (TTI/LCP/CLS/page-weight/image-size/latency/availability/capacity figures stated)
 - [x] All canonical API paths referenced match the `/api/v1` surface exactly; entity/field names match the canonical data model
 - [x] Listing state machine summary matches the canonical transitions; doc 04 credited as owner; SOLD/ARCHIVED terminal
-- [x] Business rule constants (photos 1–5/≤5 MB, 10 active listings, 30-day expiry, 24 h SLA, 3-report auto-hide, rate limits, cursor pagination 20/50, declaration) match canonical values via BR-01–BR-12
+- [x] Business rule constants (photos 1–5/≤5 MB, 10 active listings, 30-day expiry, 24 h SLA, 3-report auto-hide, rate limits, cursor pagination 20/50, declaration) match canonical doc 04 values via the §4.0 alias table (PRD-local BR-01–BR-12 → doc 04 BR-0xx)
 - [x] Marathi strings are real Devanagari with English glosses, in a simple rural-friendly register
 - [x] Notification triggers table present (event → channel → recipient), consistent with `notifications` channels SMS|INAPP
 - [x] Beta release gate is a concrete checklist with measurable exit criteria
-- [x] No "TBD"/"TODO"/open questions; every value not fixed by the foundation doc is chosen and stated inline (e.g. price range ₹500–₹50,00,000, quiet hours 08:00–21:00 IST, hourly expiry cron, one open report per user per listing)
+- [x] No "TBD"/"TODO"/open questions; every value not fixed by the foundation doc is chosen and stated inline (e.g. price range ₹500–₹10,00,000, quiet hours 08:00–21:00 IST, daily 02:30 IST expiry cron per BR-072, one open report per user per listing)
 - [x] Header table and cross-references use relative links to sibling docs; document format complies with foundation §7
