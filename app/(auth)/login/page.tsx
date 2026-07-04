@@ -232,11 +232,7 @@ function LoginFlow() {
           पुढे जा
         </Button>
       </form>
-      <Button
-        variant="ghost"
-        disabled={resendWait > 0 || busy}
-        onClick={() => void sendOtp()}
-      >
+      <Button variant="ghost" disabled={resendWait > 0 || busy} onClick={() => void sendOtp()}>
         {resendWait > 0 ? `पुन्हा पाठवा — ${resendWait} से` : 'OTP पुन्हा पाठवा'}
       </Button>
       <div id="recaptcha-container" />

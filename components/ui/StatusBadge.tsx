@@ -14,7 +14,11 @@ const STATUS: Record<ListingStatus, { labelMr: string; bg: string; fg: string }>
     fg: 'var(--status-rejected-fg)',
   },
   SOLD: { labelMr: 'विकले गेले', bg: 'var(--status-sold-bg)', fg: 'var(--status-sold-fg)' },
-  EXPIRED: { labelMr: 'मुदत संपली', bg: 'var(--status-expired-bg)', fg: 'var(--status-expired-fg)' },
+  EXPIRED: {
+    labelMr: 'मुदत संपली',
+    bg: 'var(--status-expired-bg)',
+    fg: 'var(--status-expired-fg)',
+  },
   ARCHIVED: { labelMr: 'बंद', bg: 'var(--status-archived-bg)', fg: 'var(--status-archived-fg)' },
 }
 
