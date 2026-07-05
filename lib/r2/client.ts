@@ -22,6 +22,15 @@ export function getS3(): S3Client {
     credentials: { accessKeyId, secretAccessKey },
     // MinIO needs path-style (bucket in the path, not the host); R2 uses vhost.
     forcePathStyle: process.env.R2_FORCE_PATH_STYLE === '1',
+    // AWS SDK v3 defaults to WHEN_SUPPORTED, which stamps CRC32 flexible-checksum
+    // params (x-amz-sdk-checksum-algorithm / x-amz-checksum-crc32) into presigned
+    // PutObject URLs. That makes the client expect the body sent with an aws-chunked
+    // trailing checksum a browser fetch() cannot produce, so the presigned upload
+    // PUT intermittently aborts against MinIO (and fails outright against R2, which
+    // rejects the trailing checksum). WHEN_REQUIRED omits checksums for ops that
+    // don't require them (PutObject), so the presigned PUT is a plain body upload.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
   })
   return client
 }
