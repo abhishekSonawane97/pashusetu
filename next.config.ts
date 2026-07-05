@@ -45,6 +45,8 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'img.pashusetu.in' },
       { protocol: 'https', hostname: 'img-dev.pashusetu.in' },
+      // Dev: local MinIO (S3-compatible) serves listing images; prod uses R2 (D4).
+      { protocol: 'http', hostname: 'localhost', port: '9000' },
     ],
   },
   async headers() {

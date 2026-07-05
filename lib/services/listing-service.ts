@@ -31,7 +31,7 @@ function toCard(row: ListingCardRow): ListingCard {
     district: row.district!,
     taluka: row.taluka,
     village: row.village!,
-    thumbnailUrl: row.images[0]?.url ?? null,
+    thumbnailUrl: cardThumb(row.images[0]?.url),
     approvedAt: row.approvedAt!.toISOString(),
   }
 }
@@ -41,12 +41,14 @@ function cursorKeyFor(sort: SearchQuery['sort'], row: ListingCardRow): CursorKey
   return row.createdAt.toISOString()
 }
 
-// Three named URLs per doc 08 ListingDetail image shape. Until the R2 image
-// pipeline (doc 09 §7, account-gated) generates distinct variants, all three
-// point at the stored URL — the contract shape is honored now, the variant
-// bytes land with the pipeline slice.
-function imageUrls(url: string) {
-  return { thumb: url, card: url, detail: url }
+// ListingImage.url stores the variant BASE (doc 09 §7); the three named URLs
+// (doc 08 ListingDetail shape) append the variant filename. Cards use the
+// card-sized variant to stay within the 3G weight budget (NFR-01).
+function imageUrls(base: string) {
+  return { thumb: `${base}/thumb.webp`, card: `${base}/card.webp`, detail: `${base}/detail.webp` }
+}
+function cardThumb(base: string | undefined): string | null {
+  return base ? `${base}/card.webp` : null
 }
 
 type DetailRow = import('@/lib/repositories/listing-repo').ListingDetailRow
@@ -388,7 +390,7 @@ function toOwnItem(r: OwnListingRow) {
     district: r.district,
     taluka: r.taluka,
     village: r.village,
-    thumbnailUrl: r.images[0]?.url ?? null,
+    thumbnailUrl: cardThumb(r.images[0]?.url),
     approvedAt: r.approvedAt?.toISOString() ?? null,
     status: r.status,
     rejectionReason: r.rejectionReason,

@@ -169,6 +169,35 @@ export async function countImages(listingId: string): Promise<number> {
 }
 
 /**
+ * Attach an image with the ≤5 photo cap (BR-023) enforced atomically: count +
+ * insert (sort_order = current count, cover = 0) in one tx. Returns null if the
+ * listing is already at the limit.
+ */
+export async function addImageWithLimit(
+  listingId: string,
+  data: { r2Key: string; url: string; width: number; height: number },
+  limit: number,
+): Promise<{ imageId: string; sortOrder: number } | null> {
+  return prisma.$transaction(async (tx) => {
+    const count = await tx.listingImage.count({ where: { listingId } })
+    if (count >= limit) return null
+    const img = await tx.listingImage.create({
+      data: { listingId, ...data, sortOrder: count },
+      select: { id: true, sortOrder: true },
+    })
+    return { imageId: img.id, sortOrder: img.sortOrder }
+  })
+}
+
+export function findImage(listingId: string, imageId: string) {
+  return prisma.listingImage.findFirst({ where: { id: imageId, listingId } })
+}
+
+export async function deleteImageRow(imageId: string): Promise<void> {
+  await prisma.listingImage.delete({ where: { id: imageId } })
+}
+
+/**
  * Submit transition T-02 (DRAFT→PENDING) / T-05 (REJECTED→PENDING) with a
  * status precondition in the WHERE clause (BR-033) so concurrent requests can't
  * double-fire. Returns null if the row wasn't in a submittable state.
