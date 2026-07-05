@@ -9,7 +9,10 @@ import type { Metadata } from 'next'
 import { AppError } from '@/lib/errors/app-error'
 import * as listingService from '@/lib/services/listing-service'
 import { PhotoCarousel } from '@/components/listings/PhotoCarousel'
+import { ListingJsonLd } from '@/components/listings/ListingJsonLd'
 import { Icon } from '@/components/ui/Icon'
+
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://pashusetu.in'
 import { ageMonthsToMr, formatInr, timeSinceMr } from '@/lib/utils/format'
 import type { Species } from '@/lib/validation/common'
 
@@ -88,6 +91,15 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
 
   return (
     <main className="pb-24">
+      <ListingJsonLd
+        id={d.id as string}
+        title={title}
+        description={d.description as string | null}
+        priceInr={d.priceInr as number}
+        imageUrl={images[0]?.urls.detail ?? null}
+        status={d.status as string}
+        baseUrl={BASE_URL}
+      />
       <PhotoCarousel photos={images} alt={title} />
 
       <div className="flex flex-col gap-4 p-4">

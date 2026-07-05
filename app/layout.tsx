@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Lato, Noto_Sans_Devanagari } from 'next/font/google'
 import './globals.css'
+import { OfflineBanner } from '@/components/pwa/OfflineBanner'
+import { ServiceWorkerRegistrar } from '@/components/pwa/ServiceWorkerRegistrar'
 
 // Type pairing per the designer's tokens.css (§Type, CR-01): Lato carries Latin
 // + digits, Noto Sans Devanagari carries the Marathi (default) script.
@@ -34,7 +36,11 @@ export default function RootLayout({
       lang="mr"
       className={`${notoSansDevanagari.variable} ${lato.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <OfflineBanner />
+        {children}
+        <ServiceWorkerRegistrar />
+      </body>
     </html>
   )
 }
