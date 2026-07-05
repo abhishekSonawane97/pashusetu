@@ -30,7 +30,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
             src={listing.thumbnailUrl}
             alt={title}
             fill
-            sizes="(max-width: 480px) 50vw, 240px"
+            sizes="(min-width: 1024px) 250px, (min-width: 768px) 380px, 50vw"
             className="object-cover"
           />
         ) : (

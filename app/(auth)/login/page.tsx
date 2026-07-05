@@ -16,6 +16,7 @@ import {
 import { getFirebaseAuth } from '@/lib/firebase/client'
 import { apiFetch } from '@/lib/api/client'
 import { Button } from '@/components/ui/Button'
+import { Container } from '@/components/layout/Container'
 import { TextField } from '@/components/ui/Field'
 import {
   MAX_WRONG_ATTEMPTS,
@@ -242,8 +243,10 @@ function LoginFlow() {
 
 export default function LoginPage() {
   return (
-    <Suspense>
-      <LoginFlow />
-    </Suspense>
+    <Container variant="form">
+      <Suspense>
+        <LoginFlow />
+      </Suspense>
+    </Container>
   )
 }

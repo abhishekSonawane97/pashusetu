@@ -36,7 +36,7 @@ export default function HomePage() {
       <h2 className="mt-2 text-[20px] font-bold">नवीन जाहिराती</h2>
       <Suspense
         fallback={
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="aspect-[3/4] w-full" />
             ))}

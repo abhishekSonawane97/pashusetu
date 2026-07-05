@@ -218,7 +218,7 @@ export default function AdminQueuePage() {
       )}
 
       {items && items.length > 0 && (
-        <ul className="flex flex-col gap-4">
+        <ul className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {items.map((l) => {
             const sla = slaBadge(l.moderation.queueAgeHours)
             return (

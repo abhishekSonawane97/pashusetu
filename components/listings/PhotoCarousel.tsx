@@ -45,7 +45,7 @@ export function PhotoCarousel({ photos, alt }: { photos: Photo[]; alt: string })
               src={p.urls.detail}
               alt={alt}
               fill
-              sizes="100vw"
+              sizes="(min-width: 768px) 768px, 100vw"
               className="object-cover"
               priority={false}
             />

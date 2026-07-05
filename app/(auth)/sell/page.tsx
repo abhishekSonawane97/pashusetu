@@ -10,6 +10,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import { AuthGate } from '@/components/auth/AuthGate'
+import { Container } from '@/components/layout/Container'
 import { Icon } from '@/components/ui/Icon'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -194,13 +195,19 @@ function MyListingsInner() {
         </ul>
       )}
 
-      <Link
-        href="/sell/new"
-        className="fixed bottom-24 right-4 flex min-h-[var(--touch-min)] items-center gap-2 rounded-full bg-[var(--color-primary)] px-5 font-bold text-[var(--color-on-primary)] shadow-card"
-      >
-        <Icon name="plus" size={20} />
-        नवीन जाहिरात
-      </Link>
+      {/* FAB rides a centered fixed track capped to the content column, so the pill
+          sits at the column's right edge on desktop (identical to right-4 on phones,
+          where max-w-3xl never binds). pointer-events-none lets taps pass through the
+          invisible track to content behind it. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-24 z-40 mx-auto w-full max-w-3xl px-4">
+        <Link
+          href="/sell/new"
+          className="pointer-events-auto ml-auto flex w-fit min-h-[var(--touch-min)] items-center gap-2 rounded-full bg-[var(--color-primary)] px-5 font-bold text-[var(--color-on-primary)] shadow-card"
+        >
+          <Icon name="plus" size={20} />
+          नवीन जाहिरात
+        </Link>
+      </div>
     </div>
   )
 }
@@ -208,9 +215,11 @@ function MyListingsInner() {
 export default function MyListingsPage() {
   return (
     <AuthGate>
-      <Suspense>
-        <MyListingsInner />
-      </Suspense>
+      <Container variant="wide">
+        <Suspense>
+          <MyListingsInner />
+        </Suspense>
+      </Container>
     </AuthGate>
   )
 }

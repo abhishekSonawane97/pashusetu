@@ -9,6 +9,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { apiFetch } from '@/lib/api/client'
 import { Button } from '@/components/ui/Button'
+import { Container } from '@/components/layout/Container'
 import { SelectField, TextField } from '@/components/ui/Field'
 
 type District = { id: string; nameEn: string; nameMr: string }
@@ -121,8 +122,10 @@ function ProfileSetup() {
 
 export default function ProfilePage() {
   return (
-    <Suspense>
-      <ProfileSetup />
-    </Suspense>
+    <Container variant="form">
+      <Suspense>
+        <ProfileSetup />
+      </Suspense>
+    </Container>
   )
 }

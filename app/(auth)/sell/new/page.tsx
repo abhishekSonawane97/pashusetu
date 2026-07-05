@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AuthGate } from '@/components/auth/AuthGate'
+import { Container } from '@/components/layout/Container'
 import { Button } from '@/components/ui/Button'
 import { SelectField, TextField } from '@/components/ui/Field'
 import { Icon } from '@/components/ui/Icon'
@@ -431,7 +432,9 @@ function WizardInner() {
 export default function SellNewPage() {
   return (
     <AuthGate>
-      <WizardInner />
+      <Container variant="form">
+        <WizardInner />
+      </Container>
     </AuthGate>
   )
 }
