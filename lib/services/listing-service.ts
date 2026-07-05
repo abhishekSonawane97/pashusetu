@@ -6,6 +6,7 @@ import { AppError } from '@/lib/errors/app-error'
 import { decodeCursor, encodeCursor, type CursorKey } from '@/lib/api/cursor'
 import type { ListingCard, Paginated } from '@/lib/api/types'
 import type { SearchQuery } from '@/lib/validation/search'
+import type { AuthContext } from '@/lib/auth/auth-context'
 import * as listingRepo from '@/lib/repositories/listing-repo'
 import type { ListingCardRow } from '@/lib/repositories/listing-repo'
 import { prisma } from '@/lib/prisma'
@@ -32,6 +33,89 @@ function toCard(row: ListingCardRow): ListingCard {
 function cursorKeyFor(sort: SearchQuery['sort'], row: ListingCardRow): CursorKey {
   if (sort === 'price_asc' || sort === 'price_desc') return row.priceInr!
   return row.createdAt.toISOString()
+}
+
+// Three named URLs per doc 08 ListingDetail image shape. Until the R2 image
+// pipeline (doc 09 §7, account-gated) generates distinct variants, all three
+// point at the stored URL — the contract shape is honored now, the variant
+// bytes land with the pipeline slice.
+function imageUrls(url: string) {
+  return { thumb: url, card: url, detail: url }
+}
+
+export async function getDetail(id: string, viewer: AuthContext | null) {
+  const row = await listingRepo.findDetailById(id)
+  if (!row) throw AppError.listingNotFound()
+
+  const isOwner = viewer?.user.id === row.sellerId
+  const isAdmin = viewer?.user.isAdmin ?? false
+  const privileged = isOwner || isAdmin
+
+  // Visibility (doc 08 §4.3 / BR-034): non-APPROVED is 404 to the public. SOLD
+  // carries publicState so S-07 can show the sold banner; other hidden statuses
+  // never confirm existence beyond "unavailable".
+  if (row.status !== 'APPROVED' && !privileged) {
+    throw AppError.listingNotFound(row.status === 'SOLD' ? 'SOLD' : 'UNAVAILABLE')
+  }
+
+  // +1 view only on public fetches of APPROVED listings (BR-034); owner/admin never.
+  if (row.status === 'APPROVED' && !privileged) {
+    await listingRepo.incrementViewCount(id)
+  }
+
+  const activeListingCount = await listingRepo.countApprovedBySeller(row.sellerId)
+  const isFavorited = viewer ? await listingRepo.isFavorited(viewer.user.id, id) : false
+
+  const detail: Record<string, unknown> = {
+    id: row.id,
+    status: row.status,
+    species: row.species,
+    breed: row.breed,
+    sex: row.sex,
+    ageMonths: row.ageMonths,
+    weightKg: row.weightKg,
+    milkYieldLpd: row.milkYieldLpd == null ? null : Number(row.milkYieldLpd),
+    lactationNumber: row.lactationNumber,
+    isPregnant: row.isPregnant,
+    isVaccinated: row.isVaccinated,
+    priceInr: row.priceInr,
+    negotiable: row.negotiable,
+    description: row.description,
+    district: row.district,
+    taluka: row.taluka,
+    village: row.village,
+    images: row.images.map((img) => ({
+      id: img.id,
+      sortOrder: img.sortOrder,
+      width: img.width,
+      height: img.height,
+      urls: imageUrls(img.url),
+    })),
+    viewCount: row.viewCount,
+    createdAt: row.createdAt.toISOString(),
+    approvedAt: row.approvedAt?.toISOString() ?? null,
+    seller: {
+      id: row.seller.id,
+      firstName: row.seller.name.trim().split(/\s+/)[0], // first name only (BR-066)
+      village: row.seller.village,
+      district: row.seller.district,
+      memberSince: row.seller.createdAt.toISOString().slice(0, 7), // YYYY-MM
+      activeListingCount,
+    },
+    viewer: viewer ? { isOwner, isFavorited } : null,
+  }
+
+  // Owner/admin extension: six extra fields, omitted entirely for the public.
+  if (privileged) {
+    detail.rejectionReason = row.rejectionReason
+    detail.expiresAt = row.expiresAt?.toISOString() ?? null
+    detail.soldAt = row.soldAt?.toISOString() ?? null
+    detail.declarationAccepted = row.declarationAccepted
+    detail.declarationAt = row.declarationAt?.toISOString() ?? null
+    detail.updatedAt = row.updatedAt.toISOString()
+  }
+
+  return detail
 }
 
 export async function search(query: SearchQuery): Promise<Paginated<ListingCard>> {

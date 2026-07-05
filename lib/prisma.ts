@@ -3,6 +3,11 @@
 // Neon URL (DATABASE_URL, doc 07 §8.3); migrations/CLI use DIRECT_URL via
 // prisma.config.ts. The singleton survives dev hot-reloads and is reused across
 // warm serverless invocations.
+//
+// The client is created LAZILY on first property access (via a Proxy) so that
+// importing this module never throws when DATABASE_URL is absent — services and
+// repos can be imported in DB-free unit tests (which mock the repo layer)
+// without a live connection string.
 
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
@@ -18,6 +23,18 @@ function createClient(): PrismaClient {
   return new PrismaClient({ adapter, log: ['warn', 'error'] })
 }
 
-export const prisma = globalForPrisma.prisma ?? createClient()
+function getClient(): PrismaClient {
+  const existing = globalForPrisma.prisma ?? createClient()
+  if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = existing
+  return existing
+}
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+// Lazy proxy: the real client is instantiated only when a property is first
+// accessed at runtime, never at import time.
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getClient()
+    const value = client[prop as keyof PrismaClient]
+    return typeof value === 'function' ? value.bind(client) : value
+  },
+})

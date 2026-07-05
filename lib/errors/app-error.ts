@@ -61,8 +61,10 @@ export class AppError extends Error {
   static profileIncomplete() {
     return AppError.make('PROFILE_INCOMPLETE')
   }
-  static listingNotFound() {
-    return AppError.make('LISTING_NOT_FOUND')
+  // publicState lets S-07 show the "विकले गेले" (SOLD) banner vs a generic
+  // "unavailable" message without leaking any private data (doc 08 API-07).
+  static listingNotFound(publicState?: 'SOLD' | 'UNAVAILABLE') {
+    return AppError.make('LISTING_NOT_FOUND', publicState ? { publicState } : undefined)
   }
   static listingLimitReached(activeCount: number, limit = 10) {
     return AppError.make('LISTING_LIMIT_REACHED', { activeCount, limit })

@@ -87,3 +87,47 @@ export async function searchApproved(
 }
 
 export { cardSelect }
+
+// Full detail projection (doc 08 ListingDetail): all attributes + ordered images
+// + seller summary. Seller phone is NEVER selected (BR-066) — only API-21 reveals it.
+const detailInclude = {
+  breed: { select: { id: true, species: true, nameEn: true, nameMr: true } },
+  district: { select: { id: true, nameEn: true, nameMr: true, state: true } },
+  images: {
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true, sortOrder: true, url: true, width: true, height: true },
+  },
+  seller: {
+    select: {
+      id: true,
+      name: true,
+      village: true,
+      createdAt: true,
+      district: { select: { id: true, nameEn: true, nameMr: true, state: true } },
+    },
+  },
+} satisfies Prisma.ListingInclude
+
+export type ListingDetailRow = Prisma.ListingGetPayload<{ include: typeof detailInclude }>
+
+export async function findDetailById(id: string): Promise<ListingDetailRow | null> {
+  return prisma.listing.findUnique({ where: { id }, include: detailInclude })
+}
+
+/** Count of the seller's currently-APPROVED listings (ListingDetail.seller.activeListingCount). */
+export function countApprovedBySeller(sellerId: string): Promise<number> {
+  return prisma.listing.count({ where: { sellerId, status: 'APPROVED' } })
+}
+
+/** Is this listing in the caller's favorites? (viewer.isFavorited) */
+export async function isFavorited(userId: string, listingId: string): Promise<boolean> {
+  const fav = await prisma.favorite.findUnique({
+    where: { userId_listingId: { userId, listingId } },
+  })
+  return fav !== null
+}
+
+/** BR-034: +1 view on every public fetch of an APPROVED listing; no dedup in MVP. */
+export function incrementViewCount(id: string): Promise<unknown> {
+  return prisma.listing.update({ where: { id }, data: { viewCount: { increment: 1 } } })
+}
