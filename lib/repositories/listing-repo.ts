@@ -1,7 +1,7 @@
 // Listing repository — Prisma queries only (doc 09 §2). Search is keyset-
 // paginated (doc 08 §4.2): fetch limit+1 to know if there's a next page.
 
-import type { Prisma } from '@prisma/client'
+import type { Prisma, ListingStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { CursorKey } from '@/lib/api/cursor'
 import type { SearchQuery } from '@/lib/validation/search'
@@ -130,4 +130,126 @@ export async function isFavorited(userId: string, listingId: string): Promise<bo
 /** BR-034: +1 view on every public fetch of an APPROVED listing; no dedup in MVP. */
 export function incrementViewCount(id: string): Promise<unknown> {
   return prisma.listing.update({ where: { id }, data: { viewCount: { increment: 1 } } })
+}
+
+// Non-terminal statuses count toward the BR-024 active quota (SOLD/ARCHIVED are terminal).
+export const ACTIVE_STATUSES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'EXPIRED'] as const
+
+/**
+ * Create a DRAFT with the active-listing quota (BR-024, max 10) enforced
+ * ATOMICALLY inside the same transaction (doc 08 API-08) — count + insert under
+ * one interactive tx so two concurrent creates can't both slip past the cap.
+ */
+export type DraftInput = Omit<Prisma.ListingUncheckedCreateInput, 'sellerId' | 'status' | 'id'>
+
+export async function createDraftWithQuota(
+  sellerId: string,
+  data: DraftInput,
+  limit: number,
+): Promise<{ created: ListingDetailRow | null; activeCount: number }> {
+  return prisma.$transaction(async (tx) => {
+    const activeCount = await tx.listing.count({
+      where: { sellerId, status: { in: ACTIVE_STATUSES as unknown as ListingStatus[] } },
+    })
+    if (activeCount >= limit) return { created: null, activeCount }
+    const created = await tx.listing.create({
+      data: { ...data, sellerId, status: 'DRAFT' },
+      include: detailInclude,
+    })
+    return { created, activeCount }
+  })
+}
+
+export async function findOwned(id: string): Promise<ListingDetailRow | null> {
+  return findDetailById(id)
+}
+
+export async function countImages(listingId: string): Promise<number> {
+  return prisma.listingImage.count({ where: { listingId } })
+}
+
+/**
+ * Submit transition T-02 (DRAFT→PENDING) / T-05 (REJECTED→PENDING) with a
+ * status precondition in the WHERE clause (BR-033) so concurrent requests can't
+ * double-fire. Returns null if the row wasn't in a submittable state.
+ */
+export async function submitTransition(
+  id: string,
+  duplicateOfId: string | null,
+): Promise<ListingDetailRow | null> {
+  const res = await prisma.listing.updateMany({
+    where: { id, status: { in: ['DRAFT', 'REJECTED'] } },
+    data: {
+      status: 'PENDING',
+      declarationAccepted: true,
+      declarationAt: new Date(),
+      rejectionReason: null, // T-05 clears it; harmless no-op for T-02
+      duplicateOfId,
+    },
+  })
+  if (res.count === 0) return null
+  return findDetailById(id)
+}
+
+export async function patchListing(
+  id: string,
+  data: Prisma.ListingUpdateInput,
+): Promise<ListingDetailRow | null> {
+  await prisma.listing.update({ where: { id }, data })
+  return findDetailById(id)
+}
+
+/** BR-029 duplicate heuristic (advisory): same seller + species + price ±10% within 7 days. */
+export async function findDuplicate(
+  sellerId: string,
+  species: string,
+  priceInr: number,
+  excludeId: string,
+): Promise<string | null> {
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000)
+  const match = await prisma.listing.findFirst({
+    where: {
+      sellerId,
+      species: species as never,
+      id: { not: excludeId },
+      createdAt: { gte: since },
+      priceInr: { gte: Math.floor(priceInr * 0.9), lte: Math.ceil(priceInr * 1.1) },
+    },
+    select: { id: true },
+  })
+  return match?.id ?? null
+}
+
+// API-14 My Listings: own listings by status, keyset (created_at, id) desc, + quota meta.
+export async function ownListings(
+  sellerId: string,
+  status: string | undefined,
+  after: [CursorKey, string] | null,
+  limit: number,
+): Promise<{ rows: OwnListingRow[]; activeCount: number }> {
+  const where: Prisma.ListingWhereInput = {
+    sellerId,
+    ...(status ? { status: status as never } : {}),
+    ...(after ? { OR: [{ createdAt: { lt: new Date(String(after[0])) } }, { createdAt: new Date(String(after[0])), id: { lt: after[1] } }] } : {}),
+  }
+  const [rows, activeCount] = await Promise.all([
+    prisma.listing.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      select: { ...cardSelect, status: true, rejectionReason: true, expiresAt: true, soldAt: true, viewCount: true, updatedAt: true, createdAt: true, _count: { select: { images: true, interestEvents: true } } },
+    }),
+    prisma.listing.count({ where: { sellerId, status: { in: ACTIVE_STATUSES as unknown as ListingStatus[] } } }),
+  ])
+  return { rows: rows as OwnListingRow[], activeCount }
+}
+
+export type OwnListingRow = ListingCardRow & {
+  status: string
+  rejectionReason: string | null
+  expiresAt: Date | null
+  soldAt: Date | null
+  viewCount: number
+  updatedAt: Date
+  _count: { images: number; interestEvents: number }
 }

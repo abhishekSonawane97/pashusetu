@@ -140,9 +140,13 @@ describe('update + submit schemas', () => {
     expect(updateListingSchema.safeParse({ viewCount: 999 }).success).toBe(false)
   })
 
-  it('submitListingSchema: declaration must be affirmatively true (BR-027)', () => {
+  it('submitListingSchema: lenient boolean (declaration enforcement is in the service, BR-027)', () => {
+    // The schema only shapes the field; the service turns a missing/false value
+    // into the specific DECLARATION_REQUIRED code (verified in the integration test).
     expect(submitListingSchema.safeParse({ declarationAccepted: true }).success).toBe(true)
-    expect(submitListingSchema.safeParse({ declarationAccepted: false }).success).toBe(false)
-    expect(submitListingSchema.safeParse({}).success).toBe(false)
+    expect(submitListingSchema.safeParse({ declarationAccepted: false }).success).toBe(true)
+    expect(submitListingSchema.safeParse({}).success).toBe(true)
+    expect(submitListingSchema.safeParse({ declarationAccepted: 'yes' }).success).toBe(false) // wrong type
+    expect(submitListingSchema.safeParse({ foo: 1 }).success).toBe(false) // strict: unknown key
   })
 })

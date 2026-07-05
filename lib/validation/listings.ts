@@ -176,9 +176,13 @@ export const updateListingSchema = z
 
 export type UpdateListingInput = z.infer<typeof updateListingSchema>
 
-// POST /listings/{id}/submit — BR-027: declaration must be affirmatively true.
+// POST /listings/{id}/submit — declaration presence is checked in the service so
+// a missing/false value returns the specific DECLARATION_REQUIRED code (BR-027),
+// not a generic validation error.
 export const submitListingSchema = z
   .object({
-    declarationAccepted: z.literal(true),
+    declarationAccepted: z.boolean().optional(),
   })
   .strict()
+
+export type SubmitListingInput = z.infer<typeof submitListingSchema>
