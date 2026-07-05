@@ -23,5 +23,13 @@ function getClientApp(): FirebaseApp {
 }
 
 export function getFirebaseAuth(): Auth {
-  return getAuth(getClientApp())
+  const auth = getAuth(getClientApp())
+  // Test mode (dev/CI ONLY — NEXT_PUBLIC_FIREBASE_TEST_MODE=1, never set in prod):
+  // bypass reCAPTCHA for registered test phone numbers so local dev and Playwright
+  // E2E can exercise the full OTP flow with the fixed test code, no SMS, no
+  // interactive challenge. Real users in prod always go through reCAPTCHA.
+  if (process.env.NEXT_PUBLIC_FIREBASE_TEST_MODE === '1') {
+    auth.settings.appVerificationDisabledForTesting = true
+  }
+  return auth
 }

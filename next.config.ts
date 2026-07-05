@@ -7,12 +7,15 @@ import type { NextConfig } from 'next'
 // validation (§8.2–8.3). Nonce-based strict CSP is a post-launch hardening task.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com https://maps.googleapis.com",
+  "script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://maps.googleapis.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://img.pashusetu.in",
   "font-src 'self'",
-  "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com https://maps.googleapis.com https://*.ingest.sentry.io",
-  'frame-src https://www.google.com',
+  // www.google.com + recaptcha.net + gstatic are the reCAPTCHA fetch endpoints
+  // Firebase phone auth uses (verified against a real OTP flow, 2026-07-05) —
+  // frame-src alone is not enough; the reCAPTCHA client also fetch()es them.
+  "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com https://maps.googleapis.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://*.ingest.sentry.io",
+  'frame-src https://www.google.com https://recaptcha.google.com https://www.recaptcha.net',
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -33,6 +36,9 @@ const SECURITY_HEADERS = [
 ]
 
 const nextConfig: NextConfig = {
+  // Pin the workspace root to this project — a stray package-lock.json in the
+  // parent dir was making Turbopack infer the wrong root (dev-log warning).
+  turbopack: { root: import.meta.dirname },
   // Listing images are served from the R2 public CDN domains (doc 13 §1: prod
   // img.pashusetu.in, dev img-dev.pashusetu.in). Only these hosts are allowed.
   images: {
