@@ -123,6 +123,35 @@ describe.skipIf(!RUN)('listing write path (live Neon)', () => {
     expect(mine.meta.activeCount).toBeGreaterThanOrEqual(1)
   })
 
+  it('API-09 edit: DRAFT patch applies + cross-field validation; species/sex mismatch rejected', async () => {
+    const d = (await listingService.createDraft(ctx, { species: 'COW', negotiable: true })) as {
+      id: string
+    }
+    created.push(d.id)
+    // Valid DRAFT edit stays DRAFT.
+    const edited = (await listingService.editListing(ctx, d.id, {
+      ageMonths: 40,
+      priceInr: 55000,
+    })) as Record<string, unknown>
+    expect(edited.status).toBe('DRAFT')
+    expect(edited.ageMonths).toBe(40)
+    // COW must be FEMALE — a MALE edit is rejected (BR-022 cross-field).
+    await expect(listingService.editListing(ctx, d.id, { sex: 'MALE' })).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    })
+  })
+
+  it('API-09 edit: terminal listing is immutable (EDIT_NOT_ALLOWED)', async () => {
+    const d = (await listingService.createDraft(ctx, { species: 'GOAT', negotiable: true })) as {
+      id: string
+    }
+    created.push(d.id)
+    await listingRepo.patchListing(d.id, { status: 'ARCHIVED' }) // force terminal for the test
+    await expect(listingService.editListing(ctx, d.id, { priceInr: 20000 })).rejects.toMatchObject({
+      code: 'EDIT_NOT_ALLOWED',
+    })
+  })
+
   it('BR-024: the 11th active listing is rejected with LISTING_LIMIT_REACHED', async () => {
     // Count current active for this seller, then create up to the cap and expect the next to fail.
     const before = await listingRepo.ownListings(ctx.user.id, undefined, null, 50)

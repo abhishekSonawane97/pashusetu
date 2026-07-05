@@ -199,6 +199,33 @@ export async function patchListing(
   return findDetailById(id)
 }
 
+/**
+ * API-09 imageOrder: reassign sort_order 0..n-1 from a permutation of the
+ * listing's CURRENT image ids (cover = index 0). Returns false without changes
+ * if `orderedIds` is not an exact permutation (service maps → VALIDATION_ERROR).
+ */
+export async function reorderImages(listingId: string, orderedIds: string[]): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.listingImage.findMany({ where: { listingId }, select: { id: true } })
+    const currentIds = new Set(current.map((i) => i.id))
+    const sameSet =
+      orderedIds.length === currentIds.size && orderedIds.every((id) => currentIds.has(id))
+    if (!sameSet) return false
+    // Two-phase to dodge the unique (listing_id, sort_order) collision: offset, then set.
+    await Promise.all(
+      orderedIds.map((imgId, i) =>
+        tx.listingImage.update({ where: { id: imgId }, data: { sortOrder: i + 1000 } }),
+      ),
+    )
+    await Promise.all(
+      orderedIds.map((imgId, i) =>
+        tx.listingImage.update({ where: { id: imgId }, data: { sortOrder: i } }),
+      ),
+    )
+    return true
+  })
+}
+
 /** BR-029 duplicate heuristic (advisory): same seller + species + price ±10% within 7 days. */
 export async function findDuplicate(
   sellerId: string,

@@ -10,7 +10,11 @@ import type { AuthContext } from '@/lib/auth/auth-context'
 import * as listingRepo from '@/lib/repositories/listing-repo'
 import type { ListingCardRow, OwnListingRow } from '@/lib/repositories/listing-repo'
 import { containsPhoneNumber } from '@/lib/validation/common'
-import { listingFieldIssues, type CreateListingInput } from '@/lib/validation/listings'
+import {
+  listingFieldIssues,
+  type CreateListingInput,
+  type UpdateListingInput,
+} from '@/lib/validation/listings'
 import { prisma } from '@/lib/prisma'
 
 function toCard(row: ListingCardRow): ListingCard {
@@ -200,6 +204,78 @@ export async function createDraft(ctx: AuthContext, input: CreateListingInput) {
     viewerPresent: true,
     activeListingCount: activeCount + 1,
   })
+}
+
+/**
+ * API-09: partial edit (server computes the changed set — client intent is never
+ * trusted). Status behavior per BR-028/T-09:
+ *   DRAFT/REJECTED/PENDING → apply, keep status (PENDING bumps FIFO position)
+ *   APPROVED, changed ⊆ {priceInr, negotiable} → apply, stay APPROVED (expires_at untouched)
+ *   APPROVED, any other change → T-09: → PENDING (requires declarationAccepted true)
+ *   EXPIRED/SOLD/ARCHIVED → EDIT_NOT_ALLOWED (immutable, BR-028)
+ */
+export async function editListing(ctx: AuthContext, id: string, input: UpdateListingInput) {
+  const row = await listingRepo.findOwned(id)
+  if (!row) throw AppError.listingNotFound()
+  assertOwner(row, ctx)
+  if (['EXPIRED', 'SOLD', 'ARCHIVED'].includes(row.status))
+    throw AppError.editNotAllowed(row.status)
+
+  const { imageOrder, declarationAccepted, ...scalars } = input
+
+  // Cross-field BR-022 validity on the MERGED row (species change resets breed compat).
+  const merged = {
+    species: scalars.species ?? row.species,
+    breedId: scalars.breedId ?? row.breedId,
+    sex: scalars.sex ?? row.sex,
+    milkYieldLpd:
+      scalars.milkYieldLpd !== undefined
+        ? scalars.milkYieldLpd
+        : row.milkYieldLpd == null
+          ? null
+          : Number(row.milkYieldLpd),
+    lactationNumber:
+      scalars.lactationNumber !== undefined ? scalars.lactationNumber : row.lactationNumber,
+    isPregnant: scalars.isPregnant !== undefined ? scalars.isPregnant : row.isPregnant,
+  }
+  const issues = listingFieldIssues(merged, 'draft')
+  // Species change must leave a breed that belongs to the new species (BR-022).
+  if (scalars.species && merged.breedId) {
+    const breed = await prisma.breed.findUnique({ where: { id: merged.breedId } })
+    if (!breed || breed.species !== merged.species)
+      issues.breedId = 'breed does not belong to species'
+  }
+  if (Object.keys(issues).length > 0) throw AppError.validation(issues)
+
+  // Which columns actually changed (server-computed, not client-declared).
+  const changedKeys = Object.keys(scalars) as (keyof typeof scalars)[]
+  const contentChange =
+    imageOrder !== undefined || changedKeys.some((k) => k !== 'priceInr' && k !== 'negotiable')
+
+  const data: Record<string, unknown> = { ...scalars }
+
+  if (row.status === 'APPROVED' && contentChange) {
+    // T-09: re-moderation. Requires the declaration to be re-affirmed (BR-027).
+    if (declarationAccepted !== true) throw AppError.declarationRequired()
+    data.status = 'PENDING'
+    data.declarationAccepted = true
+    data.declarationAt = new Date()
+    // TODO(notifications slice): NTF-ADMIN-PENDING on T-09.
+  }
+  // else: APPROVED price-only → stays APPROVED (expires_at untouched); DRAFT/
+  // REJECTED/PENDING → apply and keep status.
+
+  if (imageOrder) {
+    const ok = await listingRepo.reorderImages(id, imageOrder)
+    if (!ok) {
+      throw AppError.validation(
+        { imageOrder: 'must be a permutation of this listing’s current image ids' },
+        { malformed: true },
+      )
+    }
+  }
+  const updated = await listingRepo.patchListing(id, data)
+  return ownerDetail(updated!)
 }
 
 /** API-10 / T-02+T-05: submit for moderation — declaration + full BR-022/023/025/026 guards. */
