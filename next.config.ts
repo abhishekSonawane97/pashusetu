@@ -1,5 +1,25 @@
 import type { NextConfig } from 'next'
 
+// Storage origins the browser talks to directly: the presigned-upload PUT goes to
+// the S3 API endpoint (R2_ENDPOINT; dev = local MinIO), and listing photos are read
+// from the public base (R2_PUBLIC_BASE_URL; prod = img.pashusetu.in CDN). Both must
+// be whitelisted in CSP or the upload PUT / image loads are refused by the browser.
+// Derived from env so dev (localhost:9000) and prod (R2) work from one config.
+const storageOrigins = Array.from(
+  new Set(
+    [process.env.R2_ENDPOINT, process.env.R2_PUBLIC_BASE_URL]
+      .map((u) => {
+        try {
+          return u ? new URL(u).origin : null
+        } catch {
+          return null
+        }
+      })
+      .filter((o): o is string => !!o),
+  ),
+)
+const storageSrc = storageOrigins.length ? ' ' + storageOrigins.join(' ') : ''
+
 // Security headers — docs/12-security/README.md §8.1 (PS-007). Single source;
 // verified live by the ST-09 header check on every production deploy (doc 13 §3.3).
 // CSP note: 'unsafe-inline' in script-src is required by the Next.js bootstrap +
@@ -9,12 +29,14 @@ const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://maps.googleapis.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://img.pashusetu.in",
+  "img-src 'self' data: blob: https://img.pashusetu.in" + storageSrc,
   "font-src 'self'",
   // www.google.com + recaptcha.net + gstatic are the reCAPTCHA fetch endpoints
   // Firebase phone auth uses (verified against a real OTP flow, 2026-07-05) —
   // frame-src alone is not enough; the reCAPTCHA client also fetch()es them.
-  "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com https://maps.googleapis.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://*.ingest.sentry.io",
+  // storageSrc adds the presigned-upload PUT target (R2 S3 endpoint / dev MinIO).
+  "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com https://maps.googleapis.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://*.ingest.sentry.io" +
+    storageSrc,
   'frame-src https://www.google.com https://recaptcha.google.com https://www.recaptcha.net',
   "object-src 'none'",
   "base-uri 'self'",

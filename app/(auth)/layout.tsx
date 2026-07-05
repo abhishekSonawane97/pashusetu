@@ -4,5 +4,7 @@
 // their own guard, so this layout stays a pass-through shell.
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  return <main className="mx-auto min-h-screen w-full max-w-md p-4">{children}</main>
+  // pb-24 leaves room for the root BottomNav on nav-tab auth pages (sell/
+  // favorites/profile); login + wizard hide the nav but the extra pad is benign.
+  return <main className="mx-auto min-h-screen w-full max-w-md p-4 pb-24">{children}</main>
 }

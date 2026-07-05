@@ -1,0 +1,216 @@
+'use client'
+
+// S-11 My Listings — the seller hub (bottom-nav "विका"). Shows the active-listing
+// quota meter, status filter tabs, and the seller's listings (the only place
+// non-APPROVED own listings are visible, BR-034). "+ नवीन जाहिरात" opens the
+// wizard. A submit success (?submitted=1) shows a confirmation banner.
+
+import { Suspense, useEffect, useState } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
+import { useSearchParams } from 'next/navigation'
+import { AuthGate } from '@/components/auth/AuthGate'
+import { Icon } from '@/components/ui/Icon'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { apiFetch } from '@/lib/api/client'
+import { formatInr } from '@/lib/utils/format'
+import type { ListingStatus } from '@/lib/validation/common'
+
+const TABS: Array<{ key: ListingStatus | 'ALL'; label: string }> = [
+  { key: 'ALL', label: 'सर्व' },
+  { key: 'APPROVED', label: 'चालू' },
+  { key: 'PENDING', label: 'तपासणीत' },
+  { key: 'DRAFT', label: 'अपूर्ण' },
+  { key: 'REJECTED', label: 'नाकारली' },
+  { key: 'SOLD', label: 'विकले' },
+  { key: 'EXPIRED', label: 'मुदत संपली' },
+]
+
+const SPECIES_MR: Record<string, string> = {
+  COW: 'गाय',
+  BUFFALO: 'म्हैस',
+  BULL_OX: 'बैल',
+  GOAT: 'शेळी',
+  SHEEP: 'मेंढी',
+}
+
+type Item = {
+  id: string
+  species: string
+  breed: { nameMr: string } | null
+  priceInr: number | null
+  village: string | null
+  thumbnailUrl: string | null
+  status: ListingStatus
+  rejectionReason: string | null
+  imageCount: number
+}
+
+function MyListingsInner() {
+  const params = useSearchParams()
+  const submitted = params.get('submitted') === '1'
+  const [tab, setTab] = useState<ListingStatus | 'ALL'>('ALL')
+  const [items, setItems] = useState<Item[] | null>(null)
+  const [meta, setMeta] = useState<{ activeCount: number; activeLimit: number } | null>(null)
+  const [error, setError] = useState(false)
+
+  // Fetch inline as a cancellable async IIFE — the sets are all post-await, so
+  // there is no synchronous setState in the effect body. Re-runs when tab changes;
+  // the loading reset (items→null) happens in the tab click handler.
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const qs = tab === 'ALL' ? '' : `?status=${tab}`
+        const res = await apiFetch(`/api/v1/users/me/listings${qs}`)
+        if (cancelled) return
+        if (!res.ok) throw new Error()
+        const page = await res.json()
+        if (cancelled) return
+        setItems(page.items)
+        setMeta(page.meta)
+        setError(false)
+      } catch {
+        if (!cancelled) setError(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tab])
+
+  return (
+    <div className="flex flex-col gap-4">
+      <header className="flex items-center justify-between">
+        <h1 className="text-[22px] font-bold">माझ्या जाहिराती</h1>
+        {meta && (
+          <span className="rounded-full bg-[var(--color-surface-2)] px-3 py-1 text-[14px] font-bold text-[var(--color-text-2)]">
+            {meta.activeCount} / {meta.activeLimit}
+          </span>
+        )}
+      </header>
+
+      {submitted && (
+        <p
+          role="status"
+          className="rounded bg-[var(--color-success-bg)] p-3 text-[14px] text-[var(--color-success)]"
+        >
+          तुमची जाहिरात तपासणीसाठी पाठवली आहे. 24 तासांच्या आत उत्तर मिळेल.
+        </p>
+      )}
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => {
+              setItems(null) // show skeleton while the new tab loads (event handler, not an effect)
+              setError(false)
+              setTab(t.key)
+            }}
+            aria-pressed={tab === t.key}
+            className={
+              'min-h-[var(--touch-min)] shrink-0 rounded-full border px-4 text-[15px] font-bold ' +
+              (tab === t.key
+                ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-on-primary)]'
+                : 'border-[var(--color-border-card)] text-[var(--color-text)]')
+            }
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {items === null && !error && (
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      )}
+
+      {error && (
+        <p role="alert" className="text-[var(--color-error)]">
+          जाहिराती मिळाल्या नाहीत. इंटरनेट तपासा.
+        </p>
+      )}
+
+      {items && items.length === 0 && (
+        <EmptyState
+          icon="sell"
+          title="अजून एकही जाहिरात नाही. पहिली जाहिरात टाका."
+          cta={
+            <Link
+              href="/sell/new"
+              className="inline-flex min-h-[var(--h-button)] items-center rounded bg-[var(--color-primary)] px-5 font-bold text-[var(--color-on-primary)]"
+            >
+              नवीन जाहिरात
+            </Link>
+          }
+        />
+      )}
+
+      {items && items.length > 0 && (
+        <ul className="flex flex-col gap-3">
+          {items.map((l) => (
+            <li key={l.id}>
+              <Link
+                href={l.status === 'DRAFT' ? `/sell/new` : `/listings/${l.id}`}
+                className="flex gap-3 rounded-card border border-[var(--color-border-card)] p-2"
+              >
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded bg-[var(--color-muted)]">
+                  {l.thumbnailUrl ? (
+                    <Image src={l.thumbnailUrl} alt="" fill sizes="80px" className="object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-[var(--color-text-3)]">
+                      <Icon name="gallery" size={24} />
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-1 flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold">
+                      {l.breed?.nameMr ?? ''} {SPECIES_MR[l.species] ?? ''}
+                    </span>
+                    <StatusBadge status={l.status} />
+                  </div>
+                  {l.priceInr != null && (
+                    <span className="text-[var(--color-primary)]">{formatInr(l.priceInr)}</span>
+                  )}
+                  {l.village && (
+                    <span className="text-[14px] text-[var(--color-text-2)]">{l.village}</span>
+                  )}
+                  {l.status === 'REJECTED' && l.rejectionReason && (
+                    <span className="text-[14px] text-[var(--color-error)]">
+                      कारण: {l.rejectionReason}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Link
+        href="/sell/new"
+        className="fixed bottom-24 right-4 flex min-h-[var(--touch-min)] items-center gap-2 rounded-full bg-[var(--color-primary)] px-5 font-bold text-[var(--color-on-primary)] shadow-card"
+      >
+        <Icon name="plus" size={20} />
+        नवीन जाहिरात
+      </Link>
+    </div>
+  )
+}
+
+export default function MyListingsPage() {
+  return (
+    <AuthGate>
+      <Suspense>
+        <MyListingsInner />
+      </Suspense>
+    </AuthGate>
+  )
+}

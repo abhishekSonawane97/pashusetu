@@ -1,14 +1,7 @@
-// (public) route group — browse without login (BR-060). Bottom nav is present
-// on these screens (hidden only in wizard/auth/admin, handled inside BottomNav).
-// Bottom padding leaves room for the fixed nav + safe-area inset.
-
-import { BottomNav } from '@/components/layout/BottomNav'
+// (public) route group — browse without login (BR-060). BottomNav lives in the
+// root layout (shown across public + auth tabs, self-hidden in wizard/login/
+// admin); the pb-24 here leaves room for the fixed nav + safe-area inset.
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <div className="mx-auto min-h-screen w-full max-w-md pb-24">{children}</div>
-      <BottomNav />
-    </>
-  )
+  return <div className="mx-auto min-h-screen w-full max-w-md pb-24">{children}</div>
 }
