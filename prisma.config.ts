@@ -10,6 +10,9 @@ export default defineConfig({
     // doc 07 §8.3. The app's runtime client uses the pooled DATABASE_URL via a
     // driver adapter in lib/prisma.ts, never this URL.
     url: process.env.DIRECT_URL,
+    // Shadow DB for `migrate diff --from-migrations` (CI drift check). Only set
+    // in CI (ephemeral Postgres service); unused for normal migrate deploy.
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
   },
   migrations: {
     // doc 07 §6.4 — run automatically by migrate dev/reset; explicitly via

@@ -244,7 +244,7 @@ flowchart LR
 |---|---|---|
 | `lint` | `pnpm lint` (ESLint incl. the doc 12 bans: `no-restricted-syntax` on `$queryRawUnsafe`/`$executeRawUnsafe`, `react/no-danger`) + `pnpm prettier --check .` | Any lint/format error |
 | `typecheck` | `pnpm tsc --noEmit` | Any type error |
-| `prisma-check` | `pnpm prisma validate` + drift check `pnpm prisma migrate diff --from-migrations ./prisma/migrations --to-schema-datamodel ./prisma/schema.prisma --exit-code` ([doc 07 §7.1](../07-database/README.md)) + destructive-SQL grep on **new** migration files (§5.1) | Schema/migrations diverge, or a destructive statement lacks the `expand-contract-plan` PR label |
+| `prisma-check` | `pnpm prisma validate` + drift check `pnpm prisma migrate diff --from-migrations ./prisma/migrations --to-schema ./prisma/schema.prisma --exit-code` ([doc 07 §7.1](../07-database/README.md)) — Prisma 7 flag is `--to-schema` (was `--to-schema-datamodel`); the shadow DB it replays migrations into is an ephemeral Postgres **service container**, its URL passed via `SHADOW_DATABASE_URL` → `prisma.config.ts` `datasource.shadowDatabaseUrl` — + destructive-SQL grep on **new** migration files (§5.1) | Schema/migrations diverge, or a destructive statement lacks the `expand-contract-plan` PR label |
 | `i18n-parity` | Catalog parity `mr.json` ↔ `en.json` (PS-002/PS-057: every key in both, no empty values) | Any missing/empty key |
 | `unit` | `pnpm vitest run` (unit suites incl. ST-07 EXIF strip) | Any failing test |
 | `security-gates` | `gitleaks` over the diff + history, `pnpm audit --audit-level high` (doc 12 A06) | Any secret or high/critical advisory |

@@ -44,6 +44,19 @@ jobs:
 
   prisma-check:
     runs-on: ubuntu-latest
+    # Postgres service = the shadow DB the drift check replays migrations into
+    # (doc 07 §7.1). Ephemeral, per-run; never touches Neon.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: shadow
+          POSTGRES_PASSWORD: shadow
+          POSTGRES_DB: shadow
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
@@ -52,17 +65,20 @@ jobs:
         with: { node-version: 20, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm prisma validate
-      # Drift check (doc 07 §7.1) activates once prisma/migrations exists (PS-015).
+      # Drift check (doc 07 §7.1): replay the committed migrations into the
+      # shadow DB and diff against schema.prisma — a non-empty diff means someone
+      # edited the schema without generating a migration. Prisma 7 flag is
+      # --to-schema (was --to-schema-datamodel in Prisma 6).
       - name: migrations drift check
+        env:
+          # Prisma 7 reads the shadow DB from config datasource.shadowDatabaseUrl
+          # (prisma.config.ts), fed by this env var — points at the service above.
+          SHADOW_DATABASE_URL: postgresql://shadow:shadow@localhost:5432/shadow
         run: |
-          if [ -d prisma/migrations ]; then
-            pnpm prisma migrate diff \
-              --from-migrations ./prisma/migrations \
-              --to-schema-datamodel ./prisma/schema.prisma \
-              --exit-code
-          else
-            echo "No migrations yet (pre-PS-015) — drift check skipped."
-          fi
+          pnpm prisma migrate diff \
+            --from-migrations ./prisma/migrations \
+            --to-schema ./prisma/schema.prisma \
+            --exit-code
 
   i18n-parity:
     runs-on: ubuntu-latest
