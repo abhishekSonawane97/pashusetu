@@ -230,16 +230,35 @@ export async function ownListings(
   const where: Prisma.ListingWhereInput = {
     sellerId,
     ...(status ? { status: status as never } : {}),
-    ...(after ? { OR: [{ createdAt: { lt: new Date(String(after[0])) } }, { createdAt: new Date(String(after[0])), id: { lt: after[1] } }] } : {}),
+    ...(after
+      ? {
+          OR: [
+            { createdAt: { lt: new Date(String(after[0])) } },
+            { createdAt: new Date(String(after[0])), id: { lt: after[1] } },
+          ],
+        }
+      : {}),
   }
   const [rows, activeCount] = await Promise.all([
     prisma.listing.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
-      select: { ...cardSelect, status: true, rejectionReason: true, expiresAt: true, soldAt: true, viewCount: true, updatedAt: true, createdAt: true, _count: { select: { images: true, interestEvents: true } } },
+      select: {
+        ...cardSelect,
+        status: true,
+        rejectionReason: true,
+        expiresAt: true,
+        soldAt: true,
+        viewCount: true,
+        updatedAt: true,
+        createdAt: true,
+        _count: { select: { images: true, interestEvents: true } },
+      },
     }),
-    prisma.listing.count({ where: { sellerId, status: { in: ACTIVE_STATUSES as unknown as ListingStatus[] } } }),
+    prisma.listing.count({
+      where: { sellerId, status: { in: ACTIVE_STATUSES as unknown as ListingStatus[] } },
+    }),
   ])
   return { rows: rows as OwnListingRow[], activeCount }
 }

@@ -24,7 +24,12 @@ describe.skipIf(!RUN)('listing write path (live Neon)', () => {
     districtId = district.id
     breedId = breed.id
     const seller = await prisma.user.create({
-      data: { firebaseUid: 'TEST_WP_SELLER', phone: '+919999900010', name: 'चाचणी विक्रेता', districtId },
+      data: {
+        firebaseUid: 'TEST_WP_SELLER',
+        phone: '+919999900010',
+        name: 'चाचणी विक्रेता',
+        districtId,
+      },
     })
     ctx = { user: seller } as AuthContext
   })
@@ -37,7 +42,10 @@ describe.skipIf(!RUN)('listing write path (live Neon)', () => {
   })
 
   it('T-01: creates a DRAFT with only species', async () => {
-    const d = (await listingService.createDraft(ctx, { species: 'COW', negotiable: true })) as Record<string, unknown>
+    const d = (await listingService.createDraft(ctx, {
+      species: 'COW',
+      negotiable: true,
+    })) as Record<string, unknown>
     created.push(d.id as string)
     expect(d.status).toBe('DRAFT')
     expect(d.declarationAccepted).toBe(false)
@@ -45,7 +53,9 @@ describe.skipIf(!RUN)('listing write path (live Neon)', () => {
   })
 
   it('submit on an incomplete DRAFT → 422 with the full missing-field map + photo guard', async () => {
-    const d = (await listingService.createDraft(ctx, { species: 'COW', negotiable: true })) as { id: string }
+    const d = (await listingService.createDraft(ctx, { species: 'COW', negotiable: true })) as {
+      id: string
+    }
     created.push(d.id)
     let err: AppError | null = null
     try {
@@ -61,7 +71,9 @@ describe.skipIf(!RUN)('listing write path (live Neon)', () => {
   })
 
   it('submit without declaration → DECLARATION_REQUIRED', async () => {
-    const d = (await listingService.createDraft(ctx, { species: 'COW', negotiable: true })) as { id: string }
+    const d = (await listingService.createDraft(ctx, { species: 'COW', negotiable: true })) as {
+      id: string
+    }
     created.push(d.id)
     await expect(listingService.submitListing(ctx, d.id, false)).rejects.toMatchObject({
       code: 'DECLARATION_REQUIRED',
@@ -84,10 +96,18 @@ describe.skipIf(!RUN)('listing write path (live Neon)', () => {
     created.push(d.id)
     // Simulate an attached photo (R2 pipeline lands later) to satisfy the BR-023 guard.
     await prisma.listingImage.create({
-      data: { listingId: d.id, r2Key: `test/${d.id}.webp`, url: 'https://img-dev.pashusetu.in/x.webp', sortOrder: 0 },
+      data: {
+        listingId: d.id,
+        r2Key: `test/${d.id}.webp`,
+        url: 'https://img-dev.pashusetu.in/x.webp',
+        sortOrder: 0,
+      },
     })
 
-    const submitted = (await listingService.submitListing(ctx, d.id, true)) as Record<string, unknown>
+    const submitted = (await listingService.submitListing(ctx, d.id, true)) as Record<
+      string,
+      unknown
+    >
     expect(submitted.status).toBe('PENDING')
     expect(submitted.declarationAccepted).toBe(true)
     expect(submitted.declarationAt).not.toBeNull()
@@ -108,10 +128,14 @@ describe.skipIf(!RUN)('listing write path (live Neon)', () => {
     const before = await listingRepo.ownListings(ctx.user.id, undefined, null, 50)
     const room = 10 - before.activeCount
     for (let i = 0; i < room; i++) {
-      const d = (await listingService.createDraft(ctx, { species: 'GOAT', negotiable: true })) as { id: string }
+      const d = (await listingService.createDraft(ctx, { species: 'GOAT', negotiable: true })) as {
+        id: string
+      }
       created.push(d.id)
     }
-    await expect(listingService.createDraft(ctx, { species: 'GOAT', negotiable: true })).rejects.toMatchObject({
+    await expect(
+      listingService.createDraft(ctx, { species: 'GOAT', negotiable: true }),
+    ).rejects.toMatchObject({
       code: 'LISTING_LIMIT_REACHED',
     })
   }, 30000) // creates up to 10 listings against remote Neon — needs > the 5s default

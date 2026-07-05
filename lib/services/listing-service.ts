@@ -52,7 +52,13 @@ type DetailRow = import('@/lib/repositories/listing-repo').ListingDetailRow
 // public never sees them. Seller is first-name-only, never a phone (BR-066).
 function buildDetail(
   row: DetailRow,
-  opts: { isOwner: boolean; isAdmin: boolean; isFavorited: boolean; viewerPresent: boolean; activeListingCount: number },
+  opts: {
+    isOwner: boolean
+    isAdmin: boolean
+    isFavorited: boolean
+    viewerPresent: boolean
+    activeListingCount: number
+  },
 ): Record<string, unknown> {
   const privileged = opts.isOwner || opts.isAdmin
   const detail: Record<string, unknown> = {
@@ -127,7 +133,13 @@ export async function getDetail(id: string, viewer: AuthContext | null) {
   const activeListingCount = await listingRepo.countApprovedBySeller(row.sellerId)
   const isFavorited = viewer ? await listingRepo.isFavorited(viewer.user.id, id) : false
 
-  return buildDetail(row, { isOwner, isAdmin, isFavorited, viewerPresent: !!viewer, activeListingCount })
+  return buildDetail(row, {
+    isOwner,
+    isAdmin,
+    isFavorited,
+    viewerPresent: !!viewer,
+    activeListingCount,
+  })
 }
 
 export async function search(query: SearchQuery): Promise<Paginated<ListingCard>> {
@@ -191,7 +203,11 @@ export async function createDraft(ctx: AuthContext, input: CreateListingInput) {
 }
 
 /** API-10 / T-02+T-05: submit for moderation — declaration + full BR-022/023/025/026 guards. */
-export async function submitListing(ctx: AuthContext, id: string, declarationAccepted: boolean | undefined) {
+export async function submitListing(
+  ctx: AuthContext,
+  id: string,
+  declarationAccepted: boolean | undefined,
+) {
   // BR-027: the declaration must be affirmatively true (missing/false → specific code).
   if (declarationAccepted !== true) throw AppError.declarationRequired()
 
@@ -225,13 +241,19 @@ export async function submitListing(ctx: AuthContext, id: string, declarationAcc
     },
     'submit',
   )
-  if (row.description && containsPhoneNumber(row.description)) fields.description = 'phone number not allowed'
+  if (row.description && containsPhoneNumber(row.description))
+    fields.description = 'phone number not allowed'
   const imageCount = await listingRepo.countImages(id)
   if (imageCount < 1) fields.photos = 'at least 1 photo required (BR-023)'
   if (Object.keys(fields).length > 0) throw AppError.validation(fields)
 
   // BR-029 duplicate heuristic (advisory only — never blocks).
-  const duplicateOfId = await listingRepo.findDuplicate(row.sellerId, row.species, row.priceInr!, id)
+  const duplicateOfId = await listingRepo.findDuplicate(
+    row.sellerId,
+    row.species,
+    row.priceInr!,
+    id,
+  )
 
   const submitted = await listingRepo.submitTransition(id, duplicateOfId)
   if (!submitted) throw AppError.invalidStateTransition(row.status, 'submit') // lost a concurrent race
@@ -267,7 +289,11 @@ export async function getOwnListings(
   const last = pageRows[pageRows.length - 1]
   const nextCursor = hasMore && last ? encodeCursor(last.createdAt.toISOString(), last.id) : null
 
-  return { items: pageRows.map(toOwnItem), nextCursor, meta: { activeCount, activeLimit: ACTIVE_LIMIT } }
+  return {
+    items: pageRows.map(toOwnItem),
+    nextCursor,
+    meta: { activeCount, activeLimit: ACTIVE_LIMIT },
+  }
 }
 
 // OwnListingItem (doc 08): ListingCard fields + lifecycle fields. Null-tolerant —
