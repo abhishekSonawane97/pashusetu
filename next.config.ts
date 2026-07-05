@@ -20,6 +20,14 @@ const storageOrigins = Array.from(
 )
 const storageSrc = storageOrigins.length ? ' ' + storageOrigins.join(' ') : ''
 
+// DEV ONLY: React's development build uses eval() to reconstruct call stacks for
+// debugging (and Turbopack HMR evaluates modules the same way), so `next dev`
+// needs 'unsafe-eval' in script-src or the browser refuses it and React logs a
+// console error. React never uses eval() in production, so this is gated on
+// NODE_ENV and is NEVER emitted in the built/deployed CSP — the prod policy stays
+// eval-free (doc 12 §8: 'unsafe-eval' is an XSS vector we don't ship).
+const devScriptSrc = process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''
+
 // Security headers — docs/12-security/README.md §8.1 (PS-007). Single source;
 // verified live by the ST-09 header check on every production deploy (doc 13 §3.3).
 // CSP note: 'unsafe-inline' in script-src is required by the Next.js bootstrap +
@@ -27,7 +35,8 @@ const storageSrc = storageOrigins.length ? ' ' + storageOrigins.join(' ') : ''
 // validation (§8.2–8.3). Nonce-based strict CSP is a post-launch hardening task.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://maps.googleapis.com",
+  "script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://maps.googleapis.com" +
+    devScriptSrc,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://img.pashusetu.in" + storageSrc,
   "font-src 'self'",
@@ -61,13 +70,18 @@ const nextConfig: NextConfig = {
   // Pin the workspace root to this project — a stray package-lock.json in the
   // parent dir was making Turbopack infer the wrong root (dev-log warning).
   turbopack: { root: import.meta.dirname },
-  // Listing images are served from the R2 public CDN domains (doc 13 §1: prod
-  // img.pashusetu.in, dev img-dev.pashusetu.in). Only these hosts are allowed.
+  // Listing images: prod is optimized off the R2 public CDN (img.pashusetu.in /
+  // img-dev.pashusetu.in — allowed below). DEV ONLY: the optimizer hard-blocks
+  // loopback/localhost hosts as SSRF protection (a remotePattern can't override
+  // it), so MinIO thumbnails would 400 through /_next/image. In dev we therefore
+  // skip optimization and let <Image> load the MinIO URL directly (CSP img-src
+  // already allows it). Prod keeps full optimization — this never ships.
   images: {
+    unoptimized: process.env.NODE_ENV === 'development',
     remotePatterns: [
       { protocol: 'https', hostname: 'img.pashusetu.in' },
       { protocol: 'https', hostname: 'img-dev.pashusetu.in' },
-      // Dev: local MinIO (S3-compatible) serves listing images; prod uses R2 (D4).
+      // Dev fallback if optimization is ever re-enabled locally (still SSRF-blocked).
       { protocol: 'http', hostname: 'localhost', port: '9000' },
     ],
   },
