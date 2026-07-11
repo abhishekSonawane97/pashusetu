@@ -8,7 +8,14 @@
 // the merged row; the create schema calls it inline).
 
 import { z } from 'zod'
-import { description, priceInr, sexSchema, shortText, speciesSchema } from './common'
+import {
+  description,
+  interestTypeSchema,
+  priceInr,
+  sexSchema,
+  shortText,
+  speciesSchema,
+} from './common'
 import type { Sex, Species } from './common'
 
 // ---- field bounds (BR-022 Validation column) ----
@@ -187,3 +194,13 @@ export const submitListingSchema = z
   .strict()
 
 export type SubmitListingInput = z.infer<typeof submitListingSchema>
+
+// POST /listings/{id}/interest (API-21) — a single contact type. The reveal +
+// event log happen in the service; this only validates the discriminant (BR-062).
+export const interestSchema = z
+  .object({
+    type: interestTypeSchema,
+  })
+  .strict()
+
+export type InterestInput = z.infer<typeof interestSchema>

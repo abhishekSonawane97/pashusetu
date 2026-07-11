@@ -1,8 +1,10 @@
 // S-07 listing detail — SSR for SEO (doc 08 API-07, F-05). Renders the full
 // read view: photo carousel, price, all present attributes (unset ones OMITTED
 // entirely — hard rule 3), description, seller card, and the SOLD/unavailable
-// banners. The login-walled contact bar (call / WhatsApp / interest, API-21) and
-// the favorite heart (API-19) arrive with the contact + favorites slices.
+// banners, plus the login-walled contact bar (call / WhatsApp / interest, API-21).
+// The favorite heart (API-19) still arrives with the favorites slice. The seller
+// phone is NEVER rendered here (BR-066) — it is revealed only by the contact bar's
+// authenticated POST, never in this SSR payload.
 
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -10,6 +12,7 @@ import { AppError } from '@/lib/errors/app-error'
 import * as listingService from '@/lib/services/listing-service'
 import { PhotoCarousel } from '@/components/listings/PhotoCarousel'
 import { ListingJsonLd } from '@/components/listings/ListingJsonLd'
+import { ContactBar } from '@/components/listings/ContactBar'
 import { Icon } from '@/components/ui/Icon'
 
 import { SITE_URL, absoluteUrl, seoAlternates } from '@/lib/seo/site'
@@ -184,6 +187,10 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
           </p>
         </section>
       </div>
+
+      {/* Login-walled reveal (API-21). Only listingId + first name cross to the
+          client — the phone is fetched by the bar's authenticated POST (BR-066). */}
+      <ContactBar listingId={d.id as string} sellerFirstName={seller.firstName} />
     </main>
   )
 }

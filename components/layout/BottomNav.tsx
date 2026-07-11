@@ -27,8 +27,9 @@ const TABS: Array<{ href: string; icon: IconName; label: string; match: (p: stri
     },
   ]
 
-// Routes where the bottom nav is hidden (wizard + auth surfaces).
-const HIDDEN = [/^\/sell\/new/, /^\/login/, /^\/admin/]
+// Routes where the bottom nav is hidden (wizard + auth surfaces + the listing
+// detail leaf, where the fixed contact bar (F-06) owns the bottom instead).
+const HIDDEN = [/^\/sell\/new/, /^\/login/, /^\/admin/, /^\/listings\/.+/]
 
 export function BottomNav() {
   const pathname = usePathname()

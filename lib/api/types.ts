@@ -1,7 +1,7 @@
 // Shared API response types — mirror the doc 08 §1.9 response shapes exactly.
 // camelCase (doc 08 §1.6); enums tolerate unknown values for forward-compat.
 
-import type { ListingStatus, Sex, Species } from '@/lib/validation/common'
+import type { InterestType, ListingStatus, Sex, Species } from '@/lib/validation/common'
 
 export type BreedRef = { id: string; species: Species; nameEn: string; nameMr: string }
 export type DistrictRef = { id: string; nameEn: string; nameMr: string; state: string }
@@ -39,3 +39,17 @@ export type OwnListingItem = ListingCard & {
 }
 
 export type Paginated<T> = { items: T[]; nextCursor: string | null }
+
+/**
+ * API-21 interest response (doc 08 §2.7) — the ONLY payload in the system that
+ * carries a seller phone (BR-062/066). `whatsappUrl` is built server-side so the
+ * raw number never transits the client separately (BR-063). `name` is first-name
+ * only, consistent with every other seller-facing surface.
+ */
+export type InterestResponse = {
+  id: string
+  listingId: string
+  type: InterestType
+  createdAt: string
+  seller: { name: string; phone: string; whatsappUrl: string }
+}
