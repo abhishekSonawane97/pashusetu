@@ -8,6 +8,7 @@ import { ZodError } from 'zod'
 import { AppError } from './app-error'
 import { mapPrismaError } from './prisma-map'
 import { apiErrorMessage, resolveLocale } from '@/lib/i18n/api-messages'
+import { captureException } from '@/lib/monitoring/sentry'
 
 type RouteContext = { params: Promise<Record<string, string>> }
 type RouteHandler = (req: Request, ctx: RouteContext) => Promise<Response>
@@ -82,8 +83,10 @@ function isMalformed(error: ZodError): boolean {
   return error.issues.some((i) => MALFORMED_ISSUE_CODES.has(i.code))
 }
 
-// Sentry capture (doc 09 §5.4) is wired in PS-005; until then unexpected errors
-// still reach the server log, never the wire.
+// Unexpected (5xx) errors only: server log + best-effort Sentry (PS-005, doc 09
+// §5.4). Expected AppErrors (4xx) never reach here. Sentry send is a no-op unless
+// a DSN is set (dev/CI) and is fire-and-forget so it never delays the response.
 function captureUnexpected(err: unknown): void {
   console.error('[unexpected-error]', err)
+  void captureException(err, { source: 'withRoute' })
 }

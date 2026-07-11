@@ -77,8 +77,11 @@ The create → approve → browse loop is live, but a buyer **cannot yet act on 
 - [ ] PWA installable; offline shell works.
 
 ## 9. Monitoring & ops
-- [ ] **Sentry (PS-005) — not yet built.** Add error monitoring before/at launch (client + server + source maps).
-- [ ] Uptime monitor on `/api/v1/health` (returns `{db:ok}`).
+- [x] **Error monitoring (PS-005) — wired `[code ✓]`.** A dependency-free, DSN-gated reporter (`lib/monitoring/sentry.ts`) captures server errors (`withRoute` catch + `instrumentation.ts` `onRequestError`) and client errors (`app/global-error.tsx` + `ErrorMonitor` window listeners). It is a **no-op until a DSN is set**, and scrubs phone numbers before sending (BR-066).
+  - [ ] **You:** create the Sentry project → set `SENTRY_DSN` (server secret) + `NEXT_PUBLIC_SENTRY_DSN` (same value, client) in Vercel; confirm the first prod error appears in Sentry.
+  - [ ] If the DSN host is region-based (`*.ingest.<region>.sentry.io`), confirm `connect-src` in `next.config.ts` allows it for the *client* reporter (server capture is unaffected). Current CSP allows `https://*.ingest.sentry.io`.
+  - [ ] *Optional later:* upgrade to `@sentry/nextjs` for **source maps** (readable prod stack traces) + performance tracing. Deferred deliberately — its build plugin is a risk against the Next 16 + Turbopack build the CI/QA pipeline shares.
+- [ ] Uptime monitor on `/api/v1/health` — does a real DB round-trip; returns `{status:'ok',db:'ok'}` (200) or `{status:'degraded',db:'unreachable'}` (503). `[code ✓]`
 - [ ] Vercel Analytics / logs; Neon + R2 usage dashboards; Firebase SMS spend alert.
 - [ ] Documented rollback (Vercel instant rollback to previous deploy; DB migration back-out plan).
 

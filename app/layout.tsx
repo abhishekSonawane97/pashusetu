@@ -3,6 +3,7 @@ import { Lato, Noto_Sans_Devanagari } from 'next/font/google'
 import './globals.css'
 import { OfflineBanner } from '@/components/pwa/OfflineBanner'
 import { ServiceWorkerRegistrar } from '@/components/pwa/ServiceWorkerRegistrar'
+import { ErrorMonitor } from '@/components/monitoring/ErrorMonitor'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { SITE_URL, DEFAULT_OG, seoAlternates } from '@/lib/seo/site'
 
@@ -109,6 +110,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         <SiteJsonLd />
+        <ErrorMonitor />
         <OfflineBanner />
         {children}
         <BottomNav />
