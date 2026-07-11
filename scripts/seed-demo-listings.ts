@@ -31,13 +31,18 @@ if (!connectionString) throw new Error('DIRECT_URL / DATABASE_URL not set (need 
 const prisma = new PrismaClient({ adapter: new PrismaPg(connectionString) })
 
 const s3 = new S3Client({
-  region: 'auto',
+  // Mirror lib/r2/client.ts so the seed works against any S3 provider (R2/Supabase/
+  // MinIO): real region for SigV4 (Supabase/AWS validate it), and WHEN_REQUIRED so
+  // the SDK doesn't stamp CRC32 flexible-checksum params that Supabase/R2 reject.
+  region: process.env.R2_REGION ?? 'auto',
   endpoint: process.env.R2_ENDPOINT!,
   credentials: {
     accessKeyId: process.env.R2_ACCESS_KEY_ID!,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
   },
   forcePathStyle: process.env.R2_FORCE_PATH_STYLE === '1',
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 })
 const BUCKET = process.env.R2_BUCKET ?? 'pashusetu-dev'
 const UPLOADS = `${BUCKET}-uploads`

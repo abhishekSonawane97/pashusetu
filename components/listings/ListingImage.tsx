@@ -42,6 +42,12 @@ export function ListingImage({
       fill
       sizes={sizes}
       priority={priority}
+      // Listing photos are ALREADY optimized — the upload pipeline pre-generates the
+      // exact WebP variants (thumb/card/detail), so we skip the Next image optimizer
+      // and serve them straight from the storage CDN. This is cost-predictable (no
+      // metered per-request optimization) and provider-agnostic (no remotePatterns
+      // coupling — works for MinIO/Supabase/R2 alike). See docs/13 §8.
+      unoptimized
       className="object-cover"
       onError={() => setFailed(true)}
     />
