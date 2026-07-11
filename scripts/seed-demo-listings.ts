@@ -9,7 +9,8 @@
 //
 // Reads .env.local itself so it works as a plain script (no prisma-db-seed env).
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
@@ -137,7 +138,31 @@ const PER_SPECIES = 10
 const pick = <T>(arr: T[], i: number): T => arr[i % arr.length]
 const between = ([lo, hi]: [number, number], t: number) => Math.round(lo + (hi - lo) * t)
 
+// Real demo photos live in scripts/seed-assets/<species>/*.jpg (gitignored — sourced
+// from Wikimedia Commons for the demo). If present, we use a real photo (cycled by
+// listing index) so the marketplace shows actual animals; otherwise we fall back to
+// the generated placeholder art so the seed still runs on a bare checkout.
+const ASSET_DIR = join(process.cwd(), 'scripts', 'seed-assets')
+function realPhotos(species: Species): string[] {
+  const dir = join(ASSET_DIR, species.toLowerCase())
+  if (!existsSync(dir)) return []
+  return readdirSync(dir)
+    .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
+    .sort()
+    .map((f) => join(dir, f))
+}
+
 async function makeCover(species: Species, breedEn: string, n: number) {
+  const photos = realPhotos(species)
+  if (photos.length > 0) {
+    // Cycle through the available real photos; normalize to the card aspect + WebP.
+    const src = readFileSync(photos[(n - 1) % photos.length])
+    return sharp(src)
+      .resize({ width: 1000, height: 750, fit: 'cover', position: 'attention' })
+      .webp({ quality: 82 })
+      .toBuffer()
+  }
+  // Fallback: generated placeholder art (bare checkout with no seed-assets).
   const { color } = PLAN[species]
   const svg = Buffer.from(
     `<svg width="1000" height="750" xmlns="http://www.w3.org/2000/svg">
@@ -145,13 +170,10 @@ async function makeCover(species: Species, breedEn: string, n: number) {
        <text x="60" y="215" font-size="46" font-family="sans-serif" fill="rgba(255,255,255,0.75)">${breedEn}</text>
      </svg>`,
   )
-  const original = await sharp({
-    create: { width: 1000, height: 750, channels: 3, background: color },
-  })
+  return sharp({ create: { width: 1000, height: 750, channels: 3, background: color } })
     .composite([{ input: svg, top: 0, left: 0 }])
     .webp({ quality: 82 })
     .toBuffer()
-  return original
 }
 
 async function attachCover(listingId: string, species: Species, breedEn: string, n: number) {
