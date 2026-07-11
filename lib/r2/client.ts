@@ -17,7 +17,9 @@ export function getS3(): S3Client {
   const endpoint =
     process.env.R2_ENDPOINT ?? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
   client = new S3Client({
-    region: 'auto',
+    // R2 accepts 'auto'; providers like Supabase/AWS validate the real region in
+    // the SigV4 signature, so it must match the project region — set R2_REGION then.
+    region: process.env.R2_REGION ?? 'auto',
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
     // MinIO needs path-style (bucket in the path, not the host); R2 uses vhost.

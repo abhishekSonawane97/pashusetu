@@ -20,6 +20,24 @@ const storageOrigins = Array.from(
 )
 const storageSrc = storageOrigins.length ? ' ' + storageOrigins.join(' ') : ''
 
+// The public image host, derived from R2_PUBLIC_BASE_URL, so the Next image
+// optimizer's allow-list follows wherever the images actually live (dev MinIO →
+// Supabase → R2 later) with ZERO code edits — just the env value. This is a single
+// EXPLICIT host (never a wildcard): it sits ALONGSIDE the hardcoded pashusetu +
+// localhost entries below. remotePatterns is not an access control on the images
+// (the public bucket is world-readable); it stops /_next/image from being abused
+// as an open proxy / SSRF vector (doc 12 §8), so we keep it tight.
+const publicImagePattern = (() => {
+  try {
+    if (!process.env.R2_PUBLIC_BASE_URL) return null
+    const u = new URL(process.env.R2_PUBLIC_BASE_URL)
+    const protocol = u.protocol === 'https:' ? ('https' as const) : ('http' as const)
+    return { protocol, hostname: u.hostname, ...(u.port ? { port: u.port } : {}) }
+  } catch {
+    return null
+  }
+})()
+
 // DEV ONLY: React's development build uses eval() to reconstruct call stacks for
 // debugging (and Turbopack HMR evaluates modules the same way), so `next dev`
 // needs 'unsafe-eval' in script-src or the browser refuses it and React logs a
@@ -83,6 +101,9 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'img-dev.pashusetu.in' },
       // Dev fallback if optimization is ever re-enabled locally (still SSRF-blocked).
       { protocol: 'http', hostname: 'localhost', port: '9000' },
+      // The current storage host from env (e.g. <ref>.supabase.co). One explicit
+      // host, not a wildcard; deduped against the entries above by Next.
+      ...(publicImagePattern ? [publicImagePattern] : []),
     ],
   },
   async headers() {
