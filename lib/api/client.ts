@@ -9,6 +9,11 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   const doFetch = async (forceRefresh: boolean) => {
     const user = getFirebaseAuth().currentUser
     const headers = new Headers(init.headers)
+    // Lets the app work behind an ngrok free tunnel during dev demos — without it
+    // the tunnel returns its browser-warning HTML page to fetch/XHR (ERR_NGROK_6024)
+    // instead of the JSON, breaking every client request. Harmless off-ngrok: any
+    // non-ngrok server ignores the unknown request header.
+    headers.set('ngrok-skip-browser-warning', 'true')
     if (user) {
       headers.set('authorization', `Bearer ${await user.getIdToken(forceRefresh)}`)
     }

@@ -5,8 +5,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import Image from 'next/image'
-import { Icon } from '@/components/ui/Icon'
+import { ListingImage } from './ListingImage'
 
 type Photo = { id: string; urls: { detail: string } }
 
@@ -16,8 +15,8 @@ export function PhotoCarousel({ photos, alt }: { photos: Photo[]; alt: string })
 
   if (photos.length === 0) {
     return (
-      <div className="flex aspect-[4/3] w-full items-center justify-center bg-[var(--color-muted)] text-[var(--color-text-3)]">
-        <Icon name="gallery" size={48} />
+      <div className="relative aspect-[4/3] w-full bg-[var(--color-muted)]">
+        <ListingImage src={null} alt={alt} />
       </div>
     )
   }
@@ -41,14 +40,7 @@ export function PhotoCarousel({ photos, alt }: { photos: Photo[]; alt: string })
             key={p.id}
             className="relative aspect-[4/3] w-full shrink-0 snap-center bg-[var(--color-muted)]"
           >
-            <Image
-              src={p.urls.detail}
-              alt={alt}
-              fill
-              sizes="(min-width: 768px) 768px, 100vw"
-              className="object-cover"
-              priority={false}
-            />
+            <ListingImage src={p.urls.detail} alt={alt} sizes="(min-width: 768px) 768px, 100vw" />
           </div>
         ))}
       </div>

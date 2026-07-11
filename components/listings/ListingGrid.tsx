@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ListingCard } from './ListingCard'
+import { apiFetch } from '@/lib/api/client'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
@@ -49,7 +50,7 @@ function ListingFeed({
   const loadNext = useCallback(async () => {
     try {
       const qs = filterQuery ? `${filterQuery}&` : ''
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/v1/listings?${qs}${cursorRef.current ? `cursor=${encodeURIComponent(cursorRef.current)}` : ''}`,
       )
       if (!res.ok) throw new Error('search failed')

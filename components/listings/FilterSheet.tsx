@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { Button } from '@/components/ui/Button'
 import { SelectField, TextField } from '@/components/ui/Field'
+import { apiFetch } from '@/lib/api/client'
 import type { DistrictRef } from '@/lib/api/types'
 import type { Species } from '@/lib/validation/common'
 
@@ -46,7 +47,7 @@ function FilterForm({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/v1/meta/districts')
+    apiFetch('/api/v1/meta/districts')
       .then((r) => r.json())
       .then((d) => setDistricts(d.items ?? []))
       .catch(() => {})

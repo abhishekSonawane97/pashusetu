@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="जनावराचा फोटो अजून उपलब्ध नाही">
+  <rect width="400" height="300" fill="#f3ecef"/>
+  <!-- horns -->
+  <path d="M150 96 C132 70 108 66 96 78 C112 84 126 100 138 118 Z" fill="#c7b2bd"/>
+  <path d="M250 96 C268 70 292 66 304 78 C288 84 274 100 262 118 Z" fill="#c7b2bd"/>
+  <!-- ears -->
+  <ellipse cx="120" cy="150" rx="34" ry="22" fill="#c7b2bd" transform="rotate(-24 120 150)"/>
+  <ellipse cx="280" cy="150" rx="34" ry="22" fill="#c7b2bd" transform="rotate(24 280 150)"/>
+  <!-- face -->
+  <ellipse cx="200" cy="168" rx="86" ry="80" fill="#d6c3cd"/>
+  <!-- forelock -->
+  <path d="M172 100 Q200 84 228 100 Q214 116 200 116 Q186 116 172 100 Z" fill="#c7b2bd"/>
+  <!-- eyes -->
+  <circle cx="172" cy="150" r="9" fill="#6f5661"/>
+  <circle cx="228" cy="150" r="9" fill="#6f5661"/>
+  <!-- muzzle -->
+  <ellipse cx="200" cy="210" rx="58" ry="40" fill="#c3aab6"/>
+  <!-- nostrils -->
+  <ellipse cx="182" cy="212" rx="7" ry="11" fill="#8f7683"/>
+  <ellipse cx="218" cy="212" rx="7" ry="11" fill="#8f7683"/>
+</svg>

@@ -4,8 +4,8 @@
 // never "–"/"N/A"). Explicit image dimensions → zero CLS (hard rule 7).
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { Icon } from '@/components/ui/Icon'
+import { ListingImage } from './ListingImage'
 import type { ListingCard as ListingCardData } from '@/lib/api/types'
 import { ageMonthsToMr, formatInr, timeSinceMr } from '@/lib/utils/format'
 
@@ -25,19 +25,11 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
       className="block overflow-hidden rounded-card border border-[var(--color-border-card)] bg-[var(--color-surface)] shadow-card"
     >
       <div className="relative aspect-[4/3] w-full bg-[var(--color-muted)]">
-        {listing.thumbnailUrl ? (
-          <Image
-            src={listing.thumbnailUrl}
-            alt={title}
-            fill
-            sizes="(min-width: 1024px) 250px, (min-width: 768px) 380px, 50vw"
-            className="object-cover"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-[var(--color-text-3)]">
-            <Icon name="gallery" size={32} />
-          </div>
-        )}
+        <ListingImage
+          src={listing.thumbnailUrl}
+          alt={title}
+          sizes="(min-width: 1024px) 250px, (min-width: 768px) 380px, 50vw"
+        />
       </div>
       <div className="flex flex-col gap-1 p-3">
         <p className="text-[18px] font-bold text-[var(--color-primary)]">
