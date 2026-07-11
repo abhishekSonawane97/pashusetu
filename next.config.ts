@@ -86,7 +86,19 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
-    return [{ source: '/(.*)', headers: SECURITY_HEADERS }]
+    return [
+      { source: '/(.*)', headers: SECURITY_HEADERS },
+      // The service worker must never be served stale, or SW updates (manual
+      // VERSION bump in public/sw.js) won't reach clients. Service-Worker-Allowed
+      // lets it control the whole origin scope.
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
+    ]
   },
 }
 

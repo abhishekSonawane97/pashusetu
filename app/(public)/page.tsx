@@ -2,12 +2,22 @@
 // and the latest APPROVED listings. Public (BR-060). The search bar routes to
 // S-06 (structured filters, not free text — F-12).
 
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { Icon } from '@/components/ui/Icon'
 import { SpeciesChips } from '@/components/listings/SpeciesChips'
 import { ListingGrid } from '@/components/listings/ListingGrid'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { InstallPrompt } from '@/components/pwa/InstallPrompt'
+
+// Home inherits the root title + alternates (canonical '/' + hreflang); it only
+// overrides the description. This is the primary SEO landing page. (Not setting
+// `alternates` here on purpose — doing so would replace the root's hreflang.)
+export const metadata: Metadata = {
+  description:
+    'महाराष्ट्रातील गाय, म्हैस, बैल, शेळी, मेंढी थेट शेतकऱ्यांकडून खरेदी करा किंवा विका. मोफत जाहिरात, विश्वासू बाजार.',
+}
 
 export default function HomePage() {
   return (
@@ -45,6 +55,7 @@ export default function HomePage() {
       >
         <ListingGrid />
       </Suspense>
+      <InstallPrompt />
     </main>
   )
 }

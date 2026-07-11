@@ -3,8 +3,12 @@
 // The bottom nav self-hides on /admin (BottomNav HIDDEN /^\/admin/). The AdminGate
 // is the client authorization wall; the API re-checks is_admin on every request.
 
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { AdminGate } from '@/components/admin/AdminGate'
+
+// Admin panel is internal — never index (robots.txt also disallows /admin). NFR-09.
+export const metadata: Metadata = { robots: { index: false, follow: false } }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

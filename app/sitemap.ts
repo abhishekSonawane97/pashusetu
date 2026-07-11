@@ -3,8 +3,7 @@
 // Degrades to the static pages if the DB is unreachable at generation time.
 import type { MetadataRoute } from 'next'
 import { approvedListingSitemapEntries } from '@/lib/repositories/sitemap-repo'
-
-const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://pashusetu.in'
+import { SITE_URL as BASE } from '@/lib/seo/site'
 
 export const revalidate = 86400 // daily
 

@@ -12,7 +12,7 @@ import { PhotoCarousel } from '@/components/listings/PhotoCarousel'
 import { ListingJsonLd } from '@/components/listings/ListingJsonLd'
 import { Icon } from '@/components/ui/Icon'
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://pashusetu.in'
+import { SITE_URL, absoluteUrl, seoAlternates } from '@/lib/seo/site'
 import { ageMonthsToMr, formatInr, timeSinceMr } from '@/lib/utils/format'
 import type { Species } from '@/lib/validation/common'
 
@@ -48,11 +48,41 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params
   const { detail } = await loadPublicDetail(id)
-  if (!detail) return { title: 'पशुसेतू' }
+  // Non-APPROVED / missing → the page renders notFound() (404, NFR-09 F-05 AC-7);
+  // an absolute title avoids the root "%s | पशुसेतू" template doubling up here.
+  if (!detail) return { title: { absolute: 'जाहिरात उपलब्ध नाही | पशुसेतू' } }
   const d = detail as Record<string, unknown>
   const breed = (d.breed as { nameMr: string }).nameMr
-  const title = `${breed} ${SPECIES_MR[d.species as Species]} — ${formatInr(d.priceInr as number)} | पशुसेतू`
-  return { title, description: (d.description as string)?.slice(0, 160) }
+  const species = SPECIES_MR[d.species as Species]
+  const district = (d.district as { nameMr: string } | null)?.nameMr
+  // Bare title (no "| पशुसेतू") — the root template appends the brand suffix.
+  const title = `${breed} ${species} — ${formatInr(d.priceInr as number)}${district ? ` · ${district}` : ''}`
+  const description =
+    (d.description as string)?.slice(0, 160) ?? `${breed} ${species} विक्रीसाठी — पशुसेतू`
+  const images = d.images as Array<{ urls: { card: string } }>
+  const cardImage = images[0]?.urls.card // OG = card variant (NFR-09); never a phone (BR-066)
+  const url = absoluteUrl(`/listings/${id}`)
+  return {
+    // absolute so the brand suffix is guaranteed — the /listings layout's plain
+    // string title would otherwise shadow the root "%s | पशुसेतू" template here.
+    title: { absolute: `${title} | पशुसेतू` },
+    description,
+    alternates: seoAlternates(url),
+    openGraph: {
+      title: `${title} | पशुसेतू`,
+      description,
+      url,
+      type: 'website',
+      siteName: 'पशुसेतू',
+      ...(cardImage ? { images: [{ url: cardImage }] } : {}),
+    },
+    twitter: {
+      card: cardImage ? 'summary_large_image' : 'summary',
+      title: `${title} | पशुसेतू`,
+      description,
+      ...(cardImage ? { images: [cardImage] } : {}),
+    },
+  }
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -98,7 +128,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
         priceInr={d.priceInr as number}
         imageUrl={images[0]?.urls.detail ?? null}
         status={d.status as string}
-        baseUrl={BASE_URL}
+        baseUrl={SITE_URL}
       />
       <PhotoCarousel photos={images} alt={title} />
 

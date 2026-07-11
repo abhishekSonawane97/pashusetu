@@ -3,6 +3,12 @@
 // favorites, sell, notifications) lands with those pages' stories and lives in
 // their own guard, so this layout stays a pass-through shell.
 
+import type { Metadata } from 'next'
+
+// Auth surfaces are private — noindex (belt-and-suspenders alongside the
+// robots.txt Disallow of /login and /profile). NFR-09.
+export const metadata: Metadata = { robots: { index: false, follow: false } }
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   // No width cap here — the (auth) group is mixed-width (My Listings is "wide"
   // 768; login/profile/wizard are "form" ≤480), so each page sets its own

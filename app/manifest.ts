@@ -5,12 +5,16 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: '/',
     name: 'PashuSetu — पशुसेतू',
     short_name: 'पशुसेतू',
     description: 'शेतकरी आणि खरेदीदारांना थेट जोडणारा विश्वासू पशुधन बाजार',
     lang: 'mr',
+    dir: 'ltr',
     start_url: '/',
+    scope: '/',
     display: 'standalone',
+    categories: ['shopping', 'business'],
     background_color: '#FFFFFF',
     theme_color: '#C2185B', // --color-primary (designer tokens; founder may re-skin)
     orientation: 'portrait',
