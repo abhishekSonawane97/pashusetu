@@ -4,6 +4,7 @@
 
 import { AppError } from '@/lib/errors/app-error'
 import type { AuthContext } from '@/lib/auth/auth-context'
+import { assertOwnerVisible } from '@/lib/auth/verify-auth'
 import * as listingRepo from '@/lib/repositories/listing-repo'
 import * as r2 from '@/lib/r2/images'
 import { imageCuidFromKey, listingIdFromKey } from '@/lib/r2/keys'
@@ -16,7 +17,8 @@ const PHOTO_EDITABLE = ['DRAFT', 'PENDING', 'REJECTED', 'APPROVED']
 async function ownedEditable(ctx: AuthContext, listingId: string) {
   const row = await listingRepo.findOwned(listingId)
   if (!row) throw AppError.listingNotFound()
-  if (row.sellerId !== ctx.user.id) throw AppError.forbidden()
+  // Owner ok; APPROVED non-owner → 403; hidden non-owner → 404 (no existence oracle).
+  assertOwnerVisible(ctx, row)
   if (!PHOTO_EDITABLE.includes(row.status)) throw AppError.editNotAllowed(row.status)
   return row
 }
@@ -29,7 +31,7 @@ export async function presign(ctx: AuthContext, input: PresignInput) {
 
 /** API-16: attach an uploaded object — prefix check, magic-bytes re-check, variant gen, ≤5 cap. */
 export async function attachImage(ctx: AuthContext, listingId: string, input: AttachImageInput) {
-  await ownedEditable(ctx, listingId)
+  const row = await ownedEditable(ctx, listingId)
 
   // The key MUST be one API-15 issued for THIS listing (SEC-T05 — no foreign/guessed keys).
   const keyListingId = listingIdFromKey(input.key)
@@ -48,6 +50,8 @@ export async function attachImage(ctx: AuthContext, listingId: string, input: At
     await r2.deleteImageObjects(listingId, imageCuid, input.key)
     throw AppError.photoLimitExceeded(PHOTO_LIMIT)
   }
+  // T-09 (BR-028): editing photos on a live listing sends it back to moderation.
+  if (row.status === 'APPROVED') await listingRepo.markPendingForEdit(listingId)
   return {
     id: added.imageId,
     sortOrder: added.sortOrder,
@@ -63,10 +67,18 @@ export async function attachImage(ctx: AuthContext, listingId: string, input: At
 
 /** API-17: delete an image (owner). Removes the row, then best-effort R2 cleanup. */
 export async function deleteImage(ctx: AuthContext, listingId: string, imageId: string) {
-  await ownedEditable(ctx, listingId)
+  const row = await ownedEditable(ctx, listingId)
   const img = await listingRepo.findImage(listingId, imageId)
   if (!img) throw AppError.notFound()
+  // A submitted listing must keep ≥ 1 photo (BR-023 floor is 3 at submit; never let a
+  // live/queued listing drop to zero). DRAFT/REJECTED may go empty while being edited.
+  if (row.status === 'PENDING' || row.status === 'APPROVED') {
+    const remaining = await listingRepo.countImages(listingId)
+    if (remaining <= 1) throw AppError.conflict({ reason: 'LAST_IMAGE' })
+  }
   await listingRepo.deleteImageRow(imageId)
   const imageCuid = imageCuidFromKey(img.r2Key)
   if (imageCuid) await r2.deleteImageObjects(listingId, imageCuid, img.r2Key)
+  // T-09 (BR-028): editing photos on a live listing sends it back to moderation.
+  if (row.status === 'APPROVED') await listingRepo.markPendingForEdit(listingId)
 }

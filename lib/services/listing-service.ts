@@ -7,6 +7,7 @@ import { decodeCursor, encodeCursor, type CursorKey } from '@/lib/api/cursor'
 import type { ListingCard, Paginated } from '@/lib/api/types'
 import type { SearchQuery } from '@/lib/validation/search'
 import type { AuthContext } from '@/lib/auth/auth-context'
+import { assertOwnerVisible } from '@/lib/auth/verify-auth'
 import * as listingRepo from '@/lib/repositories/listing-repo'
 import type { ListingCardRow, OwnListingRow } from '@/lib/repositories/listing-repo'
 import { containsPhoneNumber } from '@/lib/validation/common'
@@ -185,10 +186,6 @@ export async function search(query: SearchQuery): Promise<Paginated<ListingCard>
 
 const ACTIVE_LIMIT = 10 // BR-024
 
-function assertOwner(row: { sellerId: string }, ctx: AuthContext): void {
-  if (row.sellerId !== ctx.user.id) throw AppError.forbidden()
-}
-
 /** API-08 / T-01: create a DRAFT with the atomic active-listing quota (BR-024). */
 export async function createDraft(ctx: AuthContext, input: CreateListingInput) {
   // Only provided fields are written; the rest stay null until the wizard fills them.
@@ -219,7 +216,7 @@ export async function createDraft(ctx: AuthContext, input: CreateListingInput) {
 export async function editListing(ctx: AuthContext, id: string, input: UpdateListingInput) {
   const row = await listingRepo.findOwned(id)
   if (!row) throw AppError.listingNotFound()
-  assertOwner(row, ctx)
+  assertOwnerVisible(ctx, row) // hidden listing → 404 for non-owners (no existence oracle)
   if (['EXPIRED', 'SOLD', 'ARCHIVED'].includes(row.status))
     throw AppError.editNotAllowed(row.status)
 
@@ -291,7 +288,7 @@ export async function submitListing(
 
   const row = await listingRepo.findOwned(id)
   if (!row) throw AppError.listingNotFound()
-  assertOwner(row, ctx)
+  assertOwnerVisible(ctx, row) // hidden listing → 404 for non-owners (no existence oracle)
 
   // Idempotent repeat on PENDING → refresh declarationAt, no-op (doc 08 §1.7).
   if (row.status === 'PENDING') {
@@ -323,7 +320,7 @@ export async function submitListing(
   if (row.description && containsPhoneNumber(row.description))
     fields.description = 'phone number not allowed'
   const imageCount = await listingRepo.countImages(id)
-  if (imageCount < 1) fields.photos = 'at least 1 photo required (BR-023)'
+  if (imageCount < 3) fields.photos = 'at least 3 photos required (BR-023)'
   if (Object.keys(fields).length > 0) throw AppError.validation(fields)
 
   // BR-029 duplicate heuristic (advisory only — never blocks).

@@ -92,11 +92,15 @@ export type TransitionResult =
   | { ok: false; reason: 'SELLER_BANNED' }
   | { ok: false; reason: 'OPEN_REPORTS' }
 
-// Shared pre-transition guards (both approve and reject need the exact same set).
+// Shared pre-transition guards. Existence/PENDING/freshness apply to every
+// transition. The publish-safety checks (seller banned, open reports) are
+// APPROVE-only: rejecting a listing whose seller is banned or that has open
+// reports is exactly the right action, so REJECT skips them (opts.publishSafety).
 async function guard(
   tx: Prisma.TransactionClient,
   id: string,
   expectedUpdatedAt: Date,
+  opts: { publishSafety: boolean } = { publishSafety: true },
 ): Promise<TransitionResult> {
   const row = await tx.listing.findUnique({
     where: { id },
@@ -111,8 +115,10 @@ async function guard(
   if (row.status !== 'PENDING') return { ok: false, reason: 'NOT_PENDING', from: row.status }
   if (row.updatedAt.getTime() !== expectedUpdatedAt.getTime())
     return { ok: false, reason: 'STALE_REVIEW' }
-  if (row.seller.status !== 'ACTIVE') return { ok: false, reason: 'SELLER_BANNED' }
-  if (row._count.reports > 0) return { ok: false, reason: 'OPEN_REPORTS' }
+  if (opts.publishSafety) {
+    if (row.seller.status !== 'ACTIVE') return { ok: false, reason: 'SELLER_BANNED' }
+    if (row._count.reports > 0) return { ok: false, reason: 'OPEN_REPORTS' }
+  }
   return { ok: true }
 }
 
@@ -152,7 +158,7 @@ export async function rejectTransition(
   expectedUpdatedAt: Date,
 ): Promise<TransitionResult> {
   return prisma.$transaction(async (tx) => {
-    const g = await guard(tx, id, expectedUpdatedAt)
+    const g = await guard(tx, id, expectedUpdatedAt, { publishSafety: false })
     if (!g.ok) return g
     const res = await tx.listing.updateMany({
       where: { id, status: 'PENDING' },

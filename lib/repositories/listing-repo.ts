@@ -229,6 +229,19 @@ export async function patchListing(
 }
 
 /**
+ * T-09 for photo edits (BR-028): a photo attach/delete on an APPROVED listing
+ * sends it back to moderation (hidden), re-affirming the declaration. Guarded on
+ * status=APPROVED so it only fires for live listings (DRAFT/PENDING/REJECTED keep
+ * their status). Idempotent.
+ */
+export async function markPendingForEdit(id: string): Promise<void> {
+  await prisma.listing.updateMany({
+    where: { id, status: 'APPROVED' },
+    data: { status: 'PENDING', declarationAt: new Date() },
+  })
+}
+
+/**
  * API-09 imageOrder: reassign sort_order 0..n-1 from a permutation of the
  * listing's CURRENT image ids (cover = index 0). Returns false without changes
  * if `orderedIds` is not an exact permutation (service maps → VALIDATION_ERROR).

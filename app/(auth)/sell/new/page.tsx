@@ -410,7 +410,7 @@ function WizardInner() {
             loading={busy}
             disabled={
               (step === 1 && (!draft.species || !draft.breedId)) ||
-              (step === 3 && photos.length < 1)
+              (step === 3 && photos.length < 3)
             }
           >
             पुढे जा
@@ -420,9 +420,9 @@ function WizardInner() {
             तपासणीसाठी पाठवा
           </Button>
         )}
-        {step === 3 && photos.length < 1 && (
+        {step === 3 && photos.length < 3 && (
           <p className="text-center text-[14px] text-[var(--color-text-2)]">
-            पुढे जाण्यासाठी किमान 1 फोटो जोडा
+            पुढे जाण्यासाठी किमान ३ फोटो जोडा
           </p>
         )}
       </div>

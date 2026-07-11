@@ -37,6 +37,7 @@ describe.skipIf(!RUN)('image pipeline (live MinIO + Neon)', () => {
       priceInr: 65000,
       negotiable: true,
       districtId: district.id,
+      taluka: 'हवेली',
       village: 'निगडी',
       description: 'चांगली गीर गाय, दररोज 12 लिटर दूध देते.',
     })) as { id: string }
@@ -84,7 +85,23 @@ describe.skipIf(!RUN)('image pipeline (live MinIO + Neon)', () => {
     expect(got.headers.get('content-type')).toContain('image/webp')
   }, 30000)
 
-  it('with a photo attached, submit now clears the BR-023 guard → PENDING', async () => {
+  it('with 3 photos attached, submit clears the BR-023 min-3 guard → PENDING', async () => {
+    // Test 1 attached 1 photo; BR-023 requires ≥ 3 at submit → add 2 more via the real pipeline.
+    const png = await sharp({
+      create: { width: 400, height: 300, channels: 3, background: { r: 10, g: 80, b: 40 } },
+    })
+      .png()
+      .toBuffer()
+    for (let i = 0; i < 2; i++) {
+      const { key, uploadUrl, headers } = await imageService.presign(ctx, {
+        listingId,
+        contentType: 'image/png',
+        sizeBytes: png.length,
+      })
+      await fetch(uploadUrl, { method: 'PUT', headers, body: png })
+      await imageService.attachImage(ctx, listingId, { key })
+    }
+
     const submitted = (await listingService.submitListing(ctx, listingId, true)) as Record<
       string,
       unknown
@@ -95,13 +112,13 @@ describe.skipIf(!RUN)('image pipeline (live MinIO + Neon)', () => {
   }, 30000)
 
   it('photo cap: attaching a 6th image is rejected (BR-023, PHOTO_LIMIT_EXCEEDED)', async () => {
-    // Attach up to 5 (one already attached above → add 4 more), then the 6th fails.
+    // Fill to the cap of 5 (3 attached above → add 2 more), then the 6th fails.
     const png = await sharp({
       create: { width: 400, height: 300, channels: 3, background: { r: 0, g: 0, b: 0 } },
     })
       .png()
       .toBuffer()
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 2; i++) {
       const { key, uploadUrl, headers } = await imageService.presign(ctx, {
         listingId,
         contentType: 'image/png',

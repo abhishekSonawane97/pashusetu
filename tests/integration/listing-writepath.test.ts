@@ -67,7 +67,7 @@ describe.skipIf(!RUN)('listing write path (live Neon)', () => {
     const fields = err?.details?.fields as Record<string, string>
     expect(fields).toHaveProperty('breedId')
     expect(fields).toHaveProperty('priceInr')
-    expect(fields).toHaveProperty('photos') // BR-023 ≥1 image
+    expect(fields).toHaveProperty('photos') // BR-023 ≥3 images
   })
 
   it('submit without declaration → DECLARATION_REQUIRED', async () => {
@@ -95,14 +95,14 @@ describe.skipIf(!RUN)('listing write path (live Neon)', () => {
       description: 'चांगली गीर गाय, दररोज 12 लिटर दूध देते.',
     })) as { id: string }
     created.push(d.id)
-    // Simulate an attached photo (R2 pipeline lands later) to satisfy the BR-023 guard.
-    await prisma.listingImage.create({
-      data: {
+    // Simulate 3 attached photos (R2 pipeline lands later) to satisfy the BR-023 min-3 guard.
+    await prisma.listingImage.createMany({
+      data: [0, 1, 2].map((i) => ({
         listingId: d.id,
-        r2Key: `test/${d.id}.webp`,
-        url: 'https://img-dev.pashusetu.in/x.webp',
-        sortOrder: 0,
-      },
+        r2Key: `test/${d.id}-${i}.webp`,
+        url: `https://img-dev.pashusetu.in/x${i}.webp`,
+        sortOrder: i,
+      })),
     })
 
     const submitted = (await listingService.submitListing(ctx, d.id, true)) as Record<
