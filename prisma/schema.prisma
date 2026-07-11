@@ -184,7 +184,7 @@ model Listing {
   priceInr            Int?          @map("price_inr") // ₹500–₹10,00,000 at submit (BR-026)
   negotiable          Boolean       @default(true) // UI copy only, never behavior (BR-026)
   districtId          String?       @map("district_id") // required at submit (BR-022)
-  taluka              String?
+  taluka              String? // tehsil — required at submit (BR-022); nullable while DRAFT
   village             String? // required at submit (BR-022)
   status              ListingStatus @default(DRAFT)
   rejectionReason     String?       @map("rejection_reason") // taxonomy code + free text (BR-043)

@@ -314,6 +314,7 @@ export async function submitListing(
       isPregnant: row.isPregnant,
       priceInr: row.priceInr,
       districtId: row.districtId,
+      taluka: row.taluka,
       village: row.village,
       description: row.description,
     },

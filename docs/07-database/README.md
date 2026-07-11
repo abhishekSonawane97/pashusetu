@@ -655,7 +655,7 @@ Types are the generated Postgres types. "R@submit" = nullable in DB, required by
 | price_inr | integer | yes | null | R@submit; integer rupees; CHECK 500–1000000 | BR-026 |
 | negotiable | boolean | no | true | UI copy only | BR-026 |
 | district_id | text | yes | null | R@submit; FK → districts (Restrict) | BR-022 |
-| taluka | text | yes | null | Optional, ≤ 60 chars | BR-022 |
+| taluka | text | yes | null | Required at submit (nullable while DRAFT), ≤ 60 chars | BR-022 |
 | village | text | yes | null | R@submit; 2–60 chars | BR-022 |
 | status | listing_status | no | 'DRAFT' | D10 state machine; transitions only via guarded `UPDATE … WHERE status = <from>` | BR-030–033 |
 | rejection_reason | text | yes | null | Taxonomy code + optional free text; cleared on resubmit (T-05) | BR-043 |

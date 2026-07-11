@@ -90,6 +90,7 @@ describe.skipIf(!RUN)('listing write path (live Neon)', () => {
       priceInr: 65000,
       negotiable: true,
       districtId,
+      taluka: 'हवेली',
       village: 'निगडी',
       description: 'चांगली गीर गाय, दररोज 12 लिटर दूध देते.',
     })) as { id: string }

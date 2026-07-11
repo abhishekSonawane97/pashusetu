@@ -16,6 +16,7 @@ const submittableCow = {
   milkYieldLpd: 12,
   priceInr: 65000,
   districtId: 'cdist00000000000000001',
+  taluka: 'हवेली',
   village: 'निगडी',
   description: 'चांगली गीर गाय आहे, दररोज 12 लिटर दूध देते. दुसरे वेत.',
 }
@@ -119,6 +120,7 @@ describe('listingFieldIssues (submit tier — BR-022 R columns)', () => {
       'ageMonths',
       'priceInr',
       'districtId',
+      'taluka',
       'village',
       'description',
     ]) {

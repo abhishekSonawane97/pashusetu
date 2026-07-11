@@ -212,7 +212,7 @@ Every constraint below is verified at each review gate (§8.3). A design that vi
 - **Marathi copy:** nudge «किमान 3 फोटो टाकल्यास जनावर लवकर विकले जाते» (with at least 3 photos the animal sells faster).
 
 #### S-10d — Step 4: price & location · किंमत व ठिकाण
-- **Must contain:** price input — large ₹ field, integer only, live Indian-grouping display **and words readback** («₹50,000 — पन्नास हजार रुपये» / fifty thousand rupees; catches missing-zero errors, doc 03 A6); negotiable toggle «किंमतीत बदल शक्य» (price negotiable, default on); district picker (prefilled from profile); taluka (optional); village (required, free text + autocomplete assist).
+- **Must contain:** price input — large ₹ field, integer only, live Indian-grouping display **and words readback** («₹50,000 — पन्नास हजार रुपये» / fifty thousand rupees; catches missing-zero errors, doc 03 A6); negotiable toggle «किंमतीत बदल शक्य» (price negotiable, default on); district picker (prefilled from profile); taluka (required); village (required, free text + autocomplete assist).
 - **Primary action:** «पुढे» → S-10e.
 - **States:** default (district prefilled) · price empty/zero/out-of-bounds error (bounds ₹500–₹10,00,000; next disabled) · words readback updating live · village required error · autocomplete suggestions / silent fallback to plain text · offline.
 - **Marathi copy:** «किंमत ठरवा» (set the price) · «गाव लिहा» (write the village).
