@@ -34,7 +34,7 @@ The create → approve → browse loop is live, but a buyer **cannot yet act on 
 - [ ] Create two buckets: `pashusetu-uploads` (private) and `pashusetu-public` (public read).
 - [ ] Attach a **custom domain** to the public bucket → `img.pashusetu.in` (or `img-dev` for staging).
 - [ ] Set R2 **CORS** on the uploads bucket to allow the app origin: `PUT` + `Content-Type` header from `https://<app-domain>` (needed for the browser presigned upload).
-- [ ] Env swap (no code change): `R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` (R2 API token), `R2_BUCKET=pashusetu`, **unset `R2_FORCE_PATH_STYLE`** (R2 uses vhost style), `R2_PUBLIC_BASE_URL=https://img.pashusetu.in/pashusetu-public` (match your public bucket path).
+- [ ] Env swap (no code change): `R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` (R2 API token), `R2_BUCKET=pashusetu` (**prefix only** — the code derives `pashusetu-uploads` + `pashusetu-public`), **unset `R2_FORCE_PATH_STYLE`** (R2 uses vhost style), `R2_PUBLIC_BASE_URL=https://img.pashusetu.in` (**bare origin, no bucket path** — a custom domain / `r2.dev` URL serves the bucket at the root; the code appends `/listings/...`). For a pilot you can skip the custom domain and use the bucket's managed `https://pub-<hash>.r2.dev` URL as `R2_PUBLIC_BASE_URL`.
 - [ ] The AWS-SDK flexible-checksum fix (`requestChecksumCalculation: WHEN_REQUIRED`, already committed) is **required** for R2 presigned uploads — confirm it's in `lib/r2/client.ts`. `[code ✓]`
 - [ ] `next.config.ts` image `remotePatterns` already allows `img.pashusetu.in`; prod uses the optimizer (dev-only `unoptimized` is `NODE_ENV`-gated). `[code ✓]`
 
@@ -62,7 +62,7 @@ The create → approve → browse loop is live, but a buyer **cannot yet act on 
 | `NEXT_PUBLIC_FIREBASE_TEST_MODE` | **unset / absent** |
 | `R2_ENDPOINT/ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY/BUCKET` | R2 prod |
 | `R2_FORCE_PATH_STYLE` | **unset** (R2 = vhost) |
-| `R2_PUBLIC_BASE_URL` | `https://img.pashusetu.in/...` |
+| `R2_PUBLIC_BASE_URL` | `https://img.pashusetu.in` (or `https://pub-<hash>.r2.dev`) — bare origin |
 | `NEXT_PUBLIC_APP_URL` | `https://<domain>` |
 
 ## 7. Security & headers (doc 12)
