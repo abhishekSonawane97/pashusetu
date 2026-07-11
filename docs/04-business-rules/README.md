@@ -118,7 +118,7 @@ Species enum: `COW | BUFFALO | BULL_OX | GOAT | SHEEP`. Field names per the cano
 | `price_inr` | R | R | R | R | R | BR-026 |
 | `negotiable` | R | R | R | R | R | boolean, default `true` |
 | `district_id` | R | R | R | R | R | one of 36 seeded MH districts |
-| `taluka` | O | O | O | O | O | string ≤ 60 chars |
+| `taluka` | R | R | R | R | R | tehsil — string ≤ 60 chars (compulsory at submit; nullable while DRAFT) |
 | `village` | R | R | R | R | R | string 2–60 chars |
 | `description` | R | R | R | R | R | BR-025 |
 | photos | R | R | R | R | R | BR-023 |

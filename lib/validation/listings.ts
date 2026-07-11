@@ -97,6 +97,7 @@ export function listingFieldIssues(
     requireField('ageMonths')
     requireField('priceInr')
     requireField('districtId')
+    requireField('taluka') // tehsil — compulsory at submit (BR-022)
     requireField('village')
     requireField('description')
     if (!fixed) requireField('sex') // BUFFALO/GOAT/SHEEP must state sex

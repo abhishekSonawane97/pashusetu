@@ -346,9 +346,10 @@ function WizardInner() {
             ))}
           </SelectField>
           <TextField
-            label="तालुका (ऐच्छिक)"
+            label="तालुका"
             value={draft.taluka ?? ''}
             onChange={(e) => set({ taluka: e.target.value })}
+            error={fieldErrors.taluka ? 'तालुका भरा' : null}
           />
           <TextField
             label="गाव"

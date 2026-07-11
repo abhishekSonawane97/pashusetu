@@ -1,0 +1,288 @@
+// scripts/seed-demo-listings.ts — DEV/DEMO ONLY. NOT wired into `prisma db seed`
+// (that runs on every prod deploy — this must never touch prod). Populates the
+// marketplace with 10 APPROVED listings per species (COW/BUFFALO/BULL_OX/GOAT/
+// SHEEP) across a set of seed sellers, each with a generated cover image
+// processed into the same thumb/card/detail WebP variants + key scheme as the
+// real pipeline (lib/r2). Every listing carries a taluka (now compulsory, BR-022).
+// Idempotent: wipes prior seed-seller listings first. Run from the repo root:
+//   node --import tsx scripts/seed-demo-listings.ts
+//
+// Reads .env.local itself so it works as a plain script (no prisma-db-seed env).
+
+import { readFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import sharp from 'sharp'
+
+// --- load .env.local into process.env (runs before any client is constructed
+// below; static imports above have no env-dependent side effects) ---
+for (const raw of readFileSync('.env.local', 'utf8').split('\n')) {
+  const m = /^([A-Z0-9_]+)=(.*)$/.exec(raw.trim())
+  if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+}
+
+type Species = 'COW' | 'BUFFALO' | 'BULL_OX' | 'GOAT' | 'SHEEP'
+type Sex = 'FEMALE' | 'MALE'
+
+const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL
+if (!connectionString) throw new Error('DIRECT_URL / DATABASE_URL not set (need .env.local)')
+const prisma = new PrismaClient({ adapter: new PrismaPg(connectionString) })
+
+const s3 = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT!,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+  },
+  forcePathStyle: process.env.R2_FORCE_PATH_STYLE === '1',
+})
+const BUCKET = process.env.R2_BUCKET ?? 'pashusetu-dev'
+const UPLOADS = `${BUCKET}-uploads`
+const PUBLIC = `${BUCKET}-public`
+const PUBLIC_BASE = process.env.R2_PUBLIC_BASE_URL ?? 'http://localhost:9000/pashusetu-dev-public'
+const VARIANTS: Array<['thumb' | 'card' | 'detail', number]> = [
+  ['thumb', 400],
+  ['card', 800],
+  ['detail', 1600],
+]
+
+// --- demo content -----------------------------------------------------------
+const SELLERS = [
+  'रमेश पाटील',
+  'सुनील जाधव',
+  'महेश देशमुख',
+  'गणेश शिंदे',
+  'विठ्ठल मोरे',
+  'संतोष कदम',
+  'दत्तात्रय गायकवाड',
+  'बाळासाहेब थोरात',
+  'नामदेव भोसले',
+  'प्रकाश साळुंखे',
+]
+// tehsils keyed by district nameEn (the two pilot districts, doc 00 update).
+const TALUKAS: Record<string, string[]> = {
+  'Chhatrapati Sambhajinagar': ['पैठण', 'गंगापूर', 'वैजापूर', 'सिल्लोड', 'कन्नड', 'फुलंब्री'],
+  Ahilyanagar: ['श्रीरामपूर', 'संगमनेर', 'राहुरी', 'कोपरगाव', 'नेवासा', 'पारनेर'],
+}
+const VILLAGES = [
+  'वडगाव',
+  'पिंपळगाव',
+  'शिरसगाव',
+  'बाभूळगाव',
+  'कोळगाव',
+  'देवगाव',
+  'सावरगाव',
+  'नांदगाव',
+  'मांजरी',
+  'तळेगाव',
+]
+const DESC: Record<Species, string> = {
+  COW: 'निरोगी दुधाळ गाय, चांगली जात, नियमित लसीकरण झालेले आहे. शांत स्वभाव.',
+  BUFFALO: 'जास्त दूध देणारी म्हैस, मजबूत बांधा, वेळेवर लसीकरण केलेले आहे.',
+  BULL_OX: 'शेतीकामासाठी उत्तम बैल, ताकदवान आणि मेहनती, चांगल्या जातीचा.',
+  GOAT: 'निरोगी शेळी, चांगली वाढ, मांस व दुधासाठी उत्तम, लसीकरण पूर्ण.',
+  SHEEP: 'निरोगी मेंढी, चांगली लोकर व मांस, कळपासाठी योग्य, तंदुरुस्त.',
+}
+const PLAN: Record<
+  Species,
+  {
+    sex: Sex
+    price: [number, number]
+    age: [number, number]
+    milk?: [number, number]
+    color: { r: number; g: number; b: number }
+  }
+> = {
+  COW: {
+    sex: 'FEMALE',
+    price: [40000, 95000],
+    age: [24, 84],
+    milk: [6, 15],
+    color: { r: 150, g: 111, b: 74 },
+  },
+  BUFFALO: {
+    sex: 'FEMALE',
+    price: [50000, 130000],
+    age: [30, 96],
+    milk: [7, 16],
+    color: { r: 74, g: 78, b: 86 },
+  },
+  BULL_OX: { sex: 'MALE', price: [30000, 75000], age: [30, 108], color: { r: 168, g: 140, b: 96 } },
+  GOAT: {
+    sex: 'FEMALE',
+    price: [7000, 22000],
+    age: [8, 36],
+    milk: [1, 3],
+    color: { r: 120, g: 132, b: 72 },
+  },
+  SHEEP: { sex: 'FEMALE', price: [6000, 16000], age: [8, 36], color: { r: 214, g: 205, b: 182 } },
+}
+const SPECIES_EN: Record<Species, string> = {
+  COW: 'Cow',
+  BUFFALO: 'Buffalo',
+  BULL_OX: 'Bullock',
+  GOAT: 'Goat',
+  SHEEP: 'Sheep',
+}
+const PER_SPECIES = 10
+
+const pick = <T>(arr: T[], i: number): T => arr[i % arr.length]
+const between = ([lo, hi]: [number, number], t: number) => Math.round(lo + (hi - lo) * t)
+
+async function makeCover(species: Species, breedEn: string, n: number) {
+  const { color } = PLAN[species]
+  const svg = Buffer.from(
+    `<svg width="1000" height="750" xmlns="http://www.w3.org/2000/svg">
+       <text x="60" y="130" font-size="76" font-family="sans-serif" fill="rgba(255,255,255,0.9)">${SPECIES_EN[species]} #${n}</text>
+       <text x="60" y="215" font-size="46" font-family="sans-serif" fill="rgba(255,255,255,0.75)">${breedEn}</text>
+     </svg>`,
+  )
+  const original = await sharp({
+    create: { width: 1000, height: 750, channels: 3, background: color },
+  })
+    .composite([{ input: svg, top: 0, left: 0 }])
+    .webp({ quality: 82 })
+    .toBuffer()
+  return original
+}
+
+async function attachCover(listingId: string, species: Species, breedEn: string, n: number) {
+  const cuid = 'c' + randomBytes(16).toString('hex') // 33 chars, cuid-shaped
+  const original = await makeCover(species, breedEn, n)
+  // Original into the private uploads bucket (parity with the real pipeline).
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: UPLOADS,
+      Key: `listings/${listingId}/original/${cuid}.webp`,
+      Body: original,
+      ContentType: 'image/webp',
+    }),
+  )
+  // Processed WebP variants into the public bucket at the pipeline's key scheme.
+  for (const [variant, width] of VARIANTS) {
+    const buf = await sharp(original).resize({ width }).webp({ quality: 80 }).toBuffer()
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: PUBLIC,
+        Key: `listings/${listingId}/${cuid}/${variant}.webp`,
+        Body: buf,
+        ContentType: 'image/webp',
+      }),
+    )
+  }
+  await prisma.listingImage.create({
+    data: {
+      id: cuid,
+      listingId,
+      r2Key: `listings/${listingId}/original/${cuid}.webp`,
+      url: `${PUBLIC_BASE}/listings/${listingId}/${cuid}`, // variant base; +/{variant}.webp at read
+      sortOrder: 0,
+      width: 1000,
+      height: 750,
+    },
+  })
+}
+
+async function main() {
+  const districts = await prisma.district.findMany({
+    where: { nameEn: { in: Object.keys(TALUKAS) } },
+    select: { id: true, nameEn: true },
+  })
+  if (districts.length < 2)
+    throw new Error('pilot districts not seeded — run `pnpm prisma db seed` first')
+  const breeds = await prisma.breed.findMany({ select: { id: true, species: true, nameEn: true } })
+  const breedsBy = (sp: Species) => breeds.filter((b) => b.species === sp)
+
+  // Idempotent: wipe prior seed-seller data (listing_images cascade on delete).
+  const prior = await prisma.user.findMany({
+    where: { firebaseUid: { startsWith: 'seed-farmer-' } },
+    select: { id: true },
+  })
+  if (prior.length) {
+    const del = await prisma.listing.deleteMany({
+      where: { sellerId: { in: prior.map((u) => u.id) } },
+    })
+    console.log(`cleared ${del.count} prior demo listings`)
+  }
+
+  // Seed sellers (upsert on phone).
+  const sellers = []
+  for (let i = 0; i < SELLERS.length; i++) {
+    const district = districts[i % districts.length]
+    const u = await prisma.user.upsert({
+      where: { firebaseUid: `seed-farmer-${String(i + 1).padStart(2, '0')}` },
+      update: { name: SELLERS[i], districtId: district.id },
+      create: {
+        firebaseUid: `seed-farmer-${String(i + 1).padStart(2, '0')}`,
+        phone: `+9198765${String(10000 + i).padStart(5, '0')}`, // +9198765100xx, valid E.164
+        name: SELLERS[i],
+        isFarmer: true,
+        isBuyer: true,
+        districtId: district.id,
+        village: pick(VILLAGES, i),
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    })
+    sellers.push(u.id)
+  }
+
+  const now = Date.now()
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000
+  let made = 0
+  let k = 0
+  for (const species of Object.keys(PLAN) as Species[]) {
+    const plan = PLAN[species]
+    const spBreeds = breedsBy(species)
+    for (let n = 1; n <= PER_SPECIES; n++, k++) {
+      const t = (n - 1) / (PER_SPECIES - 1) // 0..1 across the batch
+      const district = districts[k % districts.length]
+      const breed = pick(spBreeds, n)
+      const createdAt = new Date(now - k * 90_000) // stagger for a stable browse order
+      const listing = await prisma.listing.create({
+        data: {
+          sellerId: pick(sellers, k),
+          species,
+          breedId: breed.id,
+          sex: plan.sex,
+          ageMonths: between(plan.age, t),
+          weightKg:
+            species === 'GOAT' || species === 'SHEEP'
+              ? between([25, 60], t)
+              : between([250, 550], t),
+          milkYieldLpd: plan.milk ? between(plan.milk, t) : null,
+          isPregnant: plan.sex === 'FEMALE' && species !== 'SHEEP' ? n % 3 === 0 : null,
+          isVaccinated: n % 2 === 0,
+          priceInr: between(plan.price, t),
+          negotiable: n % 2 === 0,
+          districtId: district.id,
+          taluka: pick(TALUKAS[district.nameEn], n),
+          village: pick(VILLAGES, k),
+          description: DESC[species],
+          status: 'APPROVED',
+          declarationAccepted: true,
+          declarationAt: createdAt,
+          approvedAt: createdAt,
+          expiresAt: new Date(createdAt.getTime() + THIRTY_DAYS),
+          createdAt,
+        },
+        select: { id: true },
+      })
+      await attachCover(listing.id, species, breed.nameEn, n)
+      made++
+    }
+    console.log(`  ${species}: ${PER_SPECIES} APPROVED listings`)
+  }
+  console.log(`Seeded ${made} demo listings across ${sellers.length} sellers.`)
+}
+
+main()
+  .then(() => prisma.$disconnect())
+  .catch(async (e) => {
+    console.error(e)
+    await prisma.$disconnect()
+    process.exit(1)
+  })
