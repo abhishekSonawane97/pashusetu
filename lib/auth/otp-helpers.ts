@@ -18,6 +18,18 @@ export function toE164(digits: string): string {
   return `+91${digits}`
 }
 
+/**
+ * Guard the post-login returnTo against open redirects: only same-origin,
+ * root-relative paths are allowed. Anything else (absolute URL, protocol-relative
+ * '//' or '/\', missing) collapses to '/'. Used everywhere returnTo drives a
+ * router.replace so a crafted /login?returnTo=https://evil.example can't hand the
+ * authenticated user off-site.
+ */
+export function safeReturnTo(raw: string | null | undefined): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return '/'
+  return raw
+}
+
 export const OTP_TIMER_SECONDS = 60 // resend unlocks at timer expiry
 export const RESEND_COOLDOWN_SECONDS = 30 // minimum cooldown since the LAST send
 export const MAX_WRONG_ATTEMPTS = 3 // 3rd wrong attempt invalidates the code

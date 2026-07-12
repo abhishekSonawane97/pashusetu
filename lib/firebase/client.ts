@@ -1,6 +1,7 @@
-// Firebase client SDK initialization (browser) — docs/05-features/auth.md:
-// the client SDK owns the ENTIRE OTP round-trip (locked decision D3, BR-090 #1);
-// the backend never sends an OTP. Config comes from NEXT_PUBLIC_ env vars
+// Firebase client SDK initialization (browser) — docs/05-features/auth.md.
+// OTP is now self-hosted (backend send/verify → custom token); the client SDK is
+// used only to exchange that custom token via signInWithCustomToken and to attach
+// the resulting ID token to API calls. Config comes from NEXT_PUBLIC_ env vars
 // (public by design — security comes from Firebase project rules, not secrecy).
 
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app'
@@ -23,13 +24,8 @@ function getClientApp(): FirebaseApp {
 }
 
 export function getFirebaseAuth(): Auth {
-  const auth = getAuth(getClientApp())
-  // Test mode (dev/CI ONLY — NEXT_PUBLIC_FIREBASE_TEST_MODE=1, never set in prod):
-  // bypass reCAPTCHA for registered test phone numbers so local dev and Playwright
-  // E2E can exercise the full OTP flow with the fixed test code, no SMS, no
-  // interactive challenge. Real users in prod always go through reCAPTCHA.
-  if (process.env.NEXT_PUBLIC_FIREBASE_TEST_MODE === '1') {
-    auth.settings.appVerificationDisabledForTesting = true
-  }
-  return auth
+  // No reCAPTCHA/appVerificationDisabledForTesting here anymore: phone-number auth
+  // (signInWithPhoneNumber/RecaptchaVerifier) is gone. Dev/CI OTP test mode is a
+  // server concern now (OTP_TEST_MODE — see lib/otp/config.ts).
+  return getAuth(getClientApp())
 }

@@ -12,6 +12,15 @@ export async function findByFirebaseUid(firebaseUid: string): Promise<User | nul
   return prisma.user.findUnique({ where: { firebaseUid } })
 }
 
+/**
+ * Lookup by E.164 phone (unique). Used only by the OTP verify path to reuse a
+ * returning user's existing firebaseUid when minting their custom token, so they
+ * map back to their row regardless of how that uid was originally assigned.
+ */
+export async function findByPhone(phone: string): Promise<User | null> {
+  return prisma.user.findUnique({ where: { phone } })
+}
+
 export async function findMeByFirebaseUid(firebaseUid: string): Promise<UserWithDistrict | null> {
   return prisma.user.findUnique({ where: { firebaseUid }, include: { district: true } })
 }

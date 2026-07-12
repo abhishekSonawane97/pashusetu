@@ -8,6 +8,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { apiFetch } from '@/lib/api/client'
+import { safeReturnTo } from '@/lib/auth/otp-helpers'
 import { Button } from '@/components/ui/Button'
 import { Container } from '@/components/layout/Container'
 import { SelectField, TextField } from '@/components/ui/Field'
@@ -17,7 +18,7 @@ type District = { id: string; nameEn: string; nameMr: string }
 function ProfileSetup() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const returnTo = searchParams.get('returnTo') ?? '/'
+  const returnTo = safeReturnTo(searchParams.get('returnTo')) // guard open redirect
 
   const [districts, setDistricts] = useState<District[]>([])
   const [name, setName] = useState('')

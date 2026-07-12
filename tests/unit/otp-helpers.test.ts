@@ -5,8 +5,24 @@ import {
   isValidPhone,
   normalizePhoneInput,
   resendWaitSeconds,
+  safeReturnTo,
   toE164,
 } from '@/lib/auth/otp-helpers'
+
+describe('safeReturnTo (open-redirect guard)', () => {
+  it('allows same-origin root-relative paths', () => {
+    expect(safeReturnTo('/listings?taluka=x')).toBe('/listings?taluka=x')
+    expect(safeReturnTo('/sell/new')).toBe('/sell/new')
+  })
+  it('collapses absolute, protocol-relative, and empty to /', () => {
+    expect(safeReturnTo('https://evil.example')).toBe('/')
+    expect(safeReturnTo('//evil.example')).toBe('/')
+    expect(safeReturnTo('/\\evil.example')).toBe('/')
+    expect(safeReturnTo('')).toBe('/')
+    expect(safeReturnTo(null)).toBe('/')
+    expect(safeReturnTo(undefined)).toBe('/')
+  })
+})
 
 describe('phone normalization (S-02)', () => {
   it('strips non-digits and country prefixes from pasted input', () => {

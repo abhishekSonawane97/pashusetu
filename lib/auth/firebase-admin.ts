@@ -31,3 +31,17 @@ export async function getAdminAuth(): Promise<Auth> {
   const { getAuth } = await import('firebase-admin/auth')
   return getAuth(await initAdminApp())
 }
+
+// Mint a Firebase custom token after a successful self-hosted OTP verify. The
+// client exchanges it via signInWithCustomToken(); the resulting ID token verifies
+// through the SAME verifyIdToken() path as before. `claims` are copied into the ID
+// token — we pass { phone_number } so user-service reads the phone from the token
+// exactly as it did with Firebase Phone Auth. Custom tokens are FREE (no Blaze,
+// no billing account), which is the whole point of moving OTP off Firebase SMS.
+export async function createCustomToken(
+  uid: string,
+  claims?: Record<string, unknown>,
+): Promise<string> {
+  const auth = await getAdminAuth()
+  return auth.createCustomToken(uid, claims)
+}

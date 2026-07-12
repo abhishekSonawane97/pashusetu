@@ -304,6 +304,42 @@ model Notification {
   @@map("notifications")
 }
 
+// ---------- Auth: self-hosted phone-OTP (docs/05 auth; SMS via provider) ----------
+// The client no longer owns the OTP round-trip via Firebase Phone Auth (which
+// needs the Blaze plan + a card and bills ~₹6/SMS to India). Instead the backend
+// generates/verifies the code and sends it through a cheap India SMS provider
+// (Fast2SMS/MSG91, UPI, no card), then mints a Firebase CUSTOM token so all
+// existing token-verification (verify-auth, firebaseUid keying) is unchanged.
+
+// One active OTP challenge per phone (upserted on each send). The code is stored
+// SALTED-HASHED, never in plaintext. Short expiry + a wrong-attempt cap + a
+// per-phone send window bound both code brute-force and SMS toll-fraud cost.
+// Rows are single-use (deleted on success) and safe to purge after expiresAt.
+model OtpChallenge {
+  phone       String   @id // E.164, e.g. +919876543210
+  codeHash    String   @map("code_hash") // sha256(salt + code)
+  salt        String
+  expiresAt   DateTime @map("expires_at")
+  attempts    Int      @default(0) // wrong verify attempts — caps brute-force
+  sendCount   Int      @default(1) @map("send_count") // sends in the current window
+  windowStart DateTime @map("window_start") // start of the rolling send window
+  lastSentAt  DateTime @map("last_sent_at") // drives the resend cooldown
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt], map: "otp_challenges_expiry_idx")
+  @@map("otp_challenges")
+}
+
+// Per-IP OTP send throttle — bounds phone-number enumeration / toll-fraud from a
+// single source (rolling hourly window). Safe to purge after windowStart + window.
+model OtpIpThrottle {
+  ip          String   @id
+  sendCount   Int      @default(1) @map("send_count")
+  windowStart DateTime @map("window_start")
+
+  @@map("otp_ip_throttle")
+}
+
 model ModerationLog {
   id        String           @id @default(cuid())
   adminId   String           @map("admin_id") // system actions use the seeded System user (BR-046)
