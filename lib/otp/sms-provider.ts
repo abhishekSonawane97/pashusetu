@@ -36,7 +36,7 @@ async function sendViaFast2Sms(phoneE164: string, code: string): Promise<void> {
 
   const numbers = phoneE164.replace(/^\+91/, '')
   const route = process.env.FAST2SMS_ROUTE || 'otp'
-  const params =
+  const params: Record<string, string> =
     route === 'quick'
       ? { route: 'q', message: otpMessage(code), language: 'english', flash: '0', numbers }
       : { route: 'otp', variables_values: code, numbers }
