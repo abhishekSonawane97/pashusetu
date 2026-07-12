@@ -1,9 +1,10 @@
 // Single source of truth for the app's public base URL (NFR-09). Everything that
 // emits an absolute URL — canonical/OG tags, sitemap, robots, JSON-LD — reads from
 // here, so the domain is configured once via NEXT_PUBLIC_APP_URL (prod:
-// https://pashusetu.in, per docs/13). No trailing slash. The prod domain isn't
-// registered yet; the fallback keeps SSR + tests working locally.
-export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://pashusetu.in').replace(
+// https://pashusetu.online — registered 2026-07-12). No trailing slash. The env
+// var is authoritative in prod/Vercel; this fallback keeps SSR + tests working
+// locally and if the env is ever unset.
+export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://pashusetu.online').replace(
   /\/+$/,
   '',
 )
