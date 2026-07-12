@@ -30,7 +30,8 @@ export async function verifyToken(req: Request): Promise<DecodedIdToken> {
   const match = /^Bearer (.+)$/.exec(header)
   if (!match) throw AppError.unauthenticated()
   try {
-    return await getAdminAuth().verifyIdToken(match[1])
+    const auth = await getAdminAuth()
+    return await auth.verifyIdToken(match[1])
   } catch {
     throw AppError.unauthenticated()
   }

@@ -23,9 +23,9 @@ import {
 import type { User } from '@prisma/client'
 
 const mockVerifyIdToken = vi.fn()
-vi.mocked(getAdminAuth).mockReturnValue({
+vi.mocked(getAdminAuth).mockResolvedValue({
   verifyIdToken: mockVerifyIdToken,
-} as unknown as ReturnType<typeof getAdminAuth>)
+} as unknown as Awaited<ReturnType<typeof getAdminAuth>>)
 
 const activeUser = {
   id: 'cuser000000000000000001',
