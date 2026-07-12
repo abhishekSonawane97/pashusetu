@@ -40,10 +40,12 @@ function FilterForm({ onClose }: { onClose: () => void }) {
 
   const [species, setSpecies] = useState<string>(() => params.get('species') ?? '')
   const [districtId, setDistrictId] = useState(() => params.get('districtId') ?? '')
+  const [taluka, setTaluka] = useState(() => params.get('taluka') ?? '')
   const [minPrice, setMinPrice] = useState(() => params.get('minPrice') ?? '')
   const [maxPrice, setMaxPrice] = useState(() => params.get('maxPrice') ?? '')
   const [sort, setSort] = useState(() => params.get('sort') ?? 'newest')
   const [districts, setDistricts] = useState<DistrictRef[]>([])
+  const [talukas, setTalukas] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -52,6 +54,15 @@ function FilterForm({ onClose }: { onClose: () => void }) {
       .then((d) => setDistricts(d.items ?? []))
       .catch(() => {})
   }, [])
+
+  // Talukas depend on the chosen district — refetch when it changes (and on open).
+  useEffect(() => {
+    const qs = districtId ? `?districtId=${encodeURIComponent(districtId)}` : ''
+    apiFetch(`/api/v1/meta/talukas${qs}`)
+      .then((r) => r.json())
+      .then((d) => setTalukas(d.items ?? []))
+      .catch(() => {})
+  }, [districtId])
 
   function apply() {
     const min = minPrice ? Number(minPrice) : null
@@ -63,6 +74,7 @@ function FilterForm({ onClose }: { onClose: () => void }) {
     const next = new URLSearchParams()
     if (species) next.set('species', species)
     if (districtId) next.set('districtId', districtId)
+    if (taluka) next.set('taluka', taluka)
     if (min != null) next.set('minPrice', String(min))
     if (max != null) next.set('maxPrice', String(max))
     if (sort !== 'newest') next.set('sort', sort)
@@ -102,12 +114,24 @@ function FilterForm({ onClose }: { onClose: () => void }) {
       <SelectField
         label="जिल्हा"
         value={districtId}
-        onChange={(e) => setDistrictId(e.target.value)}
+        onChange={(e) => {
+          setDistrictId(e.target.value)
+          setTaluka('') // taluka list changes with district — reset the selection
+        }}
       >
         <option value="">सर्व जिल्हे</option>
         {districts.map((d) => (
           <option key={d.id} value={d.id}>
             {d.nameMr}
+          </option>
+        ))}
+      </SelectField>
+
+      <SelectField label="तालुका" value={taluka} onChange={(e) => setTaluka(e.target.value)}>
+        <option value="">सर्व तालुके</option>
+        {talukas.map((t) => (
+          <option key={t} value={t}>
+            {t}
           </option>
         ))}
       </SelectField>

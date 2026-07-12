@@ -11,6 +11,7 @@ export const searchQuerySchema = z
     species: speciesSchema.optional(),
     breedId: z.string().min(1).optional(),
     districtId: z.string().min(1).optional(),
+    taluka: z.string().min(1).max(60).optional(), // tehsil — free-text on listings (BR-022)
     minPrice: z.coerce.number().int().min(0).optional(),
     maxPrice: z.coerce.number().int().min(0).optional(),
     sort: z.enum(['newest', 'price_asc', 'price_desc']).default('newest'),

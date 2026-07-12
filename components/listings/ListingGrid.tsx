@@ -16,7 +16,15 @@ import { Button } from '@/components/ui/Button'
 import type { ListingCard as ListingCardData, Paginated } from '@/lib/api/types'
 
 // Only these keys reach the API (doc 08 §4.1) — never arbitrary params.
-const FILTER_KEYS = ['species', 'breedId', 'districtId', 'minPrice', 'maxPrice', 'sort'] as const
+const FILTER_KEYS = [
+  'species',
+  'breedId',
+  'districtId',
+  'taluka',
+  'minPrice',
+  'maxPrice',
+  'sort',
+] as const
 
 function buildQuery(params: URLSearchParams, cursor: string | null): string {
   const out = new URLSearchParams()

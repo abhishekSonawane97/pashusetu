@@ -66,6 +66,7 @@ export async function searchApproved(
     ...(query.species ? { species: query.species } : {}),
     ...(query.breedId ? { breedId: query.breedId } : {}),
     ...(query.districtId ? { districtId: query.districtId } : {}),
+    ...(query.taluka ? { taluka: query.taluka } : {}),
     ...(query.sellerId ? { sellerId: query.sellerId } : {}),
     ...(query.minPrice != null || query.maxPrice != null
       ? {
@@ -87,6 +88,22 @@ export async function searchApproved(
 }
 
 export { cardSelect }
+
+/**
+ * Distinct talukas (tehsils) present on APPROVED listings — powers the browse
+ * taluka filter. Optionally scoped to a district (the filter fetches this when a
+ * district is chosen). Taluka is free-text (BR-022), so these are the real values
+ * sellers have used, not a canonical list.
+ */
+export async function distinctTalukas(districtId?: string): Promise<string[]> {
+  const rows = await prisma.listing.findMany({
+    where: { status: 'APPROVED', taluka: { not: null }, ...(districtId ? { districtId } : {}) },
+    select: { taluka: true },
+    distinct: ['taluka'],
+    orderBy: { taluka: 'asc' },
+  })
+  return rows.map((r) => r.taluka).filter((t): t is string => !!t)
+}
 
 // Full detail projection (doc 08 ListingDetail): all attributes + ordered images
 // + seller summary. Seller phone is NEVER selected (BR-066) — only API-21 reveals it.
