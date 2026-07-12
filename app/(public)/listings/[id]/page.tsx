@@ -148,7 +148,10 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
           <h1 className="mt-1 text-[22px] font-bold">{title}</h1>
           <p className="flex items-center gap-1 text-[16px] text-[var(--color-text-2)]">
             <Icon name="location" size={16} />
-            {d.village as string}, {district.nameMr}
+            {/* village → taluka (tehsil) → district — taluka is required at submit (BR-022) */}
+            {[d.village as string, d.taluka as string | null, district.nameMr]
+              .filter(Boolean)
+              .join(', ')}
           </p>
           <p className="mt-1 text-[14px] text-[var(--color-text-3)]">
             {timeSinceMr(d.approvedAt as string)} · {d.viewCount as number} वेळा पाहिली

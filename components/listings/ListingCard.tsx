@@ -44,6 +44,12 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
         <div className="flex items-center gap-1 text-[14px] text-[var(--color-text-2)]">
           <Icon name="location" size={16} />
           <span>{listing.village}</span>
+          {listing.taluka && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{listing.taluka}</span>
+            </>
+          )}
           <span aria-hidden>·</span>
           <span>{listing.district.nameMr}</span>
         </div>
