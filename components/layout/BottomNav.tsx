@@ -13,12 +13,8 @@ const TABS: Array<{ href: string; icon: IconName; label: string; match: (p: stri
   [
     { href: '/', icon: 'home', label: 'होम', match: (p) => p === '/' },
     { href: '/sell', icon: 'sell', label: 'विका', match: (p) => p.startsWith('/sell') },
-    {
-      href: '/favorites',
-      icon: 'favorite',
-      label: 'आवडते',
-      match: (p) => p.startsWith('/favorites'),
-    },
+    // आवडते (favorites) tab deferred to the favorites epic — removed until built so
+    // it doesn't 404. Re-add (restoring the design's 4-tab layout) when it ships.
     {
       href: '/profile',
       icon: 'profile',

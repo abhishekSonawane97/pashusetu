@@ -22,15 +22,10 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <main className="flex flex-col gap-4 p-4">
+      {/* Notifications (bell → /notifications) deferred to the notifications epic;
+          hidden until built so it doesn't 404. Re-add when NTF ships. */}
       <header className="flex items-center justify-between pt-2">
         <h1 className="text-[26px] font-bold text-[var(--color-primary)]">पशुसेतू</h1>
-        <Link
-          href="/notifications"
-          aria-label="सूचना"
-          className="flex min-h-[var(--touch-min)] min-w-[var(--touch-min)] items-center justify-center text-[var(--color-text-2)]"
-        >
-          <Icon name="bell" size={24} title="सूचना" />
-        </Link>
       </header>
 
       <Link
