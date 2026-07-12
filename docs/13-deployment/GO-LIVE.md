@@ -1,18 +1,25 @@
 # PashuSetu — Go-Live Checklist
 
-> **Status:** Draft · **Owner:** Abhishek · **Depends on:** [13-deployment/README.md](./README.md) (runbooks), [12-security](../12-security/README.md), [16-legal](../16-legal/README.md)
+> **Status:** In progress · **Owner:** Abhishek · **Depends on:** [13-deployment/README.md](./README.md) (runbooks), [12-security](../12-security/README.md), [16-legal](../16-legal/README.md)
 >
 > Work top-to-bottom. Everything here is **config/ops** unless marked `[code]`. Tick each box; nothing ships to real users until §11 is green.
 
+### Progress snapshot (2026-07-12)
+
+**Done (code, on `main`):** full create → approve → browse → **contact** loop (call/WhatsApp/interest, phone reveal); **image storage on Supabase** (S3-compatible, verified end-to-end with real photos); **error monitoring** wired (dependency-free, DSN-gated); SEO/PWA; dead nav links removed (favorites tab + notifications bell hidden until built).
+
+**Remaining = mostly your accounts + the launch gate.** Critical path: **(1)** provision accounts (domain, Firebase Blaze, Vercel, Sentry DSN, Neon prod) → **(2)** deploy to staging → **(3)** full E2E on real infra (§11) → **(4)** flip live.
+
 ---
 
-## 0. Scope decision (do this first)
+## 0. Scope decision — DECIDED
 
-The create → approve → browse loop is live, but a buyer **cannot yet act on a listing**. Decide what the pilot ships with:
+Pilot ships the **current loop**: browse → contact seller → sell (wizard) → admin moderate.
 
-- [ ] **Contact-seller** (call/WhatsApp + interest event, E-07) — strongly recommended before a public pilot; without it the marketplace is read-only for buyers.
-- [ ] Favorites (E-07), Report listing (E-09), Notifications/SMS (E-10) — decide in/out for pilot.
-- [ ] Confirm which admin surfaces are needed (only moderation queue exists; Reports/Users/Stats do not).
+- [x] **Contact-seller** (call/WhatsApp + interest, API-21) — **built + verified**.
+- [x] **Favorites / Report / Notifications** — **deferred** post-launch; their nav entry points are hidden so nothing 404s.
+- [x] Admin surface = **moderation queue only** (Reports/Users/Stats dashboards deferred).
+- [ ] **Launch content (decided: keep demo listings for now).** ⚠️ **Demo listings use stock photos + seed sellers with fake phones — the contact action would reveal a fake number to real buyers. These MUST be cleared (or replaced with genuine listings) before the PUBLIC flip.** Fine for staging/private testing only.
 
 ---
 
@@ -30,13 +37,17 @@ The create → approve → browse loop is live, but a buyer **cannot yet act on 
 - [ ] Confirm connection pooling limits vs. Vercel serverless concurrency.
 - [ ] Enable automated backups / PITR; note the restore runbook.
 
-## 3. Storage — Cloudflare R2 (swap from dev MinIO)
-- [ ] Create two buckets: `pashusetu-uploads` (private) and `pashusetu-public` (public read).
-- [ ] Attach a **custom domain** to the public bucket → `img.pashusetu.in` (or `img-dev` for staging).
-- [ ] Set R2 **CORS** on the uploads bucket to allow the app origin: `PUT` + `Content-Type` header from `https://<app-domain>` (needed for the browser presigned upload).
-- [ ] Env swap (no code change): `R2_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` (R2 API token), `R2_BUCKET=pashusetu` (**prefix only** — the code derives `pashusetu-uploads` + `pashusetu-public`), **unset `R2_FORCE_PATH_STYLE`** (R2 uses vhost style), `R2_PUBLIC_BASE_URL=https://img.pashusetu.in` (**bare origin, no bucket path** — a custom domain / `r2.dev` URL serves the bucket at the root; the code appends `/listings/...`). For a pilot you can skip the custom domain and use the bucket's managed `https://pub-<hash>.r2.dev` URL as `R2_PUBLIC_BASE_URL`.
-- [ ] The AWS-SDK flexible-checksum fix (`requestChecksumCalculation: WHEN_REQUIRED`, already committed) is **required** for R2 presigned uploads — confirm it's in `lib/r2/client.ts`. `[code ✓]`
-- [ ] `next.config.ts` image `remotePatterns` already allows `img.pashusetu.in`; prod uses the optimizer (dev-only `unoptimized` is `NODE_ENV`-gated). `[code ✓]`
+## 3. Storage — Supabase (DONE) → R2 later
+Storage runs on **Supabase Storage** (S3-compatible, free, no card). The app is provider-agnostic via the `R2_*` env vars, so **Supabase → Cloudflare R2 later is an env change, no code**. `[code ✓ — verified end-to-end on live Supabase]`
+- [x] Buckets `pashusetu-uploads` (private) + `pashusetu-public` (public) created; S3 keys issued.
+- [x] Env set in `.env.local` (Supabase project `tlchlxkeifakrifbwlyl`, `ap-south-1`): `R2_ENDPOINT`, `R2_REGION=ap-south-1`, `R2_FORCE_PATH_STYLE=1`, `R2_BUCKET=pashusetu` (prefix), `R2_PUBLIC_BASE_URL=https://<ref>.supabase.co/storage/v1/object/public/pashusetu-public`. **These same vars must be set in Vercel prod.**
+- [x] Listing photos served **directly from the storage CDN** (`unoptimized`) — pipeline pre-generates thumb/card/detail WebP variants, so no metered image optimization. `remotePatterns`/CSP derive the host from `R2_PUBLIC_BASE_URL`. `[code ✓]`
+- [ ] **Confirm CORS for the real browser upload** — the pipeline test used Node (no CORS); when a real seller uploads through the wizard, the presigned `PUT` needs the Supabase Storage CORS to allow the app origin. Verify during the §11 E2E; fix in Supabase Storage settings if it fails.
+- [ ] *(Later, when you have a card)* graduate to **R2** for zero egress fees + Cloudflare CDN: create R2 buckets, point the same `R2_*` vars at R2, unset `R2_FORCE_PATH_STYLE`, re-run `scripts/seed-demo-listings.ts` to move bytes. No code change.
+
+## 3b. Error monitoring — Sentry (code DONE, needs your DSN)
+- [x] Dependency-free, DSN-gated reporter wired (server `withRoute` + `instrumentation.ts`; client `global-error.tsx` + window listeners); PII-scrubbed (BR-066). `[code ✓]`
+- [ ] **You:** create a Sentry project → set `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` in Vercel → confirm a test error lands.
 
 ## 4. Firebase Auth — production OTP (the "default OTP" fix)
 - [ ] **Do NOT set `NEXT_PUBLIC_FIREBASE_TEST_MODE`** in the Vercel prod env → real reCAPTCHA is enforced. `[code ✓ — gated on this var]`
@@ -92,8 +103,11 @@ The create → approve → browse loop is live, but a buyer **cannot yet act on 
 
 ## 11. Pre-launch verification (gate — all green before launch)
 - [ ] CI green on `main` (lint, typecheck, unit, build, prisma drift, security-gates).
-- [ ] Full E2E against **staging (real Firebase/R2/Neon)**: OTP login → wizard (incl. compulsory **taluka**) → photo upload → submit → admin approve → public browse → contact (if shipped).
-- [ ] Photo upload works against **R2** specifically (the checksum fix path).
+- [ ] Full E2E against **staging (real Firebase / Supabase / Neon)**: OTP login → wizard (incl. compulsory **taluka**) → photo upload → submit → admin approve → public browse → **contact reveals phone** (call/WhatsApp).
+- [ ] **Real browser photo upload to Supabase works** (presigned `PUT` from the wizard — the one path not yet exercised; confirms Supabase Storage CORS). `[covers §3 CORS item]`
+- [ ] **No dead links / 404s** in the shipped nav (favorites tab + notifications bell already removed). `[code ✓]`
+- [ ] **Demo listings cleared** (or replaced with genuine listings) — see §0; the contact action must never reveal a fake seller phone to a real buyer.
+- [ ] Sentry receives a test error (client + server); `/api/v1/health` returns `{db:ok}`.
 - [ ] Lighthouse on 3G/mid Android meets NFR budgets (listing page usable < 5s on 3G).
 - [ ] No horizontal overflow at 360/768/1024/1440; Marathi renders; 130% font-scale OK.
 - [ ] Real low-end Android device smoke test (Redmi/Galaxy-class).
