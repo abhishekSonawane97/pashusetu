@@ -85,6 +85,13 @@ const SECURITY_HEADERS = [
 ]
 
 const nextConfig: NextConfig = {
+  // firebase-admin (Node-only, with native/Google-Cloud deps) must be loaded by
+  // Node's own module resolution — NOT bundled/externalized by the build. On
+  // Vercel's per-route serverless lambdas the bundler otherwise require()s its
+  // ESM entry and throws ERR_REQUIRE_ESM, 500-ing every auth-importing route
+  // (listings/detail/users/me) while auth-free routes stay fine. Works locally
+  // (`next start` loads modules differently) which is why it only shows in prod.
+  serverExternalPackages: ['firebase-admin'],
   // Pin the workspace root to this project — a stray package-lock.json in the
   // parent dir was making Turbopack infer the wrong root (dev-log warning).
   turbopack: { root: import.meta.dirname },
