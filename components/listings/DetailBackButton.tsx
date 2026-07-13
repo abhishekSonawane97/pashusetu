@@ -1,27 +1,24 @@
-'use client'
-
-// Floating back control for the listing detail (S-07). The detail page hides the
+// Floating "out" control for the listing detail (S-07). The detail page hides the
 // bottom nav and is the app's main WhatsApp-shared entry point, so without this a
-// deep-linked (or SOLD) listing is a dead-end with no way back into the app. Goes
-// back in-app when there is history, else home — so a fresh shared-link open never
-// strands the user. Fixed top-left so it stays reachable while scrolling.
+// deep-linked (or SOLD) listing is a dead-end with no way back into the app.
+//
+// It goes HOME rather than router.back(): a freshly-opened shared link has no safe
+// in-app history (back() lands on a blank/external page and strands the user), and
+// there is no reliable client-side way to tell an in-app arrival from a deep link
+// (history.length counts the blank entry; referrer isn't set on client navigations).
+// Home is always valid and never strands. Fixed top-left, reachable while scrolling.
 
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Icon } from '@/components/ui/Icon'
 
 export function DetailBackButton() {
-  const router = useRouter()
   return (
-    <button
-      type="button"
-      aria-label="मागे"
-      onClick={() => {
-        if (typeof window !== 'undefined' && window.history.length > 1) router.back()
-        else router.push('/')
-      }}
+    <Link
+      href="/"
+      aria-label="मुख्य पानावर जा"
       className="fixed left-3 top-3 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
     >
       <Icon name="arrowLeft" size={22} />
-    </button>
+    </Link>
   )
 }
