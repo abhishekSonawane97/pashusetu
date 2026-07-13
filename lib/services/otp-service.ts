@@ -9,7 +9,7 @@
 
 import { AppError } from '@/lib/errors/app-error'
 import { toE164 } from '@/lib/auth/otp-helpers'
-import { createCustomToken } from '@/lib/auth/firebase-admin'
+import { mintCustomToken } from '@/lib/auth/mint-custom-token'
 import * as otpRepo from '@/lib/repositories/otp-repo'
 import * as userRepo from '@/lib/repositories/user-repo'
 import { codeMatches, generateCode, hashCode, newSalt } from '@/lib/otp/code'
@@ -125,8 +125,8 @@ export async function verifyOtp(
   const existingUser = await userRepo.findByPhone(e164)
   const uid = existingUser?.firebaseUid ?? `phone_${phoneNational}`
 
-  // phone_number claim → user-service reads it from the verified token exactly as
-  // it did under Firebase Phone Auth, so profile creation needs no change.
-  const customToken = await createCustomToken(uid, { phone_number: e164 })
+  // phone_number claim → promoted to a top-level ID-token claim after
+  // signInWithCustomToken, so user-service reads token.phone_number unchanged.
+  const customToken = mintCustomToken(uid, { phone_number: e164 })
   return { customToken }
 }
