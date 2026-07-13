@@ -32,7 +32,8 @@ export async function verifyToken(req: Request): Promise<DecodedIdToken> {
   try {
     const auth = await getAdminAuth()
     return await auth.verifyIdToken(match[1])
-  } catch {
+  } catch (e) {
+    console.error('[verifyToken] verifyIdToken failed:', (e as Error)?.message) // TEMP diag — remove
     throw AppError.unauthenticated()
   }
 }
