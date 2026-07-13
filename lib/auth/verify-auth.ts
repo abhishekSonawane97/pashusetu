@@ -1,15 +1,15 @@
 // Authentication middleware — docs/09-backend/README.md §3.1–§3.2, implementing
 // docs/12-security/README.md §3 exactly. No route may hand-roll verification.
 //
-// Verify on every request; cache nothing per-user. The Admin SDK verifies the
-// JWT locally against Google's cached public certs (CPU-only). checkRevoked
-// stays false by design: the per-request DB status lookup below is the
-// faster-acting ban gate (doc 12 §3.3); Firebase-level revocation is the
+// Verify on every request; cache nothing per-user. Verification checks the JWT
+// signature against Google's cached public certs (CPU-only, see verify-id-token).
+// checkRevoked stays false by design: the per-request DB status lookup below is
+// the faster-acting ban gate (doc 12 §3.3); Firebase-level revocation is the
 // recorded Phase 2 hardening item.
 
 import type { DecodedIdToken } from 'firebase-admin/auth'
 import { AppError } from '@/lib/errors/app-error'
-import { getAdminAuth } from './firebase-admin'
+import { verifyFirebaseIdToken } from './verify-id-token'
 import type { AuthContext } from './auth-context'
 import * as userRepo from '@/lib/repositories/user-repo'
 
@@ -30,10 +30,8 @@ export async function verifyToken(req: Request): Promise<DecodedIdToken> {
   const match = /^Bearer (.+)$/.exec(header)
   if (!match) throw AppError.unauthenticated()
   try {
-    const auth = await getAdminAuth()
-    return await auth.verifyIdToken(match[1])
-  } catch (e) {
-    console.error('[verifyToken] verifyIdToken failed:', (e as Error)?.message) // TEMP diag — remove
+    return await verifyFirebaseIdToken(match[1])
+  } catch {
     throw AppError.unauthenticated()
   }
 }

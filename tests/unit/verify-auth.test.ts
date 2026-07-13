@@ -1,17 +1,18 @@
 // PS-010 acceptance (doc 15): 401 UNAUTHENTICATED / 403 USER_BANNED exact;
 // bans bite on the very next request via the per-request DB status read
-// (doc 09 §3.1–3.2, doc 12 §3). firebase-admin and the user repo are mocked —
+// (doc 09 §3.1–3.2, doc 12 §3). Token verification and the user repo are mocked —
 // the real integration runs on a Neon branch with Firebase test tokens (PS-003+).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/auth/firebase-admin', () => ({
-  getAdminAuth: vi.fn(),
+vi.mock('@/lib/auth/verify-id-token', () => ({
+  verifyFirebaseIdToken: vi.fn(),
 }))
 vi.mock('@/lib/repositories/user-repo', () => ({
   findByFirebaseUid: vi.fn(),
 }))
 
-import { getAdminAuth } from '@/lib/auth/firebase-admin'
+import type { DecodedIdToken } from 'firebase-admin/auth'
+import { verifyFirebaseIdToken } from '@/lib/auth/verify-id-token'
 import * as userRepo from '@/lib/repositories/user-repo'
 import {
   assertOwnerVisible,
@@ -22,10 +23,7 @@ import {
 } from '@/lib/auth/verify-auth'
 import type { User } from '@prisma/client'
 
-const mockVerifyIdToken = vi.fn()
-vi.mocked(getAdminAuth).mockResolvedValue({
-  verifyIdToken: mockVerifyIdToken,
-} as unknown as Awaited<ReturnType<typeof getAdminAuth>>)
+const mockVerifyIdToken = vi.mocked(verifyFirebaseIdToken)
 
 const activeUser = {
   id: 'cuser000000000000000001',
@@ -47,7 +45,10 @@ const req = (token?: string) =>
 beforeEach(() => {
   vi.mocked(userRepo.findByFirebaseUid).mockReset()
   mockVerifyIdToken.mockReset()
-  mockVerifyIdToken.mockResolvedValue({ uid: 'fb-uid-1', phone_number: '+919876543210' })
+  mockVerifyIdToken.mockResolvedValue({
+    uid: 'fb-uid-1',
+    phone_number: '+919876543210',
+  } as unknown as DecodedIdToken)
 })
 
 describe('verifyAuth (doc 09 §3.1)', () => {
