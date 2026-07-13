@@ -61,18 +61,13 @@ const VARIANTS: Array<['thumb' | 'card' | 'detail', number]> = [
 ]
 
 // --- demo content -----------------------------------------------------------
-const SELLERS = [
-  'रमेश पाटील',
-  'सुनील जाधव',
-  'महेश देशमुख',
-  'गणेश शिंदे',
-  'विठ्ठल मोरे',
-  'संतोष कदम',
-  'दत्तात्रय गायकवाड',
-  'बाळासाहेब थोरात',
-  'नामदेव भोसले',
-  'प्रकाश साळुंखे',
-]
+// A single demo seller owns every seed listing so all demo contact routes to ONE
+// operator-controlled number — a demo listing must NEVER dial a real stranger.
+// The number comes from DEMO_SELLER_PHONE in .env.local (gitignored) so a real
+// personal number never lands in git; the committed fallback is a non-dialable
+// placeholder (0-prefixed = not a valid mobile) for bare local dev.
+const DEMO_SELLER_NAME = 'पशुसेतू डेमो'
+const DEMO_SELLER_PHONE = process.env.DEMO_SELLER_PHONE ?? '+910000000009'
 // tehsils keyed by district nameEn (the two pilot districts, doc 00 update).
 const TALUKAS: Record<string, string[]> = {
   'Chhatrapati Sambhajinagar': ['पैठण', 'गंगापूर', 'वैजापूर', 'सिल्लोड', 'कन्नड', 'फुलंब्री'],
@@ -246,7 +241,7 @@ async function main() {
   // Idempotent: wipe prior seed-seller data (listing_images cascade on delete).
   // In SEED_ONLY mode, wipe only that species so other listings are untouched.
   const prior = await prisma.user.findMany({
-    where: { firebaseUid: { startsWith: 'seed-farmer-' } },
+    where: { firebaseUid: { startsWith: 'seed-' } }, // 'seed-demo-seller' + legacy 'seed-farmer-*'
     select: { id: true },
   })
   if (prior.length) {
@@ -256,27 +251,23 @@ async function main() {
     console.log(`cleared ${del.count} prior demo listings${only ? ` (${only} only)` : ''}`)
   }
 
-  // Seed sellers (upsert on phone).
-  const sellers = []
-  for (let i = 0; i < SELLERS.length; i++) {
-    const district = districts[i % districts.length]
-    const u = await prisma.user.upsert({
-      where: { firebaseUid: `seed-farmer-${String(i + 1).padStart(2, '0')}` },
-      update: { name: SELLERS[i], districtId: district.id },
-      create: {
-        firebaseUid: `seed-farmer-${String(i + 1).padStart(2, '0')}`,
-        phone: `+9198765${String(10000 + i).padStart(5, '0')}`, // +9198765100xx, valid E.164
-        name: SELLERS[i],
-        isFarmer: true,
-        isBuyer: true,
-        districtId: district.id,
-        village: pick(VILLAGES, i),
-        status: 'ACTIVE',
-      },
-      select: { id: true },
-    })
-    sellers.push(u.id)
-  }
+  // One demo seller owns every seed listing (see the DEMO_SELLER_PHONE note above)
+  // — keeps all demo contact on the single operator-controlled number. Phone is in
+  // the update clause too, so re-runs re-sync it from the env.
+  const demoSeller = await prisma.user.upsert({
+    where: { firebaseUid: 'seed-demo-seller' },
+    update: { name: DEMO_SELLER_NAME, phone: DEMO_SELLER_PHONE, districtId: districts[0].id },
+    create: {
+      firebaseUid: 'seed-demo-seller',
+      phone: DEMO_SELLER_PHONE,
+      name: DEMO_SELLER_NAME,
+      isFarmer: true,
+      isBuyer: true,
+      districtId: districts[0].id,
+      status: 'ACTIVE',
+    },
+    select: { id: true },
+  })
 
   const now = Date.now()
   const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000
@@ -292,7 +283,7 @@ async function main() {
       const createdAt = new Date(now - k * 90_000) // stagger for a stable browse order
       const listing = await prisma.listing.create({
         data: {
-          sellerId: pick(sellers, k),
+          sellerId: demoSeller.id,
           species,
           breedId: breed.id,
           sex: plan.sex,
@@ -324,7 +315,7 @@ async function main() {
     }
     console.log(`  ${species}: ${PER_SPECIES} APPROVED listings`)
   }
-  console.log(`Seeded ${made} demo listings across ${sellers.length} sellers.`)
+  console.log(`Seeded ${made} demo listings (seller: ${DEMO_SELLER_NAME}).`)
 }
 
 main()
