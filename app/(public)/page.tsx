@@ -7,6 +7,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Icon } from '@/components/ui/Icon'
 import { SpeciesChips } from '@/components/listings/SpeciesChips'
+import { HeroSlider } from '@/components/listings/HeroSlider'
 import { NearbyListingGrid } from '@/components/listings/NearbyListingGrid'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { InstallPrompt } from '@/components/pwa/InstallPrompt'
@@ -27,6 +28,9 @@ export default function HomePage() {
       <header className="flex items-center justify-between pt-2">
         <h1 className="text-[26px] font-bold text-[var(--color-primary)]">पशुसेतू</h1>
       </header>
+
+      {/* Featured animals showcase (S-05) — full-bleed 70vh slider above the feed. */}
+      <HeroSlider />
 
       <Link
         href="/listings"
