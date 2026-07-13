@@ -7,6 +7,7 @@
 // authenticated POST, never in this SSR payload.
 
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { AppError } from '@/lib/errors/app-error'
 import * as listingService from '@/lib/services/listing-service'
@@ -14,6 +15,7 @@ import { PhotoCarousel } from '@/components/listings/PhotoCarousel'
 import { ListingJsonLd } from '@/components/listings/ListingJsonLd'
 import { ContactBar } from '@/components/listings/ContactBar'
 import { RelatedAnimals } from '@/components/listings/RelatedAnimals'
+import { DetailBackButton } from '@/components/listings/DetailBackButton'
 import { Icon } from '@/components/ui/Icon'
 
 import { SITE_URL, absoluteUrl, seoAlternates } from '@/lib/seo/site'
@@ -107,11 +109,19 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
 
   if (state === 'sold' || state === 'unavailable') {
     return (
-      <main className="flex flex-col items-center gap-4 p-8 text-center">
+      <main className="flex min-h-[70vh] flex-col items-center justify-center gap-5 p-8 text-center">
+        <DetailBackButton />
         <Icon name={state === 'sold' ? 'check' : 'clock'} size={48} />
         <p className="text-[20px] font-bold">
           {state === 'sold' ? 'हे जनावर विकले गेले आहे' : 'ही जाहिरात आता उपलब्ध नाही'}
         </p>
+        {/* Never leave a shared/sold link as a dead-end — offer a way to keep browsing. */}
+        <Link
+          href="/listings"
+          className="inline-flex min-h-[var(--h-button)] items-center justify-center rounded bg-[var(--color-primary)] px-6 font-bold text-[var(--color-on-primary)]"
+        >
+          इतर जनावरे पहा
+        </Link>
       </main>
     )
   }
@@ -128,6 +138,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
 
   return (
     <main className="pb-24">
+      <DetailBackButton />
       <ListingJsonLd
         id={d.id as string}
         title={title}
