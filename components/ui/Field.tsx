@@ -27,11 +27,15 @@ export function TextField({
   hint,
   className,
   id,
+  suggestions,
   ...rest
-}: BaseProps & React.InputHTMLAttributes<HTMLInputElement>) {
+}: BaseProps & { suggestions?: string[] } & React.InputHTMLAttributes<HTMLInputElement>) {
   const autoId = useId()
   const fieldId = id ?? autoId
   const errId = `${fieldId}-err`
+  // Native combobox: a <datalist> suggests values but the user can still free-type
+  // anything (used for taluka, where there is no canonical master list).
+  const listId = suggestions && suggestions.length ? `${fieldId}-list` : undefined
   return (
     <div className="flex flex-col gap-2">
       <label htmlFor={fieldId} className="text-[16px] font-bold text-[var(--color-text)]">
@@ -43,8 +47,16 @@ export function TextField({
         className={cn(controlBase, className)}
         aria-invalid={!!error}
         aria-describedby={error ? errId : undefined}
+        list={listId}
         {...rest}
       />
+      {listId && (
+        <datalist id={listId}>
+          {suggestions!.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      )}
       {error && (
         <p id={errId} role="alert" className="text-[14px] text-[var(--color-error)]">
           {error}

@@ -23,6 +23,8 @@ function ProfileSetup() {
   const [districts, setDistricts] = useState<District[]>([])
   const [name, setName] = useState('')
   const [districtId, setDistrictId] = useState('')
+  const [taluka, setTaluka] = useState('')
+  const [talukas, setTalukas] = useState<string[]>([])
   const [village, setVillage] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,6 +37,19 @@ function ProfileSetup() {
       .catch(() => setError('जिल्ह्यांची यादी मिळाली नाही. इंटरनेट तपासा.'))
   }, [])
 
+  // Taluka suggestions depend on the chosen district (free-text still allowed —
+  // there is no canonical taluka master list). Reset the value on district change.
+  useEffect(() => {
+    if (!districtId) {
+      setTalukas([])
+      return
+    }
+    apiFetch(`/api/v1/meta/talukas?districtId=${encodeURIComponent(districtId)}`)
+      .then((r) => r.json())
+      .then((d) => setTalukas(d.items ?? []))
+      .catch(() => {})
+  }, [districtId])
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true)
@@ -46,6 +61,7 @@ function ProfileSetup() {
         body: JSON.stringify({
           name,
           districtId,
+          ...(taluka.trim() ? { taluka: taluka.trim() } : {}),
           ...(village.trim() ? { village: village.trim() } : {}),
         }),
       })
@@ -90,7 +106,10 @@ function ProfileSetup() {
         <SelectField
           label="जिल्हा निवडा"
           value={districtId}
-          onChange={(e) => setDistrictId(e.target.value)}
+          onChange={(e) => {
+            setDistrictId(e.target.value)
+            setTaluka('') // taluka suggestions change with district
+          }}
           error={fieldErrors.districtId ? 'जिल्हा निवडा' : null}
         >
           <option value="">जिल्हा निवडा</option>
@@ -100,6 +119,15 @@ function ProfileSetup() {
             </option>
           ))}
         </SelectField>
+
+        <TextField
+          label="तालुका (ऐच्छिक)"
+          hint="सुरुवात करा — जुळणारे तालुके सुचवले जातील"
+          value={taluka}
+          onChange={(e) => setTaluka(e.target.value)}
+          suggestions={talukas}
+          error={fieldErrors.taluka ? 'तालुका तपासा' : null}
+        />
 
         <TextField
           label="गाव (ऐच्छिक)"

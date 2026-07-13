@@ -7,7 +7,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Icon } from '@/components/ui/Icon'
 import { SpeciesChips } from '@/components/listings/SpeciesChips'
-import { ListingGrid } from '@/components/listings/ListingGrid'
+import { NearbyListingGrid } from '@/components/listings/NearbyListingGrid'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { InstallPrompt } from '@/components/pwa/InstallPrompt'
 
@@ -48,7 +48,7 @@ export default function HomePage() {
           </div>
         }
       >
-        <ListingGrid />
+        <NearbyListingGrid />
       </Suspense>
       <InstallPrompt />
     </main>

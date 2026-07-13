@@ -144,9 +144,21 @@ function ListingFeed({
   )
 }
 
-export function ListingGrid({ onClearFilters }: { onClearFilters?: () => void }) {
+export function ListingGrid({
+  onClearFilters,
+  defaultDistrictId,
+}: {
+  onClearFilters?: () => void
+  defaultDistrictId?: string
+}) {
   const searchParams = useSearchParams()
-  const filterQuery = buildQuery(searchParams, null)
-  // Remount the feed whenever the filter set changes — clean state reset.
+  // URL filters always win (shareable). Only when NONE are set do we fall back to
+  // the caller's default (the logged-in user's district → "nearby animals").
+  const hasFilter = FILTER_KEYS.some((k) => searchParams.get(k))
+  const filterQuery =
+    !hasFilter && defaultDistrictId
+      ? `districtId=${encodeURIComponent(defaultDistrictId)}`
+      : buildQuery(searchParams, null)
+  // Remount the feed whenever the effective filter set changes — clean state reset.
   return <ListingFeed key={filterQuery} filterQuery={filterQuery} onClearFilters={onClearFilters} />
 }
