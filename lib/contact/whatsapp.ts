@@ -12,6 +12,7 @@ const SPECIES_MR: Record<Species, string> = {
   BULL_OX: 'बैल',
   GOAT: 'शेळी',
   SHEEP: 'मेंढी',
+  REDA: 'रेडा',
 }
 
 export function speciesMr(species: Species): string {

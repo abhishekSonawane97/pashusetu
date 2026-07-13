@@ -24,6 +24,7 @@ const SPECIES_MR: Record<string, string> = {
   BULL_OX: 'बैल',
   GOAT: 'शेळी',
   SHEEP: 'मेंढी',
+  REDA: 'रेडा',
 }
 const SEX_MR: Record<string, string> = { FEMALE: 'मादी', MALE: 'नर' }
 

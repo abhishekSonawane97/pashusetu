@@ -29,7 +29,7 @@ export const lactationNumber = z.number().int().min(0).max(15) // 0 = not yet ca
 export function milkYieldAllowed(species: Species, sex: Sex | null | undefined): boolean {
   if (species === 'COW') return true // COW is always FEMALE
   if (species === 'BUFFALO' || species === 'GOAT') return sex === 'FEMALE'
-  return false // BULL_OX, SHEEP
+  return false // BULL_OX, SHEEP, REDA (REDA is the male buffalo)
 }
 
 export function lactationAllowed(species: Species, sex: Sex | null | undefined): boolean {
@@ -38,14 +38,15 @@ export function lactationAllowed(species: Species, sex: Sex | null | undefined):
 
 export function pregnancyAllowed(species: Species, sex: Sex | null | undefined): boolean {
   if (species === 'COW') return true
-  if (species === 'BULL_OX') return false
+  if (species === 'BULL_OX' || species === 'REDA') return false // both fixed MALE
   return sex === 'FEMALE' // BUFFALO, GOAT, SHEEP
 }
 
-/** COW is fixed FEMALE, BULL_OX fixed MALE — server rejects mismatches (BR-022). */
+/** Fixed-sex species (server rejects mismatches, BR-022): COW is FEMALE; BULL_OX
+ * (ox) and REDA (he-buffalo) are MALE. The rest (BUFFALO/GOAT/SHEEP) state sex. */
 export function fixedSexFor(species: Species): Sex | null {
   if (species === 'COW') return 'FEMALE'
-  if (species === 'BULL_OX') return 'MALE'
+  if (species === 'BULL_OX' || species === 'REDA') return 'MALE'
   return null
 }
 

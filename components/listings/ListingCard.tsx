@@ -15,6 +15,7 @@ const SPECIES_MR: Record<ListingCardData['species'], string> = {
   BULL_OX: 'बैल',
   GOAT: 'शेळी',
   SHEEP: 'मेंढी',
+  REDA: 'रेडा',
 }
 
 export function ListingCard({ listing }: { listing: ListingCardData }) {

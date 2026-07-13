@@ -28,6 +28,7 @@ const SPECIES_MR: Record<Species, string> = {
   BULL_OX: 'बैल',
   GOAT: 'शेळी',
   SHEEP: 'मेंढी',
+  REDA: 'रेडा',
 }
 
 // The public detail (anonymous viewer) — the RSC render is always public;

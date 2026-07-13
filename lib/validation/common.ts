@@ -62,7 +62,7 @@ export const paginationSchema = z.object({
 export const cuidSchema = z.string().regex(/^c[a-z0-9]{20,}$/, 'invalid id')
 
 // Enum schemas — exact doc 07 values (BR-022, BR-050, BR-062).
-export const speciesSchema = z.enum(['COW', 'BUFFALO', 'BULL_OX', 'GOAT', 'SHEEP'])
+export const speciesSchema = z.enum(['COW', 'BUFFALO', 'BULL_OX', 'GOAT', 'SHEEP', 'REDA'])
 export const sexSchema = z.enum(['FEMALE', 'MALE'])
 export const interestTypeSchema = z.enum(['CALL', 'WHATSAPP', 'INTEREST'])
 export const reportReasonSchema = z.enum([

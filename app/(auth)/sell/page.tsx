@@ -35,6 +35,7 @@ const SPECIES_MR: Record<string, string> = {
   BULL_OX: 'बैल',
   GOAT: 'शेळी',
   SHEEP: 'मेंढी',
+  REDA: 'रेडा',
 }
 
 type Item = {

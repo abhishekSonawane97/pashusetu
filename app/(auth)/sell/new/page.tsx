@@ -30,6 +30,7 @@ const SPECIES: Array<{ key: Species; label: string }> = [
   { key: 'BULL_OX', label: 'बैल' },
   { key: 'GOAT', label: 'शेळी' },
   { key: 'SHEEP', label: 'मेंढी' },
+  { key: 'REDA', label: 'रेडा' },
 ]
 const DECLARATION =
   'मी जाहीर करतो/करते की मी या जनावराचा/जनावरीचा कायदेशीर मालक आहे, ही विक्री महाराष्ट्र राज्याच्या कायद्यांनुसार आहे, आणि हे जनावर कत्तलीसाठी विकले जात नाही.'

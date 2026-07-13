@@ -19,6 +19,7 @@ enum Species {
   BULL_OX
   GOAT
   SHEEP
+  REDA
 
   @@map("species")
 }

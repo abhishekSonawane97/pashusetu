@@ -20,6 +20,7 @@ const SPECIES: Array<{ key: Species; label: string }> = [
   { key: 'BULL_OX', label: 'बैल' },
   { key: 'GOAT', label: 'शेळी' },
   { key: 'SHEEP', label: 'मेंढी' },
+  { key: 'REDA', label: 'रेडा' },
 ]
 
 export function FilterSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
