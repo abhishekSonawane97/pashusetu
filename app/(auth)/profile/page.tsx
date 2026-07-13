@@ -9,9 +9,11 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { apiFetch } from '@/lib/api/client'
 import { safeReturnTo } from '@/lib/auth/otp-helpers'
+import { useAuth } from '@/lib/firebase/use-auth'
 import { Button } from '@/components/ui/Button'
 import { Container } from '@/components/layout/Container'
 import { SelectField, TextField } from '@/components/ui/Field'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 type District = { id: string; nameEn: string; nameMr: string }
 
@@ -19,6 +21,7 @@ function ProfileSetup() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnTo = safeReturnTo(searchParams.get('returnTo')) // guard open redirect
+  const auth = useAuth()
 
   const [districts, setDistricts] = useState<District[]>([])
   const [name, setName] = useState('')
@@ -49,6 +52,14 @@ function ProfileSetup() {
       .then((d) => setTalukas(d.items ?? []))
       .catch(() => {})
   }, [districtId])
+
+  // This setup page needs a login session (identity comes from the token). A
+  // logged-out visitor — e.g. tapping the प्रोफाइल tab — would otherwise be
+  // stranded here submitting into a 401 with no way to sign in. Send them to
+  // login; after OTP they land back here (with a session) or home.
+  useEffect(() => {
+    if (auth.status === 'out') router.replace('/login?returnTo=%2F')
+  }, [auth.status, router])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -84,6 +95,17 @@ function ProfileSetup() {
     } finally {
       setBusy(false)
     }
+  }
+
+  // While the session resolves ('loading'), or briefly before the redirect fires
+  // ('out'), show a skeleton instead of a form that can't be submitted.
+  if (auth.status !== 'in') {
+    return (
+      <div className="flex flex-col gap-3 pt-6" aria-busy>
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-52 w-full" />
+      </div>
+    )
   }
 
   return (
