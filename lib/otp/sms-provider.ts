@@ -21,7 +21,7 @@ export async function sendOtpSms(phoneE164: string, code: string): Promise<void>
 // for reliable delivery on the international gateway. On the DLT 'otp' route the
 // wording is fixed by the approved template instead (this is ignored there).
 const otpMessage = (code: string): string =>
-  `Your PashuSetu OTP is ${code}. Valid for 5 minutes. Do not share it with anyone.`
+  `Your PashuSetu OTP is ${code}. Valid for 10 minutes. Do not share it with anyone.`
 
 // Fast2SMS bulkV2. FAST2SMS_ROUTE selects the route with NO code change:
 //   'quick' → route=q, international gateway, NO DLT (₹5/SMS, open template) — the
@@ -50,13 +50,22 @@ async function sendViaFast2Sms(phoneE164: string, code: string): Promise<void> {
     body: new URLSearchParams(params).toString(),
   })
 
-  let ok = false
+  // Capture Fast2SMS's own status_code + message so a failed send is diagnosable in
+  // server logs. These never contain the OTP code or API key — the code is only ever
+  // in the REQUEST. NOTE: a DND-registered number on the 'quick' route usually still
+  // returns { return: true } and is dropped downstream by the operator, so success
+  // here is NOT proof of delivery — reliable delivery needs the DLT 'otp' route.
+  type Fast2SmsResponse = { return?: boolean; status_code?: number; message?: unknown }
+  let body: Fast2SmsResponse | null = null
   try {
-    ok = ((await res.json()) as { return?: boolean })?.return === true
+    body = (await res.json()) as Fast2SmsResponse
   } catch {
-    ok = false // non-JSON body ⇒ treat as failure
+    body = null // non-JSON body ⇒ treat as failure
   }
-  if (!res.ok || !ok) {
-    throw new Error(`fast2sms send failed (status ${res.status})`)
+  if (!res.ok || body?.return !== true) {
+    const reason = body
+      ? `status_code=${body.status_code} message=${JSON.stringify(body.message)}`
+      : 'non-JSON response'
+    throw new Error(`fast2sms send failed (http ${res.status}; ${reason})`)
   }
 }

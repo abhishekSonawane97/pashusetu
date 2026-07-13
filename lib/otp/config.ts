@@ -4,7 +4,11 @@
 // brute-forceable offline regardless, so the caps are what matter).
 
 export const CODE_LENGTH = 6
-export const CODE_TTL_MS = 5 * 60 * 1000 // a sent code is valid 5 minutes
+// Rural networks can deliver the SMS several minutes late, so give a generous
+// window to enter the code. This is safe: the wrong-attempt cap (MAX_VERIFY_ATTEMPTS),
+// not a short TTL, is what bounds brute-force — a 6-digit code allows only 5 guesses
+// before a fresh code is required, regardless of how long it stays valid.
+export const CODE_TTL_MS = 10 * 60 * 1000 // a sent code is valid 10 minutes
 export const RESEND_COOLDOWN_MS = 30 * 1000 // min gap between sends to one phone (matches S-03 UI)
 export const SEND_WINDOW_MS = 60 * 60 * 1000 // fixed 1h window for the send caps
 export const MAX_SENDS_PER_PHONE = 5 // sends per phone per window (the real cost cap)
