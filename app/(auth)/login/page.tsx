@@ -268,6 +268,7 @@ function LoginFlow() {
       >
         <TextField
           label="OTP कोड"
+          hint="कोड यायला 1–2 मिनिटे लागू शकतात. मिळालेला कोड 10 मिनिटे चालतो — घाई करू नका."
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"

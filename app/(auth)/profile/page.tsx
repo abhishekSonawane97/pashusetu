@@ -1,9 +1,9 @@
 'use client'
 
-// S-04 profile setup — first-login step after OTP (docs/05-features/profile.md,
-// doc 08 API-01). Minimal functional version: name + district (required,
-// BR-013), village optional; Places-assist and the full F-02 polish land with
-// the PS-012 UI completion. On success → returnTo (auth.md §6).
+// S-04 profile — for a NEW user this is the one-time setup form (name + district,
+// BR-013; village/taluka optional). For a RETURNING user it shows their saved
+// profile with an edit action, instead of blankly re-asking them to "create" one.
+// Which view renders is decided by GET /users/me (404 = no profile yet → setup).
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -16,12 +16,30 @@ import { SelectField, TextField } from '@/components/ui/Field'
 import { Skeleton } from '@/components/ui/Skeleton'
 
 type District = { id: string; nameEn: string; nameMr: string }
+type Profile = {
+  name: string
+  phone: string
+  districtId: string | null
+  district: { id: string; nameMr: string } | null
+  taluka: string | null
+  village: string | null
+}
+type Mode = 'loading' | 'view' | 'edit' | 'setup'
 
-function ProfileSetup() {
+// +918329914036 → +91 83299 14036 (readable for the account owner).
+function fmtPhone(e164: string): string {
+  const d = e164.replace(/^\+91/, '')
+  return d.length === 10 ? `+91 ${d.slice(0, 5)} ${d.slice(5)}` : e164
+}
+
+function ProfileScreen() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnTo = safeReturnTo(searchParams.get('returnTo')) // guard open redirect
   const auth = useAuth()
+
+  const [mode, setMode] = useState<Mode>('loading')
+  const [profile, setProfile] = useState<Profile | null>(null)
 
   const [districts, setDistricts] = useState<District[]>([])
   const [name, setName] = useState('')
@@ -33,15 +51,52 @@ function ProfileSetup() {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  // Login required — identity comes from the token. A logged-out visitor (e.g.
+  // tapping the प्रोफाइल tab) goes to login and lands back here after OTP.
   useEffect(() => {
+    if (auth.status === 'out') router.replace('/login?returnTo=%2Fprofile')
+  }, [auth.status, router])
+
+  // Existing profile? 404 = first login → setup form; 200 = show the saved profile.
+  useEffect(() => {
+    if (auth.status !== 'in') return
+    let cancelled = false
+    apiFetch('/api/v1/users/me')
+      .then(async (res) => {
+        if (cancelled) return
+        if (res.status === 404) {
+          setMode('setup')
+          return
+        }
+        if (res.ok) {
+          setProfile((await res.json()) as Profile)
+          setMode('view')
+          return
+        }
+        setError('माहिती मिळाली नाही. इंटरनेट तपासा.')
+        setMode('setup')
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError('इंटरनेट नाही. पुन्हा प्रयत्न करा.')
+          setMode('setup')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [auth.status])
+
+  // Districts are only needed by the form (setup/edit).
+  useEffect(() => {
+    if (mode !== 'setup' && mode !== 'edit') return
     apiFetch('/api/v1/meta/districts')
       .then((r) => r.json())
       .then((d) => setDistricts(d.items ?? []))
       .catch(() => setError('जिल्ह्यांची यादी मिळाली नाही. इंटरनेट तपासा.'))
-  }, [])
+  }, [mode])
 
-  // Taluka suggestions depend on the chosen district (free-text still allowed —
-  // there is no canonical taluka master list). Reset the value on district change.
+  // Taluka suggestions depend on the chosen district (free-text still allowed).
   useEffect(() => {
     if (!districtId) {
       setTalukas([])
@@ -53,35 +108,45 @@ function ProfileSetup() {
       .catch(() => {})
   }, [districtId])
 
-  // This setup page needs a login session (identity comes from the token). A
-  // logged-out visitor — e.g. tapping the प्रोफाइल tab — would otherwise be
-  // stranded here submitting into a 401 with no way to sign in. Send them to
-  // login; after OTP they land back here (with a session) or home.
-  useEffect(() => {
-    if (auth.status === 'out') router.replace('/login?returnTo=%2F')
-  }, [auth.status, router])
+  function startEdit() {
+    if (!profile) return
+    setName(profile.name)
+    setDistrictId(profile.districtId ?? '')
+    setTaluka(profile.taluka ?? '')
+    setVillage(profile.village ?? '')
+    setError(null)
+    setFieldErrors({})
+    setMode('edit')
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    const isEdit = mode === 'edit'
     setBusy(true)
     setError(null)
     setFieldErrors({})
     try {
-      const res = await apiFetch('/api/v1/users', {
-        method: 'POST',
+      // Setup (POST) omits empty optional fields; edit (PATCH) sends null to clear.
+      const res = await apiFetch(isEdit ? '/api/v1/users/me' : '/api/v1/users', {
+        method: isEdit ? 'PATCH' : 'POST',
         body: JSON.stringify({
           name,
           districtId,
-          ...(taluka.trim() ? { taluka: taluka.trim() } : {}),
-          ...(village.trim() ? { village: village.trim() } : {}),
+          taluka: taluka.trim() ? taluka.trim() : isEdit ? null : undefined,
+          village: village.trim() ? village.trim() : isEdit ? null : undefined,
         }),
       })
-      if (res.status === 201) {
-        router.replace(returnTo)
+      if (res.ok) {
+        if (isEdit) {
+          setProfile((await res.json().catch(() => null)) as Profile | null)
+          setMode('view')
+        } else {
+          router.replace(returnTo)
+        }
         return
       }
       const body = await res.json().catch(() => null)
-      if (body?.error?.code === 'USER_ALREADY_EXISTS') {
+      if (!isEdit && body?.error?.code === 'USER_ALREADY_EXISTS') {
         router.replace(returnTo) // idempotent recovery (BR-010)
         return
       }
@@ -97,9 +162,8 @@ function ProfileSetup() {
     }
   }
 
-  // While the session resolves ('loading'), or briefly before the redirect fires
-  // ('out'), show a skeleton instead of a form that can't be submitted.
-  if (auth.status !== 'in') {
+  // Session resolving / redirecting out / profile still loading → skeleton.
+  if (auth.status !== 'in' || mode === 'loading') {
     return (
       <div className="flex flex-col gap-3 pt-6" aria-busy>
         <Skeleton className="h-8 w-2/3" />
@@ -108,12 +172,35 @@ function ProfileSetup() {
     )
   }
 
+  if (mode === 'view' && profile) {
+    return (
+      <section className="flex flex-col gap-5 pt-6">
+        <div>
+          <h1 className="text-[22px] font-bold">माझी माहिती</h1>
+          <p className="mt-2 text-[16px] text-[var(--color-text-2)]">तुमची नोंदणी पूर्ण झाली आहे.</p>
+        </div>
+        <dl className="flex flex-col divide-y divide-[var(--color-border-card)] rounded-card border border-[var(--color-border-card)]">
+          <Row label="नाव" value={profile.name} />
+          <Row label="मोबाईल नंबर" value={fmtPhone(profile.phone)} />
+          <Row label="जिल्हा" value={profile.district?.nameMr ?? '—'} />
+          <Row label="तालुका" value={profile.taluka || '—'} />
+          <Row label="गाव" value={profile.village || '—'} />
+        </dl>
+        <Button variant="secondary" onClick={startEdit}>
+          माहिती बदला
+        </Button>
+      </section>
+    )
+  }
+
+  // setup | edit — the shared form.
+  const isEdit = mode === 'edit'
   return (
     <section className="flex flex-col gap-5 pt-6">
       <div>
-        <h1 className="text-[22px] font-bold">तुमची माहिती भरा</h1>
+        <h1 className="text-[22px] font-bold">{isEdit ? 'माहिती बदला' : 'तुमची माहिती भरा'}</h1>
         <p className="mt-2 text-[16px] text-[var(--color-text-2)]">
-          फक्त नाव आणि जिल्हा — एका मिनिटात पूर्ण होईल.
+          {isEdit ? 'बदल करून जतन करा.' : 'फक्त नाव आणि जिल्हा — एका मिनिटात पूर्ण होईल.'}
         </p>
       </div>
       <form className="flex flex-col gap-5" onSubmit={submit}>
@@ -164,10 +251,24 @@ function ProfileSetup() {
           </p>
         )}
         <Button type="submit" loading={busy} disabled={!name.trim() || !districtId}>
-          पुढे जा
+          {isEdit ? 'जतन करा' : 'पुढे जा'}
         </Button>
+        {isEdit && (
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => setMode('view')}>
+            रद्द करा
+          </Button>
+        )}
       </form>
     </section>
+  )
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <dt className="text-[14px] text-[var(--color-text-3)]">{label}</dt>
+      <dd className="text-[16px] font-bold text-[var(--color-text)]">{value}</dd>
+    </div>
   )
 }
 
@@ -175,7 +276,7 @@ export default function ProfilePage() {
   return (
     <Container variant="form">
       <Suspense>
-        <ProfileSetup />
+        <ProfileScreen />
       </Suspense>
     </Container>
   )

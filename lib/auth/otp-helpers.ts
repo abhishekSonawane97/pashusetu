@@ -30,14 +30,19 @@ export function safeReturnTo(raw: string | null | undefined): string {
   return raw
 }
 
-export const OTP_TIMER_SECONDS = 60 // resend unlocks at timer expiry
+// 120 s (not 60): on weak rural networks the SMS often lands 1–2 min late. A
+// resend mints a NEW code and invalidates the old one, so if the user resends
+// early and the first (slow) SMS then arrives, entering it fails as "wrong OTP".
+// Holding the resend longer lets the late SMS arrive first. The code itself stays
+// valid 10 min (CODE_TTL_MS) — the user can enter it any time in that window.
+export const OTP_TIMER_SECONDS = 120 // resend unlocks at timer expiry
 export const RESEND_COOLDOWN_SECONDS = 30 // minimum cooldown since the LAST send
 export const MAX_WRONG_ATTEMPTS = 3 // 3rd wrong attempt invalidates the code
 
 /**
- * Resend rule (auth.md §4): unlocks when the 60 s timer expires OR immediately
- * after the 3rd wrong attempt — always subject to a minimum 30 s cooldown since
- * the last send. Returns seconds until resend is allowed (0 = allowed now).
+ * Resend rule (auth.md §4): unlocks when the timer expires OR immediately after
+ * the 3rd wrong attempt — always subject to a minimum 30 s cooldown since the
+ * last send. Returns seconds until resend is allowed (0 = allowed now).
  */
 export function resendWaitSeconds(secondsSinceLastSend: number, codeInvalidated: boolean): number {
   const cooldownLeft = RESEND_COOLDOWN_SECONDS - secondsSinceLastSend

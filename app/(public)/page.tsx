@@ -1,12 +1,11 @@
 // S-05 home — browse entry: brand header, search-tap to filters, species chips,
-// and the latest APPROVED listings. Public (BR-060). The search bar routes to
-// S-06 (structured filters, not free text — F-12).
+// and the latest APPROVED listings. Public (BR-060). The search bar opens the
+// structured-filter sheet IN PLACE (no page jump — F-12).
 
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import Link from 'next/link'
-import { Icon } from '@/components/ui/Icon'
 import { SpeciesChips } from '@/components/listings/SpeciesChips'
+import { HomeSearchBar } from '@/components/listings/HomeSearchBar'
 import { HeroSlider } from '@/components/listings/HeroSlider'
 import { NearbyListingGrid } from '@/components/listings/NearbyListingGrid'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -35,13 +34,13 @@ export default function HomePage() {
       {/* Filter zone: search entry + species chips. Sticks to the top on scroll so
           filtering is always reachable (opaque bg so the feed scrolls under it). */}
       <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-3 border-b border-[var(--color-border-card)] bg-[var(--color-surface)] px-4 py-3">
-        <Link
-          href="/listings"
-          className="flex min-h-[var(--h-input)] items-center gap-2 rounded border border-[var(--color-border-input)] bg-[var(--color-surface-2)] px-4 text-[var(--color-text-3)]"
+        <Suspense
+          fallback={
+            <div className="min-h-[var(--h-input)] rounded border border-[var(--color-border-input)] bg-[var(--color-surface-2)]" />
+          }
         >
-          <Icon name="search" size={20} />
-          जनावर शोधा
-        </Link>
+          <HomeSearchBar />
+        </Suspense>
 
         <SpeciesChips />
       </div>
