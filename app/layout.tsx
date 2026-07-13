@@ -5,6 +5,7 @@ import { OfflineBanner } from '@/components/pwa/OfflineBanner'
 import { ServiceWorkerRegistrar } from '@/components/pwa/ServiceWorkerRegistrar'
 import { ErrorMonitor } from '@/components/monitoring/ErrorMonitor'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { NavigationProgress } from '@/components/ui/NavigationProgress'
 import { SITE_URL, DEFAULT_OG, seoAlternates } from '@/lib/seo/site'
 
 // Type pairing per the designer's tokens.css (§Type, CR-01): Lato carries Latin
@@ -110,6 +111,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         <SiteJsonLd />
+        <NavigationProgress />
         <ErrorMonitor />
         <OfflineBanner />
         {children}
