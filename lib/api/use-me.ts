@@ -12,6 +12,8 @@ import { useAuth } from '@/lib/firebase/use-auth'
 export type MeProfile = {
   id: string
   name: string
+  phone: string
+  isAdmin: boolean
   districtId: string | null
   district: { id: string; nameEn: string; nameMr: string; state: string } | null
   taluka: string | null

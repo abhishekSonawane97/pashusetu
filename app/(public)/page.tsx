@@ -8,6 +8,7 @@ import { SpeciesChips } from '@/components/listings/SpeciesChips'
 import { HomeSearchBar } from '@/components/listings/HomeSearchBar'
 import { HeroSlider } from '@/components/listings/HeroSlider'
 import { NearbyListingGrid } from '@/components/listings/NearbyListingGrid'
+import { AppMenu } from '@/components/layout/AppMenu'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { InstallPrompt } from '@/components/pwa/InstallPrompt'
 
@@ -26,6 +27,7 @@ export default function HomePage() {
           hidden until built so it doesn't 404. Re-add when NTF ships. */}
       <header className="flex items-center justify-between pt-2">
         <h1 className="text-[26px] font-bold text-[var(--color-primary)]">पशुसेतू</h1>
+        <AppMenu />
       </header>
 
       {/* Featured animals showcase (S-05) — full-bleed 50vh slider above the feed. */}
