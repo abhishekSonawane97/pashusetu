@@ -13,6 +13,7 @@ import * as listingService from '@/lib/services/listing-service'
 import { PhotoCarousel } from '@/components/listings/PhotoCarousel'
 import { ListingJsonLd } from '@/components/listings/ListingJsonLd'
 import { ContactBar } from '@/components/listings/ContactBar'
+import { RelatedAnimals } from '@/components/listings/RelatedAnimals'
 import { Icon } from '@/components/ui/Icon'
 
 import { SITE_URL, absoluteUrl, seoAlternates } from '@/lib/seo/site'
@@ -121,6 +122,8 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const seller = d.seller as { firstName: string; memberSince: string; activeListingCount: number }
   const images = d.images as Array<{ id: string; urls: { detail: string } }>
   const title = `${breed.nameMr} ${SPECIES_MR[species]}`
+  // Related shelves (server-rendered, reuses the APPROVED search) — "nearby" for now.
+  const related = await listingService.getRelated(d)
 
   return (
     <main className="pb-24">
@@ -190,6 +193,9 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
           </p>
         </section>
       </div>
+
+      {/* "Similar products"-style shelves below the detail (F-05 follow-up). */}
+      <RelatedAnimals sections={related} />
 
       {/* Login-walled reveal (API-21). Only listingId + first name cross to the
           client — the phone is fetched by the bar's authenticated POST (BR-066). */}

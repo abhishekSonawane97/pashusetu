@@ -40,6 +40,14 @@ export type OwnListingItem = ListingCard & {
 
 export type Paginated<T> = { items: T[]; nextCursor: string | null }
 
+/** A "related animals" shelf on the listing detail page (S-07). */
+export type RelatedSection = {
+  key: string
+  title: string
+  seeAllHref?: string
+  items: ListingCard[]
+}
+
 /**
  * API-21 interest response (doc 08 §2.7) — the ONLY payload in the system that
  * carries a seller phone (BR-062/066). `whatsappUrl` is built server-side so the

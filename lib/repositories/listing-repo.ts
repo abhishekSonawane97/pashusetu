@@ -60,9 +60,13 @@ function keysetWhere(
 export async function searchApproved(
   query: SearchQuery,
   after: [CursorKey, string] | null,
+  // Internal-only (not a public query param): drop one listing from results, so a
+  // "related animals" query seeded from a listing never includes that listing itself.
+  excludeId?: string,
 ): Promise<ListingCardRow[]> {
   const where: Prisma.ListingWhereInput = {
     status: 'APPROVED', // visibility rule (doc 08 §4.3) — everyone, always
+    ...(excludeId ? { id: { not: excludeId } } : {}),
     ...(query.species ? { species: query.species } : {}),
     ...(query.breedId ? { breedId: query.breedId } : {}),
     ...(query.districtId ? { districtId: query.districtId } : {}),

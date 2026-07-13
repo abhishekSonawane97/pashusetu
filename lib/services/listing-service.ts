@@ -4,8 +4,9 @@
 
 import { AppError } from '@/lib/errors/app-error'
 import { decodeCursor, encodeCursor, type CursorKey } from '@/lib/api/cursor'
-import type { ListingCard, Paginated } from '@/lib/api/types'
+import type { ListingCard, Paginated, RelatedSection } from '@/lib/api/types'
 import type { SearchQuery } from '@/lib/validation/search'
+import type { Species } from '@/lib/validation/common'
 import type { AuthContext } from '@/lib/auth/auth-context'
 import { assertOwnerVisible } from '@/lib/auth/verify-auth'
 import * as listingRepo from '@/lib/repositories/listing-repo'
@@ -147,6 +148,54 @@ export async function getDetail(id: string, viewer: AuthContext | null) {
     viewerPresent: !!viewer,
     activeListingCount,
   })
+}
+
+/**
+ * Related-animals shelves for the detail page (S-07). Server-side, reusing
+ * searchApproved (APPROVED-only, indexed) — no extra API. Each shelf excludes the
+ * current listing (excludeId) and dedupes across shelves so an animal appears
+ * once. Empty shelves are omitted. Currently one shelf — same district + species
+ * ("nearby"); breed / seller / price shelves slot in the same way when wanted
+ * (searchApproved already supports breedId / sellerId / minPrice+maxPrice).
+ */
+export async function getRelated(
+  detail: Record<string, unknown>,
+  limit = 12,
+): Promise<RelatedSection[]> {
+  const id = detail.id as string
+  const species = detail.species as Species | undefined
+  const district = detail.district as { id: string; nameMr: string } | null
+
+  const sections: RelatedSection[] = []
+  const seen = new Set<string>([id]) // never surface the current listing in its own shelves
+
+  const pushShelf = async (
+    key: string,
+    title: string,
+    seeAllHref: string | undefined,
+    query: SearchQuery,
+  ) => {
+    const rows = await listingRepo.searchApproved(query, null, id)
+    const items = rows
+      .filter((r) => !seen.has(r.id))
+      .slice(0, limit)
+      .map(toCard)
+    if (!items.length) return
+    items.forEach((it) => seen.add(it.id))
+    sections.push({ key, title, seeAllHref, items })
+  }
+
+  // Nearby — other APPROVED animals of the same species in this listing's district.
+  if (species && district?.id) {
+    await pushShelf(
+      'nearby',
+      `${district.nameMr} मधील जनावरे`,
+      `/listings?districtId=${encodeURIComponent(district.id)}&species=${species}`,
+      { species, districtId: district.id, sort: 'newest', limit: limit + 1 },
+    )
+  }
+
+  return sections
 }
 
 export async function search(query: SearchQuery): Promise<Paginated<ListingCard>> {
