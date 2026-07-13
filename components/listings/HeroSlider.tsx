@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { apiFetch } from '@/lib/api/client'
+import { Icon } from '@/components/ui/Icon'
 import { ListingImage } from './ListingImage'
 import { formatInr } from '@/lib/utils/format'
 import type { ListingCard, Paginated } from '@/lib/api/types'
@@ -62,7 +63,7 @@ export function HeroSlider() {
   }, [slides])
 
   if (slides === null) {
-    return <div className="-mx-4 h-[70vh] animate-pulse bg-[var(--color-muted)]" aria-busy />
+    return <div className="-mx-4 h-[50vh] animate-pulse bg-[var(--color-muted)]" aria-busy />
   }
   if (slides.length === 0) return null
 
@@ -73,14 +74,13 @@ export function HeroSlider() {
         onScroll={(e) =>
           setActive(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))
         }
-        className="flex h-[70vh] snap-x snap-mandatory overflow-x-auto"
+        className="flex h-[50vh] snap-x snap-mandatory overflow-x-auto"
         style={{ scrollbarWidth: 'none' }}
       >
         {slides.map((s, i) => (
-          <Link
+          <div
             key={s.id}
-            href={`/listings/${s.id}`}
-            className="relative block h-[70vh] w-full shrink-0 snap-center bg-[var(--color-muted)]"
+            className="relative h-[50vh] w-full shrink-0 snap-center bg-[var(--color-muted)]"
           >
             <ListingImage
               src={heroImage(s.thumbnailUrl)}
@@ -88,7 +88,7 @@ export function HeroSlider() {
               sizes="100vw"
               priority={i === 0}
             />
-            <div className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 bg-gradient-to-t from-black/80 via-black/35 to-transparent p-4 pb-8 text-white">
+            <div className="absolute inset-x-0 bottom-0 flex flex-col items-start gap-1 bg-gradient-to-t from-black/80 via-black/35 to-transparent p-4 pb-8 text-white">
               <p className="text-[28px] font-bold leading-tight">{formatInr(s.priceInr)}</p>
               <p className="text-[18px] font-bold">
                 {s.breed.nameMr} {SPECIES_MR[s.species]}
@@ -96,8 +96,17 @@ export function HeroSlider() {
               <p className="text-[14px] text-white/85">
                 {[s.village, s.taluka, s.district.nameMr].filter(Boolean).join(', ')}
               </p>
+              {/* Explicit CTA — the slide itself isn't a link (keeps swipe clean and
+                  lets a real button own the navigation to the detail page). */}
+              <Link
+                href={`/listings/${s.id}`}
+                className="mt-2 inline-flex min-h-[var(--touch-min)] items-center gap-1 rounded-full bg-[var(--color-primary)] px-5 text-[15px] font-bold text-[var(--color-on-primary)]"
+              >
+                तपशील पहा
+                <Icon name="chevronRight" size={18} />
+              </Link>
             </div>
-          </Link>
+          </div>
         ))}
       </div>
       {slides.length > 1 && (

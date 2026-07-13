@@ -29,18 +29,22 @@ export default function HomePage() {
         <h1 className="text-[26px] font-bold text-[var(--color-primary)]">पशुसेतू</h1>
       </header>
 
-      {/* Featured animals showcase (S-05) — full-bleed 70vh slider above the feed. */}
+      {/* Featured animals showcase (S-05) — full-bleed 50vh slider above the feed. */}
       <HeroSlider />
 
-      <Link
-        href="/listings"
-        className="flex min-h-[var(--h-input)] items-center gap-2 rounded border border-[var(--color-border-input)] bg-[var(--color-surface-2)] px-4 text-[var(--color-text-3)]"
-      >
-        <Icon name="search" size={20} />
-        जनावर शोधा
-      </Link>
+      {/* Filter zone: search entry + species chips. Sticks to the top on scroll so
+          filtering is always reachable (opaque bg so the feed scrolls under it). */}
+      <div className="sticky top-0 z-30 -mx-4 flex flex-col gap-3 border-b border-[var(--color-border-card)] bg-[var(--color-surface)] px-4 py-3">
+        <Link
+          href="/listings"
+          className="flex min-h-[var(--h-input)] items-center gap-2 rounded border border-[var(--color-border-input)] bg-[var(--color-surface-2)] px-4 text-[var(--color-text-3)]"
+        >
+          <Icon name="search" size={20} />
+          जनावर शोधा
+        </Link>
 
-      <SpeciesChips />
+        <SpeciesChips />
+      </div>
 
       <h2 className="mt-2 text-[20px] font-bold">नवीन जाहिराती</h2>
       <Suspense
