@@ -1,11 +1,16 @@
 // scripts/seed-demo-listings.ts — DEV/DEMO ONLY. NOT wired into `prisma db seed`
 // (that runs on every prod deploy — this must never touch prod). Populates the
 // marketplace with 10 APPROVED listings per species (COW/BUFFALO/BULL_OX/GOAT/
-// SHEEP) across a set of seed sellers, each with a generated cover image
+// SHEEP/REDA) across a set of seed sellers, each with a generated cover image
 // processed into the same thumb/card/detail WebP variants + key scheme as the
 // real pipeline (lib/r2). Every listing carries a taluka (now compulsory, BR-022).
 // Idempotent: wipes prior seed-seller listings first. Run from the repo root:
 //   node --import tsx scripts/seed-demo-listings.ts
+//
+// SEED_ONLY=<SPECIES> restricts the run to one species: it wipes + recreates only
+// that species' seed listings and leaves the others untouched (used to add रेडा
+// without re-seeding the whole marketplace). e.g.:
+//   SEED_ONLY=REDA node --import tsx scripts/seed-demo-listings.ts
 //
 // Reads .env.local itself so it works as a plain script (no prisma-db-seed env).
 
@@ -24,7 +29,7 @@ for (const raw of readFileSync('.env.local', 'utf8').split('\n')) {
   if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
 }
 
-type Species = 'COW' | 'BUFFALO' | 'BULL_OX' | 'GOAT' | 'SHEEP'
+type Species = 'COW' | 'BUFFALO' | 'BULL_OX' | 'GOAT' | 'SHEEP' | 'REDA'
 type Sex = 'FEMALE' | 'MALE'
 
 const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL
@@ -91,6 +96,7 @@ const DESC: Record<Species, string> = {
   BULL_OX: 'शेतीकामासाठी उत्तम बैल, ताकदवान आणि मेहनती, चांगल्या जातीचा.',
   GOAT: 'निरोगी शेळी, चांगली वाढ, मांस व दुधासाठी उत्तम, लसीकरण पूर्ण.',
   SHEEP: 'निरोगी मेंढी, चांगली लोकर व मांस, कळपासाठी योग्य, तंदुरुस्त.',
+  REDA: 'ताकदवान रेडा (नर म्हैस), पैदाशीसाठी व शेतीकामासाठी उत्तम, मजबूत बांधा.',
 }
 const PLAN: Record<
   Species,
@@ -125,6 +131,8 @@ const PLAN: Record<
     color: { r: 120, g: 132, b: 72 },
   },
   SHEEP: { sex: 'FEMALE', price: [6000, 16000], age: [8, 36], color: { r: 214, g: 205, b: 182 } },
+  // रेडा (he-buffalo) — fixed MALE, no milk; priced as a breeding/draft animal.
+  REDA: { sex: 'MALE', price: [60000, 150000], age: [24, 96], color: { r: 74, g: 78, b: 86 } },
 }
 const SPECIES_EN: Record<Species, string> = {
   COW: 'Cow',
@@ -132,6 +140,7 @@ const SPECIES_EN: Record<Species, string> = {
   BULL_OX: 'Bullock',
   GOAT: 'Goat',
   SHEEP: 'Sheep',
+  REDA: 'He-buffalo',
 }
 const PER_SPECIES = 10
 
@@ -144,7 +153,11 @@ const between = ([lo, hi]: [number, number], t: number) => Math.round(lo + (hi -
 // the generated placeholder art so the seed still runs on a bare checkout.
 const ASSET_DIR = join(process.cwd(), 'scripts', 'seed-assets')
 function realPhotos(species: Species): string[] {
-  const dir = join(ASSET_DIR, species.toLowerCase())
+  // रेडा (he-buffalo) has no dedicated photo set — it IS a buffalo, so reuse the
+  // buffalo photos as its source art (each REDA listing still gets its own
+  // uploaded objects via attachCover, so there's no shared-object coupling).
+  const dirName = species === 'REDA' ? 'buffalo' : species.toLowerCase()
+  const dir = join(ASSET_DIR, dirName)
   if (!existsSync(dir)) return []
   return readdirSync(dir)
     .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
@@ -223,16 +236,24 @@ async function main() {
   const breeds = await prisma.breed.findMany({ select: { id: true, species: true, nameEn: true } })
   const breedsBy = (sp: Species) => breeds.filter((b) => b.species === sp)
 
+  // SEED_ONLY=<SPECIES> narrows the run to one species (wipe + recreate just that
+  // one, leaving the rest of the marketplace intact).
+  const onlyRaw = process.env.SEED_ONLY?.trim().toUpperCase()
+  if (onlyRaw && !(onlyRaw in PLAN)) throw new Error(`SEED_ONLY="${onlyRaw}" is not a known species`)
+  const only = onlyRaw as Species | undefined
+  const speciesToSeed = only ? [only] : (Object.keys(PLAN) as Species[])
+
   // Idempotent: wipe prior seed-seller data (listing_images cascade on delete).
+  // In SEED_ONLY mode, wipe only that species so other listings are untouched.
   const prior = await prisma.user.findMany({
     where: { firebaseUid: { startsWith: 'seed-farmer-' } },
     select: { id: true },
   })
   if (prior.length) {
     const del = await prisma.listing.deleteMany({
-      where: { sellerId: { in: prior.map((u) => u.id) } },
+      where: { sellerId: { in: prior.map((u) => u.id) }, ...(only ? { species: only } : {}) },
     })
-    console.log(`cleared ${del.count} prior demo listings`)
+    console.log(`cleared ${del.count} prior demo listings${only ? ` (${only} only)` : ''}`)
   }
 
   // Seed sellers (upsert on phone).
@@ -261,7 +282,7 @@ async function main() {
   const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000
   let made = 0
   let k = 0
-  for (const species of Object.keys(PLAN) as Species[]) {
+  for (const species of speciesToSeed) {
     const plan = PLAN[species]
     const spBreeds = breedsBy(species)
     for (let n = 1; n <= PER_SPECIES; n++, k++) {
