@@ -177,7 +177,7 @@ export const updateListingSchema = z
     description: description.optional(),
     // Permutation of ALL current image ids — validated against stored ids by the
     // service; counted as a photo change for BR-028/T-09.
-    imageOrder: z.array(z.string().min(1)).max(5).optional(),
+    imageOrder: z.array(z.string().min(1)).max(10).optional(), // BR-023 cap (10, matches PHOTO_LIMIT in image-service)
     // Must be true when the PATCH triggers T-09 re-moderation (BR-027); ignored otherwise.
     declarationAccepted: z.boolean().optional(),
   })

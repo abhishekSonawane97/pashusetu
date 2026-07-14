@@ -219,7 +219,7 @@ export async function countImages(listingId: string): Promise<number> {
 }
 
 /**
- * Attach an image with the ≤5 photo cap (BR-023) enforced atomically: count +
+ * Attach an image with the per-listing photo cap (BR-023, ≤10) enforced atomically: count +
  * insert (sort_order = current count, cover = 0) in one tx. Returns null if the
  * listing is already at the limit.
  */
