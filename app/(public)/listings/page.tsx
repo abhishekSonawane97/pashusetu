@@ -12,6 +12,7 @@ import { FilterSheet } from '@/components/listings/FilterSheet'
 
 // Filter keys that count toward the "active filters" badge (sort has its own rule).
 const ACTIVE_FILTER_KEYS = [
+  'q',
   'species',
   'breedId',
   'districtId',

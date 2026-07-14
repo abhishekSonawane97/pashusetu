@@ -8,6 +8,7 @@ import { speciesSchema } from './common'
 
 export const searchQuerySchema = z
   .object({
+    q: z.string().trim().min(1).max(60).optional(), // free text: village / breed / seller / id
     species: speciesSchema.optional(),
     breedId: z.string().min(1).optional(),
     districtId: z.string().min(1).optional(),

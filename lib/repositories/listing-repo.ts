@@ -92,8 +92,25 @@ export async function searchApproved(
         }
       : {}),
     ...(query.isPregnant === '1' ? { isPregnant: true } : {}),
-    ...(after ? keysetWhere(query.sort, after[0], after[1]) : {}),
   }
+
+  // Free-text `q` and the keyset cursor are BOTH OR-groups; combine them under AND
+  // so neither clobbers the other (a single top-level `OR` key would overwrite).
+  const and: Prisma.ListingWhereInput[] = []
+  if (query.q) {
+    and.push({
+      OR: [
+        { village: { contains: query.q, mode: 'insensitive' } },
+        { taluka: { contains: query.q, mode: 'insensitive' } },
+        { breed: { nameMr: { contains: query.q, mode: 'insensitive' } } },
+        { breed: { nameEn: { contains: query.q, mode: 'insensitive' } } },
+        { seller: { name: { contains: query.q, mode: 'insensitive' } } },
+        { id: query.q }, // exact listing-id match (paste an id / shared link)
+      ],
+    })
+  }
+  if (after) and.push(keysetWhere(query.sort, after[0], after[1]))
+  if (and.length) where.AND = and
 
   return prisma.listing.findMany({
     where,

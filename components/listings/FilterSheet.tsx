@@ -54,6 +54,7 @@ function FilterForm({ onClose }: { onClose: () => void }) {
   const [minAge, setMinAge] = useState(() => params.get('minAge') ?? '')
   const [maxAge, setMaxAge] = useState(() => params.get('maxAge') ?? '')
   const [isPregnant, setIsPregnant] = useState(() => params.get('isPregnant') === '1')
+  const [q, setQ] = useState(() => params.get('q') ?? '')
 
   useEffect(() => {
     apiFetch('/api/v1/meta/districts')
@@ -97,6 +98,7 @@ function FilterForm({ onClose }: { onClose: () => void }) {
       return
     }
     const next = new URLSearchParams()
+    if (q.trim()) next.set('q', q.trim())
     if (species) next.set('species', species)
     if (breedId) next.set('breedId', breedId)
     if (districtId) next.set('districtId', districtId)
@@ -119,6 +121,12 @@ function FilterForm({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col gap-5">
+      <TextField
+        label="शोधा"
+        placeholder="गाव, जात किंवा विक्रेत्याचे नाव"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
       <div className="flex flex-col gap-2">
         <span className="text-[16px] font-bold">जनावराचा प्रकार</span>
         <div className="flex flex-wrap gap-2">

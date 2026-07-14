@@ -18,6 +18,7 @@ import type { ListingCard as ListingCardData, Paginated } from '@/lib/api/types'
 
 // Only these keys reach the API (doc 08 §4.1) — never arbitrary params.
 const FILTER_KEYS = [
+  'q',
   'species',
   'breedId',
   'districtId',
