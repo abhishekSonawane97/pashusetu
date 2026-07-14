@@ -11,7 +11,7 @@ import { BottomSheet } from '@/components/ui/BottomSheet'
 import { Button } from '@/components/ui/Button'
 import { SelectField, TextField } from '@/components/ui/Field'
 import { apiFetch } from '@/lib/api/client'
-import type { DistrictRef } from '@/lib/api/types'
+import type { BreedRef, DistrictRef } from '@/lib/api/types'
 import type { Species } from '@/lib/validation/common'
 
 const SPECIES: Array<{ key: Species; label: string }> = [
@@ -48,6 +48,12 @@ function FilterForm({ onClose }: { onClose: () => void }) {
   const [districts, setDistricts] = useState<DistrictRef[]>([])
   const [talukas, setTalukas] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [breedId, setBreedId] = useState(() => params.get('breedId') ?? '')
+  const [breeds, setBreeds] = useState<BreedRef[]>([])
+  const [minMilk, setMinMilk] = useState(() => params.get('minMilk') ?? '')
+  const [minAge, setMinAge] = useState(() => params.get('minAge') ?? '')
+  const [maxAge, setMaxAge] = useState(() => params.get('maxAge') ?? '')
+  const [isPregnant, setIsPregnant] = useState(() => params.get('isPregnant') === '1')
 
   useEffect(() => {
     apiFetch('/api/v1/meta/districts')
@@ -55,6 +61,18 @@ function FilterForm({ onClose }: { onClose: () => void }) {
       .then((d) => setDistricts(d.items ?? []))
       .catch(() => {})
   }, [])
+
+  // Breeds depend on the chosen species (like the sell wizard).
+  useEffect(() => {
+    if (!species) {
+      setBreeds([])
+      return
+    }
+    apiFetch(`/api/v1/meta/breeds?species=${species}`)
+      .then((r) => r.json())
+      .then((d) => setBreeds(d.items ?? []))
+      .catch(() => {})
+  }, [species])
 
   // Talukas depend on the chosen district — refetch when it changes (and on open).
   useEffect(() => {
@@ -72,12 +90,23 @@ function FilterForm({ onClose }: { onClose: () => void }) {
       setError('किमान किंमत जास्तीत जास्त किंमतीपेक्षा कमी हवी')
       return
     }
+    const aMin = minAge ? Number(minAge) : null
+    const aMax = maxAge ? Number(maxAge) : null
+    if (aMin != null && aMax != null && aMin > aMax) {
+      setError('किमान वय जास्तीत जास्त वयापेक्षा कमी हवे')
+      return
+    }
     const next = new URLSearchParams()
     if (species) next.set('species', species)
+    if (breedId) next.set('breedId', breedId)
     if (districtId) next.set('districtId', districtId)
     if (taluka) next.set('taluka', taluka)
     if (min != null) next.set('minPrice', String(min))
     if (max != null) next.set('maxPrice', String(max))
+    if (minMilk) next.set('minMilk', minMilk)
+    if (aMin != null) next.set('minAge', String(aMin))
+    if (aMax != null) next.set('maxAge', String(aMax))
+    if (isPregnant) next.set('isPregnant', '1')
     if (sort !== 'newest') next.set('sort', sort)
     router.push(`/listings?${next.toString()}`)
     onClose()
@@ -97,7 +126,10 @@ function FilterForm({ onClose }: { onClose: () => void }) {
             <button
               key={s.key}
               type="button"
-              onClick={() => setSpecies(species === s.key ? '' : s.key)}
+              onClick={() => {
+                setSpecies(species === s.key ? '' : s.key)
+                setBreedId('') // breed list is species-specific
+              }}
               aria-pressed={species === s.key}
               className={
                 'min-h-[var(--touch-min)] rounded-full border px-4 text-[16px] font-bold ' +
@@ -111,6 +143,17 @@ function FilterForm({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       </div>
+
+      {species && (
+        <SelectField label="जात" value={breedId} onChange={(e) => setBreedId(e.target.value)}>
+          <option value="">सर्व जाती</option>
+          {breeds.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.nameMr}
+            </option>
+          ))}
+        </SelectField>
+      )}
 
       <SelectField
         label="जिल्हा"
@@ -153,6 +196,41 @@ function FilterForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setMaxPrice(e.target.value)}
         />
       </div>
+
+      <div className="flex gap-3">
+        <TextField
+          label="किमान वय (महिने)"
+          type="number"
+          inputMode="numeric"
+          value={minAge}
+          onChange={(e) => setMinAge(e.target.value)}
+        />
+        <TextField
+          label="जास्तीत जास्त वय"
+          type="number"
+          inputMode="numeric"
+          value={maxAge}
+          onChange={(e) => setMaxAge(e.target.value)}
+        />
+      </div>
+
+      <TextField
+        label="किमान दूध (लि/दिवस)"
+        type="number"
+        inputMode="numeric"
+        value={minMilk}
+        onChange={(e) => setMinMilk(e.target.value)}
+      />
+
+      <label className="flex min-h-[var(--touch-min)] items-center gap-2 text-[16px] font-bold">
+        <input
+          type="checkbox"
+          className="h-5 w-5"
+          checked={isPregnant}
+          onChange={(e) => setIsPregnant(e.target.checked)}
+        />
+        फक्त गाभण जनावरे
+      </label>
 
       <SelectField label="क्रमवारी" value={sort} onChange={(e) => setSort(e.target.value)}>
         <option value="newest">नवीन आधी</option>

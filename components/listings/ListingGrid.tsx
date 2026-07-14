@@ -24,6 +24,10 @@ const FILTER_KEYS = [
   'taluka',
   'minPrice',
   'maxPrice',
+  'minMilk',
+  'minAge',
+  'maxAge',
+  'isPregnant',
   'sort',
 ] as const
 

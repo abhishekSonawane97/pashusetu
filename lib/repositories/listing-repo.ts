@@ -80,6 +80,18 @@ export async function searchApproved(
           },
         }
       : {}),
+    // Milk yield: gte excludes null-milk species/males (intended — filtering to
+    // milking animals). Age range likewise excludes null (approved rows have age).
+    ...(query.minMilk != null ? { milkYieldLpd: { gte: query.minMilk } } : {}),
+    ...(query.minAge != null || query.maxAge != null
+      ? {
+          ageMonths: {
+            ...(query.minAge != null && { gte: query.minAge }),
+            ...(query.maxAge != null && { lte: query.maxAge }),
+          },
+        }
+      : {}),
+    ...(query.isPregnant === '1' ? { isPregnant: true } : {}),
     ...(after ? keysetWhere(query.sort, after[0], after[1]) : {}),
   }
 
