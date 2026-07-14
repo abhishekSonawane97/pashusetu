@@ -38,11 +38,13 @@ export function ContactBar({
   const router = useRouter()
   const pathname = usePathname()
   const [busy, setBusy] = useState<InterestType | null>(null)
-  const [revealed, setRevealed] = useState<Revealed | null>(null)
+  const [reveal, setReveal] = useState<Revealed | null>(null) // cached seller — survives sheet close
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [activeType, setActiveType] = useState<InterestType | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ownListing, setOwnListing] = useState(false)
   const resumedRef = useRef(false)
+  const doneTypesRef = useRef<Set<InterestType>>(new Set()) // action types already logged this session
 
   const run = useCallback(
     async (type: InterestType) => {
@@ -51,6 +53,14 @@ export function ContactBar({
         // Remember the action so we can auto-resume after OTP login (Flow C).
         const back = `${pathname}?contact=${type}`
         router.push(`/login?returnTo=${encodeURIComponent(back)}`)
+        return
+      }
+      // Already revealed this action → just re-open the sheet with the cached seller.
+      // No new POST, so a re-tap (e.g. after closing, or because a launch didn't fire)
+      // never logs a duplicate interest event or burns the daily contact cap (Contact #5).
+      if (reveal && doneTypesRef.current.has(type)) {
+        setActiveType(type)
+        setSheetOpen(true)
         return
       }
       setBusy(type)
@@ -79,20 +89,21 @@ export function ContactBar({
           return
         }
         const seller = body.seller as Revealed
+        doneTypesRef.current.add(type)
+        setReveal(seller)
         setActiveType(type)
-        setRevealed(seller)
-        // NFR-10 analytics hook (deferred): fire contact_call_tap / contact_whatsapp_tap /
-        // send_interest here — only on this 2xx, so client events mirror the server truth.
-        if (type === 'WHATSAPP') {
-          window.open(seller.whatsappUrl, '_blank', 'noopener,noreferrer')
-        }
+        setSheetOpen(true)
+        // NFR-10 analytics hook (deferred, WS5): fire contact_call_tap / _whatsapp_tap /
+        // send_interest here — only on this 2xx, so client events mirror server truth.
+        // NO programmatic window.open — the reveal sheet exposes a real user-tappable
+        // WhatsApp <a>, so mobile browsers never popup-block the launch (Contact #1).
       } catch {
         setError('नेटवर्क अडचण. कृपया पुन्हा प्रयत्न करा.')
       } finally {
         setBusy(null)
       }
     },
-    [auth.status, listingId, pathname, router],
+    [auth.status, listingId, pathname, router, reveal],
   )
 
   // Auto-resume the remembered action once, after a login redirect lands back here.
@@ -161,11 +172,11 @@ export function ContactBar({
       </div>
 
       <BottomSheet
-        open={revealed !== null}
-        onClose={() => setRevealed(null)}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
         title={`${sellerFirstName} यांच्याशी संपर्क`}
       >
-        {revealed && (
+        {reveal && (
           <div className="flex flex-col gap-4">
             {activeType === 'INTEREST' && (
               <p className="rounded bg-[var(--color-success-bg,#e8f5e9)] p-3 text-center text-[15px] font-bold text-[var(--color-text)]">
@@ -175,21 +186,21 @@ export function ContactBar({
             <div className="text-center">
               <p className="text-[13px] text-[var(--color-text-2)]">फोन नंबर</p>
               <a
-                href={`tel:${revealed.phone}`}
+                href={`tel:${reveal.phone}`}
                 className="text-[26px] font-bold text-[var(--color-primary)]"
                 dir="ltr"
               >
-                {revealed.phone}
+                {reveal.phone}
               </a>
             </div>
-            <a href={`tel:${revealed.phone}`} className="block">
+            <a href={`tel:${reveal.phone}`} className="block">
               <Button variant="primary">
                 <Icon name="call" size={20} />
                 कॉल करा
               </Button>
             </a>
             <a
-              href={revealed.whatsappUrl}
+              href={reveal.whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="block"

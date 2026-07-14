@@ -65,15 +65,19 @@ function WizardInner() {
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [declaration, setDeclaration] = useState(false)
+  const [metaError, setMetaError] = useState(false)
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }))
   const sex = draft.species ? (fixedSexFor(draft.species) ?? draft.sex) : undefined
 
+  // Breed/district lists MUST load or the user can't advance (both are required).
+  // On a flaky rural connection the fetch can fail — surface an error + retry
+  // instead of a silently-empty required dropdown that dead-ends the flow (Sell #2).
   useEffect(() => {
     apiFetch('/api/v1/meta/districts')
       .then((r) => r.json())
       .then((d) => setDistricts(d.items ?? []))
-      .catch(() => {})
+      .catch(() => setMetaError(true))
   }, [])
 
   useEffect(() => {
@@ -81,8 +85,21 @@ function WizardInner() {
     apiFetch(`/api/v1/meta/breeds?species=${draft.species}`)
       .then((r) => r.json())
       .then((d) => setBreeds(d.items ?? []))
-      .catch(() => {})
+      .catch(() => setMetaError(true))
   }, [draft.species])
+
+  function retryMeta() {
+    setMetaError(false)
+    apiFetch('/api/v1/meta/districts')
+      .then((r) => r.json())
+      .then((d) => setDistricts(d.items ?? []))
+      .catch(() => setMetaError(true))
+    if (draft.species)
+      apiFetch(`/api/v1/meta/breeds?species=${draft.species}`)
+        .then((r) => r.json())
+        .then((d) => setBreeds(d.items ?? []))
+        .catch(() => setMetaError(true))
+  }
 
   // Build the PATCH/POST payload from the current draft (only set fields).
   function payload() {
@@ -186,6 +203,18 @@ function WizardInner() {
           </div>
         </div>
       </header>
+
+      {metaError && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded border border-[var(--color-error)] bg-[var(--color-error-bg)] p-3 text-[14px] text-[var(--color-error)]"
+        >
+          <span>जात/जिल्ह्यांची यादी मिळाली नाही. इंटरनेट तपासा.</span>
+          <button type="button" onClick={retryMeta} className="shrink-0 font-bold underline">
+            पुन्हा प्रयत्न करा
+          </button>
+        </div>
+      )}
 
       {step === 1 && (
         <section className="flex flex-col gap-4">
@@ -364,19 +393,61 @@ function WizardInner() {
       {step === 5 && (
         <section className="flex flex-col gap-4">
           <h1 className="text-[22px] font-bold">तपासा आणि पाठवा</h1>
-          <div className="rounded-card border border-[var(--color-border-card)] p-3 text-[16px]">
-            <p className="font-bold">
+          {/* Full read-back so the seller can verify EVERY field before sending
+              (mistakes otherwise bounce back as rejections) — Sell #3. Unset fields
+              are omitted, mirroring the public detail page. */}
+          <div className="flex flex-col gap-1 rounded-card border border-[var(--color-border-card)] p-3 text-[16px]">
+            <p className="text-[18px] font-bold">
               {breeds.find((b) => b.id === draft.breedId)?.nameMr}{' '}
               {SPECIES.find((s) => s.key === draft.species)?.label}
             </p>
             {draft.priceInr && (
-              <p className="text-[var(--color-primary)]">{formatInr(Number(draft.priceInr))}</p>
+              <p className="font-bold text-[var(--color-primary)]">
+                {formatInr(Number(draft.priceInr))}
+                {draft.negotiable ? ' · बोलणी होऊ शकते' : ''}
+              </p>
             )}
-            <p className="text-[var(--color-text-2)]">
-              {draft.village}
-              {draft.districtId && `, ${districts.find((d) => d.id === draft.districtId)?.nameMr}`}
-            </p>
-            <p className="text-[var(--color-text-3)]">{photos.length} फोटो</p>
+            {(
+              [
+                sex && ['लिंग', sex === 'FEMALE' ? 'मादी' : 'नर'],
+                draft.ageMonths && ['वय', `${draft.ageMonths} महिने`],
+                draft.weightKg && ['वजन', `${draft.weightKg} किलो`],
+                draft.milkYieldLpd &&
+                  milkYieldAllowed(draft.species!, sex) && [
+                    'दूध',
+                    `${draft.milkYieldLpd} लिटर/दिवस`,
+                  ],
+                draft.lactationNumber &&
+                  lactationAllowed(draft.species!, sex) && ['वेत', draft.lactationNumber],
+                draft.isPregnant &&
+                  pregnancyAllowed(draft.species!, sex) && ['गाभण', 'होय'],
+                draft.isVaccinated && ['लसीकरण', 'झाले आहे'],
+                [
+                  'ठिकाण',
+                  [
+                    draft.village,
+                    draft.taluka,
+                    districts.find((d) => d.id === draft.districtId)?.nameMr,
+                  ]
+                    .filter(Boolean)
+                    .join(', '),
+                ],
+                ['फोटो', `${photos.length}`],
+              ].filter(Boolean) as [string, string][]
+            ).map(([l, v]) => (
+              <div
+                key={l}
+                className="flex justify-between gap-3 border-t border-[var(--color-border-card)] pt-1"
+              >
+                <span className="text-[var(--color-text-2)]">{l}</span>
+                <span className="text-right font-bold">{v}</span>
+              </div>
+            ))}
+            {draft.description && (
+              <p className="mt-2 whitespace-pre-wrap border-t border-[var(--color-border-card)] pt-2 text-[15px] text-[var(--color-text-2)]">
+                {draft.description}
+              </p>
+            )}
           </div>
           <p className="rounded bg-[var(--color-surface-2)] p-3 text-[14px] leading-[1.6]">
             तुमचा नंबर फक्त लॉगिन केलेल्या खरेदीदारांनाच दिसेल.

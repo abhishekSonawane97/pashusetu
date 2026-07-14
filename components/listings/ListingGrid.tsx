@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { ListingCard } from './ListingCard'
 import { apiFetch } from '@/lib/api/client'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -41,9 +42,13 @@ type LoadState = 'loading' | 'idle' | 'error'
 function ListingFeed({
   filterQuery,
   onClearFilters,
+  hasFilter,
+  usingDistrictDefault,
 }: {
   filterQuery: string
   onClearFilters?: () => void
+  hasFilter: boolean
+  usingDistrictDefault: boolean
 }) {
   const [items, setItems] = useState<ListingCardData[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
@@ -98,15 +103,49 @@ function ListingFeed({
   }
 
   if (state === 'idle' && items.length === 0) {
+    // Three distinct empty cases — never tell the user to change filters they
+    // never set, and never leave a dead clear-button loop (Browse #1 / Home #2).
+    if (hasFilter) {
+      return (
+        <EmptyState
+          title="या शोधाशी जुळणारे जनावर सापडले नाही. फिल्टर बदला किंवा काढा."
+          cta={
+            onClearFilters ? (
+              <Button variant="secondary" fullWidth={false} onClick={onClearFilters}>
+                फिल्टर काढा
+              </Button>
+            ) : undefined
+          }
+        />
+      )
+    }
+    if (usingDistrictDefault) {
+      return (
+        <EmptyState
+          icon="location"
+          title="तुमच्या जिल्ह्यात अजून जनावरे नाहीत."
+          cta={
+            <Link
+              href="/listings"
+              className="inline-flex min-h-[var(--touch-min)] items-center rounded border border-[var(--color-primary)] px-4 font-bold text-[var(--color-primary)]"
+            >
+              सर्व जनावरे पहा
+            </Link>
+          }
+        />
+      )
+    }
     return (
       <EmptyState
-        title="काहीही सापडले नाही. फिल्टर बदलून पुन्हा पहा."
+        icon="sell"
+        title="अजून जनावरे उपलब्ध नाहीत. लवकरच नवीन जाहिराती येतील."
         cta={
-          onClearFilters ? (
-            <Button variant="secondary" fullWidth={false} onClick={onClearFilters}>
-              फिल्टर काढा
-            </Button>
-          ) : undefined
+          <Link
+            href="/sell"
+            className="inline-flex min-h-[var(--touch-min)] items-center rounded bg-[var(--color-primary)] px-4 font-bold text-[var(--color-on-primary)]"
+          >
+            जाहिरात टाका
+          </Link>
         }
       />
     )
@@ -155,10 +194,19 @@ export function ListingGrid({
   // URL filters always win (shareable). Only when NONE are set do we fall back to
   // the caller's default (the logged-in user's district → "nearby animals").
   const hasFilter = FILTER_KEYS.some((k) => searchParams.get(k))
+  const usingDistrictDefault = !hasFilter && !!defaultDistrictId
   const filterQuery =
     !hasFilter && defaultDistrictId
       ? `districtId=${encodeURIComponent(defaultDistrictId)}`
       : buildQuery(searchParams, null)
   // Remount the feed whenever the effective filter set changes — clean state reset.
-  return <ListingFeed key={filterQuery} filterQuery={filterQuery} onClearFilters={onClearFilters} />
+  return (
+    <ListingFeed
+      key={filterQuery}
+      filterQuery={filterQuery}
+      onClearFilters={onClearFilters}
+      hasFilter={hasFilter}
+      usingDistrictDefault={usingDistrictDefault}
+    />
+  )
 }

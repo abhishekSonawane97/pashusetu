@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signInWithCustomToken, signOut } from 'firebase/auth'
 import { getFirebaseAuth } from '@/lib/firebase/client'
+import { useAuth } from '@/lib/firebase/use-auth'
 import { apiFetch } from '@/lib/api/client'
 import { Button } from '@/components/ui/Button'
 import { Container } from '@/components/layout/Container'
@@ -38,6 +39,14 @@ function LoginFlow() {
   const [wrongAttempts, setWrongAttempts] = useState(0)
   const [lastSendAt, setLastSendAt] = useState<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [notice, setNotice] = useState<string | null>(null)
+  const auth = useAuth()
+
+  // Already signed in (bookmark / stale /login link)? Skip the phone+OTP challenge
+  // and go straight to post-auth routing instead of wasting an SMS. (Login&OTP #5)
+  useEffect(() => {
+    if (auth.status === 'in' && step === 'phone') setStep('finishing')
+  }, [auth.status, step])
 
   // 1 s tick drives the S-03 timer + resend countdown.
   useEffect(() => {
@@ -67,6 +76,7 @@ function LoginFlow() {
 
   const sendOtp = useCallback(async () => {
     setError(null)
+    setNotice(null)
     setBusy(true)
     try {
       const res = await apiFetch('/api/v1/auth/otp/send', {
@@ -82,16 +92,18 @@ function LoginFlow() {
         )
         return
       }
+      const isResend = step === 'otp'
       setLastSendAt(Date.now())
       setWrongAttempts(0)
       setOtp('')
       setStep('otp')
+      if (isResend) setNotice('नवीन OTP पाठवला आहे') // Login&OTP #4 — confirm the resend
     } catch {
       setError('इंटरनेट नाही. पुन्हा प्रयत्न करा.')
     } finally {
       setBusy(false)
     }
-  }, [phone])
+  }, [phone, step])
 
   const routeAfterAuth = useCallback(async () => {
     const res: Response = await apiFetch('/api/v1/users/me')
@@ -140,6 +152,7 @@ function LoginFlow() {
   const verifyOtp = useCallback(async () => {
     if (codeInvalidated) return
     setError(null)
+    setNotice(null)
     setBusy(true)
     try {
       const res = await apiFetch('/api/v1/auth/otp/verify', {
@@ -163,7 +176,7 @@ function LoginFlow() {
       setWrongAttempts(attempts)
       setError(
         attempts >= MAX_WRONG_ATTEMPTS
-          ? '3 वेळा चुकीचा कोड. नवीन OTP मागवा.'
+          ? 'खूप वेळा चुकीचा कोड. खाली "OTP पुन्हा पाठवा" दाबा.'
           : 'चुकीचा OTP. पुन्हा प्रयत्न करा.',
       )
     } catch {
@@ -233,7 +246,10 @@ function LoginFlow() {
             autoComplete="tel-national"
             placeholder="10 अंकी नंबर"
             value={phone}
-            onChange={(e) => setPhone(normalizePhoneInput(e.target.value))}
+            onChange={(e) => {
+              setPhone(normalizePhoneInput(e.target.value))
+              setError(null) // clear stale error while the user corrects (Login&OTP #3)
+            }}
             error={error}
           />
           <Button type="submit" loading={busy} disabled={!isValidPhone(phone)}>
@@ -253,11 +269,20 @@ function LoginFlow() {
           <button
             type="button"
             className="font-bold text-[var(--color-primary)] underline"
-            onClick={() => setStep('phone')}
+            onClick={() => {
+              setError(null) // don't carry an OTP error back onto the phone screen (Login&OTP #3)
+              setNotice(null)
+              setStep('phone')
+            }}
           >
             नंबर बदला
           </button>
         </p>
+        {notice && (
+          <p role="status" aria-live="polite" className="mt-2 text-[15px] font-bold text-[var(--color-success)]">
+            {notice}
+          </p>
+        )}
       </div>
       <form
         className="flex flex-col gap-5"
@@ -274,7 +299,10 @@ function LoginFlow() {
           autoComplete="one-time-code"
           maxLength={6}
           value={otp}
-          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          onChange={(e) => {
+            setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))
+            setError(null) // clear stale error while the user re-types (Login&OTP #3)
+          }}
           error={error}
         />
         <Button type="submit" loading={busy} disabled={otp.length !== 6 || codeInvalidated}>

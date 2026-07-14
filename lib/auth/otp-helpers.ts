@@ -37,7 +37,10 @@ export function safeReturnTo(raw: string | null | undefined): string {
 // valid 10 min (CODE_TTL_MS) — the user can enter it any time in that window.
 export const OTP_TIMER_SECONDS = 120 // resend unlocks at timer expiry
 export const RESEND_COOLDOWN_SECONDS = 30 // minimum cooldown since the LAST send
-export const MAX_WRONG_ATTEMPTS = 3 // 3rd wrong attempt invalidates the code
+// Matches the server's MAX_VERIFY_ATTEMPTS (lib/otp/config.ts) so the client never
+// locks the user out BEFORE the server would — a user holding the correct code but
+// fumbling entry gets every attempt the code actually allows before a resend.
+export const MAX_WRONG_ATTEMPTS = 5
 
 /**
  * Resend rule (auth.md §4): unlocks when the timer expires OR immediately after

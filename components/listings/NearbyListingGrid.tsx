@@ -7,12 +7,27 @@
 
 import Link from 'next/link'
 import { useMe } from '@/lib/api/use-me'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { ListingGrid } from './ListingGrid'
 
 export function NearbyListingGrid() {
-  const { profile } = useMe()
-  const districtId = profile?.districtId ?? undefined
+  const { profile, loading } = useMe()
 
+  // Wait for the profile to resolve before choosing district-vs-latest. Otherwise
+  // the grid first mounts with the latest feed (profile still null), then remounts
+  // to the district feed when it loads — swapping the animals under the user on a
+  // slow phone (Home #1). Show a stable skeleton until we know which feed to mount.
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="aspect-[3/4] w-full" />
+        ))}
+      </div>
+    )
+  }
+
+  const districtId = profile?.districtId ?? undefined
   if (!districtId) return <ListingGrid />
 
   return (
