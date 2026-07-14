@@ -22,6 +22,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             अ‍ॅप उघडा
           </Link>
         </div>
+        <nav className="mx-auto flex max-w-2xl gap-5 px-4 pb-2 text-[14px] font-bold lg:max-w-7xl">
+          <Link href="/admin" className="opacity-90 hover:opacity-100">
+            रांग
+          </Link>
+          <Link href="/admin/stats" className="opacity-90 hover:opacity-100">
+            आकडेवारी
+          </Link>
+        </nav>
       </header>
       <main className="mx-auto w-full max-w-2xl p-4 lg:max-w-7xl">
         <AdminGate>{children}</AdminGate>
