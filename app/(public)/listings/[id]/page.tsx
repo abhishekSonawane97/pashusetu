@@ -16,6 +16,7 @@ import { ListingJsonLd } from '@/components/listings/ListingJsonLd'
 import { ContactBar } from '@/components/listings/ContactBar'
 import { RelatedAnimals } from '@/components/listings/RelatedAnimals'
 import { DetailBackButton } from '@/components/listings/DetailBackButton'
+import { ShareButton } from '@/components/listings/ShareButton'
 import { Icon } from '@/components/ui/Icon'
 
 import { SITE_URL, absoluteUrl, seoAlternates } from '@/lib/seo/site'
@@ -136,9 +137,18 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   // Related shelves (server-rendered, reuses the APPROVED search) — "nearby" for now.
   const related = await listingService.getRelated(d)
 
+  // Share payload (WS2): public url + a Marathi blurb. No phone (BR-066); the
+  // per-listing OG image (generateMetadata) makes the shared link preview the animal.
+  const shareUrl = absoluteUrl(`/listings/${d.id as string}`)
+  const shareLoc = [d.village as string, d.taluka as string | null, district.nameMr]
+    .filter(Boolean)
+    .join(', ')
+  const shareText = `${title} — ${formatInr(d.priceInr as number)}\n${shareLoc}\nपशुसेतू वर पहा 👇`
+
   return (
     <main className="pb-24">
       <DetailBackButton />
+      <ShareButton url={shareUrl} text={shareText} />
       <ListingJsonLd
         id={d.id as string}
         title={title}
