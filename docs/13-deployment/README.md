@@ -2,13 +2,30 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Draft |
-| **Version** | 1.0 |
+| **Status** | Draft — pilot LIVE on pashusetu.online (see §0) |
+| **Version** | 1.1 |
 | **Owner** | Founder (Abhishek) |
-| **Last updated** | 2026-07-04 |
+| **Last updated** | 2026-07-14 |
 | **Depends on** | [../00-foundation/README.md](../00-foundation/README.md) · [../01-prd/README.md](../01-prd/README.md) · [../04-business-rules/README.md](../04-business-rules/README.md) · [../07-database/README.md](../07-database/README.md) · [../08-api/README.md](../08-api/README.md) · [../09-backend/README.md](../09-backend/README.md) · [../11-architecture/README.md](../11-architecture/README.md) · [../12-security/README.md](../12-security/README.md) · [../14-testing-qa/README.md](../14-testing-qa/README.md) · [../15-project-plan/README.md](../15-project-plan/README.md) · [../16-legal/README.md](../16-legal/README.md) |
 
 > This document owns **how PashuSetu is provisioned, deployed, and operated**: environments, vendor setup runbooks, the CI/CD pipeline, secrets, database operations (migrations, backups, PITR), rollback, monitoring, the launch-day gate, and the operating cadence. Everything is sized for the locked stack (D1–D5: Next.js full-stack on **Vercel**, **Prisma + Neon PostgreSQL**, **Firebase phone OTP**, **Cloudflare R2**, GitHub + GitHub Actions) and for a **solo developer** who must run all of it alone. Schema/migration semantics are owned by [doc 07](../07-database/README.md); jobs, workers and the full env-var registry by [doc 09](../09-backend/README.md); security controls and rotation triggers by [doc 12](../12-security/README.md); sprint scheduling by [doc 15](../15-project-plan/README.md) (this doc names sprints S1–S8 as defined there). Nothing here introduces a separate backend service, a different database, or any deviation from D1–D10.
+
+---
+
+## 0. Go-live reality (pilot — as shipped, 2026-07-14)
+
+> §1–§9 describe the intended end-state on the locked stack (D1–D10). The pilot went live on a deliberately simpler, **no-credit-card** configuration; each substitution below is an **env-var / ops change, not a code change** (the app is provider-agnostic) and is tracked line-by-line in [GO-LIVE.md](./GO-LIVE.md).
+
+| Concern | Planned (§) | Shipped for pilot | Owner / cross-ref |
+|---|---|---|---|
+| Production domain | `pashusetu.in` (§1, §2.9) | **`pashusetu.online`** — `www` 308→apex; `NEXT_PUBLIC_APP_URL=https://pashusetu.online` | canonical-domain decision [doc 00](../00-foundation/README.md) |
+| Object storage | Cloudflare R2 (§2.4) | **Supabase Storage** (S3-compatible, `ap-south-1`) via the same provider-agnostic `R2_*` vars. R2 stays the graduation target — add a card, repoint `R2_*`, unset `R2_FORCE_PATH_STYLE`, no code change | [GO-LIVE.md §3](./GO-LIVE.md), [doc 09](../09-backend/README.md) |
+| Public image host | `img.pashusetu.in` (§2.4/§2.9) | `https://<ref>.supabase.co/storage/v1/object/public/pashusetu-public`; `remotePatterns`/CSP derive the host from `R2_PUBLIC_BASE_URL` (prod keeps Next image optimization; `unoptimized` is dev-only) | [GO-LIVE.md §3](./GO-LIVE.md) |
+| OTP SMS | Firebase phone auth + MSG91/DLT (§2.5/§2.6) | **Fast2SMS `quick` route** in prod (`SMS_OTP_PROVIDER=fast2sms`, `FAST2SMS_ROUTE=quick`; DND numbers are dropped by this route — known limit, pre-DLT bridge). `OTP_TEST_MODE`+`OTP_TEST_CODE` (fixed `246810`) is **dev/CI only — MUST be unset in prod** | provider = [doc 00](../00-foundation/README.md); window/resend/cap values = [doc 04](../04-business-rules/README.md); dispatch = [doc 09](../09-backend/README.md) |
+| Prod DB migrations | CI `migrate-prod` gate before the deploy hook (§3.3/§3.5) | **Applied MANUALLY**: `DIRECT_URL=<prod-direct> pnpm prisma migrate deploy && pnpm prisma db seed` from the founder machine **before** the code push — the automated CI gate is not yet wired | semantics [doc 07 §7](../07-database/README.md) |
+| Admin bootstrap | `scripts/grant-admin.ts` (§8 #4) | `pnpm grant-admin +91XXXXXXXXXX` (wraps the script) or SQL; **no UI/API path by design** | BR-012 [doc 04](../04-business-rules/README.md), [doc 12 §3.5](../12-security/README.md) |
+
+> When the pilot graduates a row to its planned form, delete the row here and its GO-LIVE.md line; the §1–§9 runbook then governs.
 
 ---
 
@@ -29,6 +46,8 @@ Three environments. **Two Firebase projects total** (`pashusetu-dev` serves both
 | Seed data | `prisma db seed` (36 districts, 32 breeds, System user — [doc 07 §6](../07-database/README.md)) + doc 14 test fixtures | Inherits full production data via copy-on-write; CI re-runs the idempotent seed after `migrate deploy` | Seed run once at provisioning (§2.3), then re-run by every production deploy (idempotent upserts) |
 | Cron jobs | Not scheduled — invoked manually: `curl -H "Authorization: Bearer $CRON_SECRET" localhost:3000/api/v1/internal/expiry` | Not scheduled (routes exist, callable manually against the branch DB) | Vercel Cron, 2 daily entries (§2.2 step 8) |
 | Purpose | Development, unit/integration test target | Rehearse every PR — code **and** migration — against a byte-identical copy of prod data | Real users |
+
+> **Pilot note:** the *Production* column reflects the intended end-state. The live pilot runs on `pashusetu.online` (not `pashusetu.in`) with **Supabase Storage** in place of the R2 rows and **Fast2SMS** in place of the MSG91 SMS row — see §0.
 
 ### 1.1 Region decisions (consistent with [doc 11](../11-architecture/README.md))
 
@@ -111,6 +130,8 @@ Cron notes: `21:00 UTC = 02:30 IST` — the daily expiry + 3-day-warning sweep m
 | 7 | **Plan:** Free tier through S6 (fits with >5× headroom, [doc 07 §8.2](../07-database/README.md)); upgrade to **Launch at the start of S7**, then set the PITR/history retention window to **7 days** — so the S7 restore drill (§5.3, PS-065) runs on the exact launch configuration | Console → Billing | Restore window shows 7 days; upgrade logged in ops journal |
 
 ### 2.4 Cloudflare R2
+
+> The pilot ships object storage on **Supabase Storage** (S3-compatible, no card) through the same `R2_*` env vars — see §0. The R2 runbook below is the intended graduation and is unchanged by that substitution (buckets `pashusetu-uploads`/`pashusetu-public`, private+public topology, and CORS all carry over 1:1).
 
 Bucket topology is a security control fixed by [doc 12 §6.4](../12-security/README.md): **private originals bucket + public variants bucket**, per environment. The env var `R2_BUCKET` holds the environment's **bucket-pair prefix** (`pashusetu-dev` / `pashusetu-prod`); the physical bucket names are `${R2_BUCKET}-uploads` (private) and `${R2_BUCKET}-public` (public) — doc 12's generically named `pashusetu-uploads`/`pashusetu-public` pair, carried per environment.
 
@@ -199,6 +220,8 @@ CORS policy for `pashusetu-dev-uploads` (exact JSON — adds local + preview ori
 
 ### 2.9 Domain + DNS (Cloudflare)
 
+> **Live pilot zone is `pashusetu.online`** (see §0). The record shapes below are identical; substitute `pashusetu.online` for `pashusetu.in` and the image host per §0 when reading this runbook against the running pilot.
+
 | # | Action | Where | Expected outcome |
 |---|---|---|---|
 | 1 | Register `pashusetu.in` on Cloudflare Registrar (or transfer in); zone active on Cloudflare DNS | dash.cloudflare.com | Zone `pashusetu.in` active |
@@ -263,6 +286,8 @@ On PR close, a separate small workflow runs `neondatabase/delete-branch-action` 
 4. `verify` job polls the deployment until READY, then: `GET https://pashusetu.in/api/v1/health` must return 200 with `"db":"ok"`; the ST-09 header check diffs live headers against the doc 12 §8.1 canonical set; the Sentry release is created and commits associated.
 
 Why this is safe: schema **always lands before code** (structural ordering, not a race), and because every migration is backward-compatible with the currently-deployed code (expand–contract, [doc 07 §7.3 #1](../07-database/README.md)), the old build keeps working during the ~3-minute window between steps 2 and 3 — zero downtime (NFR-04). If step 3 or 4 fails, traffic never left the previous healthy deployment.
+
+> **Pilot reality (§0):** the automated `migrate-prod` CI job (step 2 above, and §3.5) is **not yet wired**. For the pilot, migrations are applied **manually from the founder machine** — `DIRECT_URL=<prod-direct> pnpm prisma migrate deploy && pnpm prisma db seed` — and completed **before** the code push, preserving the same schema-before-code ordering this section mandates. The `prisma migrate deploy` semantics are unchanged ([doc 07 §7](../07-database/README.md)).
 
 ### 3.4 Scheduled: weekly production E2E smoke
 
@@ -405,6 +430,14 @@ jobs:
 | `SENTRY_AUTH_TOKEN` (build-time only) | — | Vercel (server) | Vercel (server) | ✔ | No |
 | `NEON_API_KEY`, `NEON_PROJECT_ID`, `VERCEL_DEPLOY_HOOK_PROD`, `CANARY_OTP` (CI-only) | — | — | — | ✔ | No |
 | Flags: `FEATURE_SMS`, `DISABLE_INTEREST`, `DISABLE_UPLOADS`, `READ_ONLY_MODE` (§1.2) | `FEATURE_SMS=0` | `FEATURE_SMS=0` | `FEATURE_SMS=1`, kill switches unset | — | No |
+| `R2_ENDPOINT` (Supabase S3 endpoint for the pilot, §0/§2.4) | set | set | set | dev value | No |
+| `R2_REGION` (`ap-south-1` for Supabase; blank/`auto` on R2) | `ap-south-1` | `ap-south-1` | `ap-south-1` | dev value | No |
+| `R2_FORCE_PATH_STYLE` (`1` for Supabase; **unset** once on R2) | `1` | `1` | `1` (pilot) | dev value | No |
+| `SMS_OTP_PROVIDER` (`fast2sms`) / `FAST2SMS_API_KEY` / `FAST2SMS_ROUTE` (`quick`) | per dev | **not set** | set (live SMS) | — | No |
+| `OTP_TEST_MODE` + `OTP_TEST_CODE` (fixed `246810`) | `1` + `246810` | **unset/absent** | **unset/absent** (backdoor guard) | `1` + `246810` (CI) | No |
+| `NEXT_PUBLIC_SENTRY_DSN` (mirrors `SENTRY_DSN` per scope) | dev tag | preview tag | production tag | — | Yes (publish-safe) |
+
+> The `MSG91_*` rows above are the DLT-graduation target; the pilot uses the Fast2SMS rows instead (§0). `NEXT_PUBLIC_FIREBASE_*` remain only if Firebase is retained for identity tokens — see [doc 09](../09-backend/README.md).
 
 ### 4.3 Rotation runbooks
 
@@ -557,7 +590,7 @@ Ordered; each gate blocks the next. Evidence (screenshot/log link) is filed in `
 1. **Prod env vars verified** — `vercel env ls` diffed line-by-line against §4.2 Production column; §4.5 bundle grep green on the launch build; kill switches unset; `FEATURE_SMS` set per DLT status.
 2. **Migrations applied** — `pnpm prisma migrate status` against `DIRECT_URL_PROD` reports "Database schema is up to date"; `prisma migrate diff` clean.
 3. **Seeds loaded** — 36 districts, 32 breeds (native-speaker-reviewed Marathi names — PRD §10), System user present ([doc 07 §6](../07-database/README.md)).
-4. **Admin account created** — founder logged in on prod, `scripts/grant-admin.ts` run per [doc 07 §6.3](../07-database/README.md) / [doc 12 §3.5](../12-security/README.md); `GET /users/me` shows `isAdmin: true`; grant journaled.
+4. **Admin account created** — founder logged in on prod, `pnpm grant-admin +91XXXXXXXXXX` (wraps `scripts/grant-admin.ts`) or SQL — the **only** ways `is_admin` is set; there is deliberately **no UI/API path** (BR-012, [doc 04](../04-business-rules/README.md) / [doc 12 §3.5](../12-security/README.md)). Then `GET /users/me` shows `isAdmin: true`; grant journaled.
 5. **DLT templates approved** — all five §2.6 templates approved and mapped in MSG91, **or** the PRD §10 fallback consciously invoked: `FEATURE_SMS=0`, in-app only, SMS to follow within 2 weeks of pilot start — decision journaled.
 6. **Test listing E2E on prod** — on a real budget Android over cellular: founder's second account creates a listing — species COW, description **"चाचणीसाठी तयार केलेली जाहिरात — लगेच काढून टाकली जाईल"** (*"A listing created for testing — will be removed immediately"*) — 3 photos → declaration → submit → admin approves from S-18/S-19 → appears in public search → buyer account taps WhatsApp (interest event logged, BR-062) → seller notification received → mark sold → **archive**. Every step green.
 7. **Sentry receiving** — the E2E run visible as breadcrumbs; a deliberate test error appears tagged `production` with the launch release; all seven alert rules + 2 cron monitors active.
@@ -573,7 +606,7 @@ Ordered; each gate blocks the next. Evidence (screenshot/log link) is filed in `
 
 | Cadence | When | Tasks |
 |---|---|---|
-| **Daily** (≈ 20 min, 7 days/week during pilot) | Morning, with the moderation duty | 1. Sentry inbox: triage new issues (SEV per doc 12 §9.1), check release health ≥ 99%. 2. **Moderation queue SLA check**: oldest PENDING item < 24 h (BR-041; amber at 18 h) — the queue itself is worked 2×/day per the PS-067 runbook. 3. Glance: uptime monitor, last cron runs, yesterday's signup/listing counts on `/admin/stats`. |
+| **Daily** (≈ 20 min, 7 days/week during pilot) | Morning, with the moderation duty | 1. Sentry inbox: triage new issues (SEV per doc 12 §9.1), check release health ≥ 99%. 2. **Moderation queue SLA check**: oldest PENDING item < 24 h (BR-041; amber at 18 h) — the queue itself is worked 2×/day per the PS-067 runbook. 3. Glance: uptime monitor, last cron runs, yesterday's signup/listing counts on `/admin/stats`. 4. **Feedback inbox**: skim `/admin/feedback` नवीन (NEW) tab; mark actioned items पूर्ण झाले (DONE). Feature/API owned by [doc 05](../05-features/README.md)/[doc 08](../08-api/README.md); listed here as the recurring ops duty alongside the moderation queue. |
 | **Weekly** (≈ 1 h, Monday — after the §3.4 smoke has run) | Monday | 1. Smoke result green. 2. Metrics review vs PRD targets: G-01…G-12 from `GET /admin/stats` vs the §2 PRD table (inquiry rate ≥ 25% trajectory, SLA p95). 3. SMS health: MSG91 delivery failure rate < 5%, spend sane. 4. Dependency updates: merge the week's Dependabot PRs (lockfile diff reviewed — SEC-T16); `pnpm audit` clean. 5. Neon/Vercel usage dashboards vs plan limits (doc 15 risk R-07). |
 | **Monthly** (≈ 1 h, first working day) | Month start | 1. **Cost review vs the [doc 11](../11-architecture/README.md) cost model**: Vercel, Neon, R2, Firebase (OTP spend vs ₹8,000 alert line), MSG91 balance, Google Places — journal actuals + variance. 2. Storage growth vs doc 07 §8.1 projections. 3. Review rate-limit trip and abuse digests for policy tuning proposals (owner: doc 04). |
 | **Quarterly** (≈ half day) | Quarter start | 1. **Backup restore drill** (§5.2 runbook, timed, logged). 2. **Secret rotation**: R2 keys + Neon password on the annual/semiannual wheel (§4.3; doc 12 §9.4 triggers override anytime). 3. App rollback re-drill (§6.1, ≤ 10 min). 4. Review this doc + doc 12 alert thresholds against reality; bump versions on change. 5. Verify branch protection, environment gate, and Vercel Authentication settings unchanged (config-drift check, doc 12 A05). |

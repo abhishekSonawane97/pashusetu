@@ -40,7 +40,7 @@ Owned and fully specified in [../04-business-rules/README.md](../04-business-rul
 
 | BR id | Rule (short form) | Used in |
 |---|---|---|
-| BR-01 | Photos per listing: min 1, max 5 (recommend 3+), each ≤ 5 MB, JPEG/PNG/WebP. No video. | Flow A (S-10c) |
+| BR-01 | Photos per listing: min 3, max 10 (BR-023), each ≤ 5 MB, JPEG/PNG/WebP. No video. | Flow A (S-10c) |
 | BR-02 | Max 10 ACTIVE (non-terminal) listings per user. | Flow A, Flow B |
 | BR-03 | Listing expires 30 days after approval; one-tap renew EXPIRED → APPROVED (+30 days), no re-moderation if unedited. | Flow B |
 | BR-04 | Editing photos/description/attributes of an APPROVED listing → back to PENDING. Price-only edit keeps APPROVED. SOLD listings cannot be edited or renewed. | Flow B (S-12) |
@@ -48,7 +48,7 @@ Owned and fully specified in [../04-business-rules/README.md](../04-business-rul
 | BR-06 | ≥ 3 OPEN reports on a listing auto-moves it to PENDING (hidden) and notifies admin. | Flow F, Flow G |
 | BR-07 | Duplicate heuristic (admin-side warning only): same seller + same species + price within 10%, posted within 7 days. | Flow F (S-20) |
 | BR-08 | Bans are manual by admin; banning archives all the user's listings. | Flow F, Flow G (S-22) |
-| BR-09 | Rate limits: OTP by Firebase client SDK; API writes 60/min/user; interest events 20/day/buyer; reports 5/day/user. | Flows C, D, G |
+| BR-09 | Rate limits: OTP sent server-side via SMS provider (Fast2SMS) — 30 s resend cooldown, 5-attempt cap, 10-min code validity; API writes 60/min/user; interest events 20/day/buyer; reports 5/day/user. | Flows C, D, G |
 | BR-10 | Browse/search/detail are public. Contact, favorites, listing creation require login. Seller phone is revealed only via `POST /listings/{id}/interest`; every reveal is logged. | Flows C, E |
 | BR-11 | Pagination: cursor-based, default 20/page, max 50. | Flow E |
 | BR-12 | Every submission requires the seller declaration (lawful ownership, sale complies with state law, NOT for slaughter); stored as `declaration_accepted` + timestamp. | Flow A (S-10e) |
@@ -59,23 +59,23 @@ Owned and fully specified in [../04-business-rules/README.md](../04-business-rul
 
 ### 3.1 Inventory table
 
-23 top-level screens; the create-listing wizard (S-10) carries five sub-steps. Marathi names are the user-visible screen titles (simple rural register). Admin screens (S-18…S-23) ship **English-first** in MVP because admin is an internal user; their Marathi names are recorded for completeness only.
+27 top-level screens; the create-listing wizard (S-10) carries five sub-steps. Marathi names are the user-visible screen titles (simple rural register). S-24–S-27 were added by later sessions and continue the stable id sequence. Admin screens (S-18…S-23, S-27) actually ship **Marathi-labelled** in MVP (the shipped panel uses रांग / आकडेवारी / अभिप्राय and Marathi actions); the English names in the table are for reference.
 
 | Id | Screen (EN) | Marathi name | Purpose | Entry points | Primary actions |
 |---|---|---|---|---|---|
 | S-01 | Splash & language pick | भाषा निवडा ("choose language") | First-run brand splash; pick मराठी (default, pre-selected) or English. Shown once; choice stored locally and later synced to `language_pref`. | First app open; cleared app data | Select language → continue to S-05 |
-| S-02 | Phone entry | मोबाईल नंबर टाका ("enter mobile number") | Collect 10-digit Indian mobile; trigger Firebase OTP send (client SDK, BR-09). Renders full-screen from Profile tab, or as a bottom sheet when invoked as a login wall. | Login wall (contact/favorite/report tap while anonymous), Sell tab while anonymous, Favorites tab while anonymous, Profile tab while anonymous | Enter number, "OTP पाठवा" (send OTP) → S-03; cancel → back to origin |
-| S-03 | OTP verify | OTP टाका ("enter OTP") | 6-digit code entry with 60 s timer, attempt counter, resend with 30 s cooldown. | S-02 after successful send | Verify → S-04 (new) or destination (returning); resend; change number → S-02 |
+| S-02 | Phone entry | मोबाईल नंबर टाका ("enter mobile number") | Collect 10-digit Indian mobile; trigger a server-side OTP send via the SMS provider (Fast2SMS; `POST /auth/otp/send`, BR-09). Renders full-screen from Profile tab, or as a bottom sheet when invoked as a login wall. | Login wall (contact/favorite/report tap while anonymous), Sell tab while anonymous, Favorites tab while anonymous, Profile tab while anonymous | Enter number, "OTP पाठवा" (send OTP) → S-03; cancel → back to origin |
+| S-03 | OTP verify | OTP टाका ("enter OTP") | 6-digit code entry with a 120 s resend timer, attempt counter (5 wrong tries before a fresh code is required), resend with a 30 s cooldown; a sent code stays valid for 10 minutes (verify via `POST /auth/otp/verify`, which returns a Firebase custom token for sign-in). | S-02 after successful send | Verify → S-04 (new) or destination (returning); resend; change number → S-02 |
 | S-04 | Profile setup | प्रोफाइल तयार करा ("create profile") | First-login profile: name (required), district (picker, `GET /meta/districts`), taluka + village (optional), role flags "मला जनावर विकायचे आहे / मला जनावर विकत घ्यायचे आहे" (I want to sell / buy an animal; both allowed, at least one required). Calls `POST /users`. | S-03 when `GET /users/me` returns not-found | Save → original destination or S-05 |
-| S-05 | Home / browse | होम ("home") | Public landing: species category chips (गाय, म्हैस, बैल, शेळी, मेंढी), search bar, latest APPROVED listings feed, notification bell (badge, logged-in only). Bottom nav host. | S-01, app open (returning), bottom nav Home tab, deep link `/` | Tap category/search → S-06; tap card → S-07; bell → S-14 |
-| S-06 | Search results + filters sheet | शोधा ("search") | Filterable, cursor-paginated results (`GET /listings`, BR-11). Filters bottom sheet: species, breed, district, min/max price, sort (newest / price low→high / price high→low). Filters reflected in URL query for shareability. | S-05 chips/search, deep link `/listings?…`, "clear filters" reset | Apply/clear filters, infinite scroll, tap card → S-07 |
-| S-07 | Listing detail | जाहिरात तपशील ("listing details") | Public detail: photo carousel, price + negotiable badge, all attributes (breed, sex, age, milk yield, lactation, pregnant, vaccinated, weight), location (village, taluka, district), seller snippet, status banner when not APPROVED. Contact bar: कॉल करा / WhatsApp / आवड कळवा (call / WhatsApp / send interest). | S-05, S-06, S-13, S-14, shared deep link `/listings/{id}` | Contact (login-walled, BR-10), favorite, report → S-17, photos → S-08, seller → S-09 |
+| S-05 | Home / browse | होम ("home") | Public landing: six species category chips (गाय, म्हैस, बैल, शेळी, मेंढी, रेडा), a reduced hero showcase, and a **sticky** search + filter bar above a **nearby (near-you) APPROVED listings feed** (a logged-in user's district; latest for anonymous / no-district) that no longer re-orders under the user between renders. Hamburger **app menu (S-25)** at top-right; notification bell (badge, logged-in only). Bottom nav host. (Hero dimensions / sticky-bar CSS owned by doc 10.) | S-01, app open (returning), bottom nav Home tab, deep link `/` | Tap the search bar → opens the filter sheet **in place** (bottom sheet on S-05); apply → S-06 filtered results; tap a species chip → S-06 filtered; open the app menu → S-25; tap card → S-07; bell → S-14 |
+| S-06 | Search results + filters sheet | शोधा ("search") | Filterable, cursor-paginated results (`GET /listings`, BR-11). Filters bottom sheet: free-text **q** (searches village / breed MR+EN / seller name / listing id), species, breed, district, taluka, min/max price, **minimum milk yield (L/day)**, **age range (min/max months)**, **pregnant-only toggle**, and sort (newest / price low→high / price high→low). A **sticky results header** carries an **active-filter count badge** + one-tap "सर्व काढा" (clear all). Filters mirrored to the URL query for shareability. Canonical query contract owned by doc 08. | S-05 search-apply & species chips, app-menu "जनावरे पहा", "सर्व जनावरे पहा" / seller-snippet / related "सर्व पहा", deep link `/listings?…`, "clear filters" reset | Apply/clear filters, infinite scroll, tap card → S-07 |
+| S-07 | Listing detail | जाहिरात तपशील ("listing details") | Public detail: photo carousel, price + negotiable badge, all attributes (breed, sex, age, milk yield, lactation, pregnant, vaccinated, weight), location (village, taluka, district), seller snippet, status banner when not APPROVED. Contact bar: कॉल करा / WhatsApp / आवड कळवा (call / WhatsApp / send interest). **Related-animals shelves** below the detail — horizontal, swipeable rows of nearby listings (same species in the same district); each shelf has a **सर्व पहा** (see all) link → S-06 filtered, and shelves render nothing when the district has no other animals (payload/endpoint owned by doc 08, district-match by doc 09). A **persistent back/home control always resolves to the home feed (S-05)** so a deep-linked visitor is never stranded (control visual owned by doc 10). | S-05, S-06, S-13, S-14, shared deep link `/listings/{id}` | Contact (login-walled, BR-10), **Share (शेअर करा)**, favorite, report → S-17, photos → S-08, seller → S-09 |
 | S-08 | Photo viewer | फोटो पहा ("view photos") | Full-screen swipeable, pinch-zoom photo overlay with counter ("2/5"). | Tap any photo on S-07 or S-20 | Swipe, zoom, close → back to host screen |
 | S-09 | Seller public profile snippet | विक्रेत्याची माहिती ("seller's info") | Bottom sheet on S-07: seller first name, village + district, member-since month, count of active listings. **No phone number** (BR-10 — reveal only via interest endpoint). | Tap seller row on S-07 | View other active listings by this seller → S-06 filtered; close |
-| S-10 | Create listing wizard (host) | नवीन जाहिरात ("new listing") | Five-step wizard shell with progress dots, autosaving a DRAFT (`POST /listings` on first forward step, then `PATCH /listings/{id}`). Blocked with a friendly message if user already has 10 active listings (BR-02). | S-11 "+ नवीन जाहिरात" button, Sell tab when user has zero listings | Step navigation, save & exit → S-11 |
-| S-10a | — Step 1: species & breed | जनावर व जात निवडा ("choose animal & breed") | Icon grid of 5 species; breed picker filtered by species (`GET /meta/breeds?species=`), incl. "गावठी / स्थानिक" (local/crossbred). | S-10 entry, back from S-10b | Select species + breed → S-10b |
+| S-10 | Create listing wizard (host) | नवीन जाहिरात ("new listing") | Five-step wizard shell with a progress indicator ("पायरी n / 5"), autosaving a DRAFT (`POST /listings` on first forward step, then `PATCH /listings/{id}`). **Per-step validation gates forward navigation; a failed submit jumps back to the earliest step whose field is invalid.** A saved draft resumes via **`/sell/new?id=<draftId>`**. Blocked with a friendly message if user already has 10 active listings (BR-02). | S-11 "+ नवीन जाहिरात" button, Sell tab when user has zero listings, resume via `?id=` | Step navigation, save & exit → S-11 |
+| S-10a | — Step 1: species & breed | जनावर व जात निवडा ("choose animal & breed") | Icon grid of 6 species; breed picker filtered by species (`GET /meta/breeds?species=`), incl. "गावठी / स्थानिक" (local/crossbred). **रेडा (he-buffalo) shares the म्हैस / BUFFALO breed list (same animal, male).** (Canonical Species enum owned by doc 07.) | S-10 entry, back from S-10b | Select species + breed → S-10b |
 | S-10b | — Step 2: details | जनावराचा तपशील ("animal's details") | Sex, age (years+months → `age_months`), weight (optional), milk yield l/day + lactation number (milch species), pregnant?, vaccinated?, short description. | S-10a next, back from S-10c | Fill fields → S-10c |
-| S-10c | — Step 3: photos | फोटो टाका ("add photos") | 1–5 photos (BR-01) via camera or gallery; presigned R2 upload (`POST /uploads/presign` then `POST /listings/{id}/images`); per-photo progress, retry, delete, reorder. | S-10b next, back from S-10d | Upload ≥ 1 photo → S-10d |
+| S-10c | — Step 3: photos | फोटो टाका ("add photos") | 3–10 photos (BR-01/BR-023); **multi-select gallery upload (forced camera capture dropped)**; presigned upload to S3-compatible object storage (`POST /uploads/presign` then `POST /listings/{id}/images`; storage backend owned by docs 00/13); per-photo progress, retry, delete, reorder. | S-10b next, back from S-10d | Upload ≥ 3 photos → S-10d |
 | S-10d | — Step 4: price & location | किंमत व ठिकाण ("price & place") | Price in ₹ (integer), negotiable toggle ("किंमतीत बदल शक्य" — price negotiable), district (defaults from profile), taluka (required), village. | S-10c next, back from S-10e | Set price + place → S-10e |
 | S-10e | — Step 5: declaration & review | हमीपत्र व अंतिम तपासणी ("declaration & final check") | Read-only summary card of the whole listing + mandatory seller declaration checkbox (BR-12). Submit calls `POST /listings/{id}/submit` → PENDING. | S-10d next | Accept declaration + "तपासणीसाठी पाठवा" (send for review) → S-11 |
 | S-11 | My listings | माझ्या जाहिराती ("my listings") | Seller hub: tabs for status groups — Drafts (अपूर्ण), In review (तपासणीत), Live (चालू), Sold (विकलेल्या), Rejected (नाकारलेल्या), Expired (मुदत संपलेल्या), Archived (बंद). Per-card actions by status; active-count meter "7/10" toward BR-02. Sell tab target. | Bottom nav Sell tab, post-submit redirect, S-14 notification taps | Resume draft → S-10, edit → S-12, mark sold, renew, archive, "+ नवीन जाहिरात" → S-10a |
@@ -90,34 +90,40 @@ Owned and fully specified in [../04-business-rules/README.md](../04-business-rul
 | S-20 | Admin: listing review detail | जाहिरात तपासणी ("listing inspection") | Full listing + photos (→ S-08), seller history (prior listings, prior rejections, open reports), duplicate-heuristic panel (BR-07), declaration timestamp. Approve / Reject (reason mandatory) / open seller in S-22. | S-19 row, S-21 report row, S-22 listing link | `POST /admin/listings/{id}/approve` or `/reject {reason}`; every action → `moderation_log` |
 | S-21 | Admin: reports queue | तक्रारींची यादी ("list of complaints") | `GET /admin/reports?status=OPEN` grouped by listing with per-listing OPEN count; auto-hidden listings pinned on top (BR-06). | Admin nav, auto-hide notification | Open → S-20; `POST /admin/reports/{id}/resolve` / `/dismiss` |
 | S-22 | Admin: users & ban | वापरकर्ते व्यवस्थापन ("user management") | User search (phone/name); profile with listing + report history; ban (reason mandatory) / unban. Ban archives all the user's listings (BR-08). | Admin nav, seller links from S-20/S-21 | `POST /admin/users/{id}/ban {reason}` / `/unban` |
-| S-23 | Admin: stats dashboard | आकडेवारी ("statistics") | `GET /admin/stats` + `GET /admin/audit-log`: pending count & oldest-pending age, approvals/rejections (7/30 d), new users & listings, interest events, open reports, listings by district/species; audit-log table. | Admin nav | Read-only monitoring; drill-through links to queues |
+| S-23 | Admin: stats dashboard | आकडेवारी ("statistics") | `GET /api/v1/admin/stats` (requireAdmin): listings by status, new today / this week; total viewCount over APPROVED + top-5 most-viewed; interest events by type (Call / WhatsApp / Interest) all-time and last-7-days; count of zero-enquiry APPROVED listings; top-5 districts. Read-only aggregates, no schema change. (No audit-log endpoint ships — the shipped snapshot is `/admin/stats` only; endpoint owned by doc 08, metric definitions by doc 05.) | Admin nav (आकडेवारी tab) | Read-only monitoring |
+| S-24 | Not found / 404 | पान सापडले नाही ("page not found") | Branded Marathi 404 replacing Next's default English page; reached by any unmatched URL and by `notFound()` — e.g. a WhatsApp-shared link to a listing that was removed, rejected, or never existed. | Unmatched URL, `notFound()` from any route | मुख्य पानावर जा (go home → S-05), जनावरे पहा (browse → S-06) |
+| S-25 | App menu (hamburger) — overlay | मेनू ("menu") | Overflow/account menu at the top-right of the home header (S-05); **supplements** (does not replace) the 4-tab bottom nav. Top-to-bottom: logged-in user identity block (name + formatted +91 phone; a "लॉगिन करा" prompt when signed out); nav rows होम (→S-05) / जनावरे पहा (→S-06) / विका (→S-11) / माझी प्रोफाइल (→S-15); अडचण कळवा / सूचना द्या (opens the Feedback sheet S-26, works signed-out); an admin link (label जाहिरात तपासणी → /admin) shown only when `is_admin`; and LOG OUT (बाहेर पडा) at the bottom — previously absent anywhere in the app. Renders as a BottomSheet on phones / centered modal on desktop; overlay, no route (host = S-05). | Hamburger button on S-05 header | Navigate a row, open feedback (S-26), log out, dismiss |
+| S-26 | Feedback sheet — overlay | अडचण कळवा / सूचना द्या ("report a problem / give a suggestion") | Opened from the app menu (S-25); fields type (PROBLEM / SUGGESTION / OTHER), message (required), optional contact. **Works signed-out (anonymous)** via `POST /api/v1/feedback` (optionalAuth — userId attached only if logged in); **not** subject to the no-phone rule that applies to listing/profile free-text (contact field is allowed). Overlay, no route (host = S-25 / any). Model/enums owned by doc 07, endpoint by doc 08, no-phone exemption by doc 04. | S-25 "अडचण कळवा / सूचना द्या" row | Pick type, write message, submit → confirmation, dismiss |
+| S-27 | Admin: feedback inbox | अभिप्राय ("feedback") | `GET /api/v1/admin/feedback` (requireAdmin); tabs नवीन (NEW) / पूर्ण (DONE) / सर्व (all); "पूर्ण झाले" marks an item DONE via `PATCH /api/v1/admin/feedback/[id]`. Shows type, message, contact/user, age; NEW-count badge. | Admin nav (अभिप्राय tab) | Filter by status, mark done |
 
 ### 3.2 Route map
 
-Next.js App Router routes (D1). Overlays (S-08, S-09, S-17) and the login sheet render over their host route — no route of their own.
+Next.js App Router routes (D1). Overlays (S-08, S-09, S-17, **S-25 app menu, S-26 feedback sheet**) and the login sheet render over their host route — no route of their own.
 
 | Screen | Route | Access |
 |---|---|---|
 | S-01 | `/welcome` (redirected here from `/` only when no language stored) | Public |
 | S-05 | `/` | Public |
-| S-06 | `/listings` (+ query: `species`, `breedId`, `districtId`, `minPrice`, `maxPrice`, `sort`) | Public |
+| S-06 | `/listings` (+ query: `q`, `species`, `breedId`, `districtId`, `taluka`, `minPrice`, `maxPrice`, `minMilk`, `minAge`, `maxAge`, `isPregnant`, `sellerId`, `sort`) | Public |
 | S-07 | `/listings/[id]` | Public (only APPROVED renders publicly; SOLD and all other statuses 404 to the public — client-known SOLD shows the sold banner; owner/admin see any status with a banner, §4.3) |
 | S-08, S-09, S-17 | overlays on host route | as host |
 | S-02, S-03 | `/login?returnTo=<path>` (two steps, one route); also rendered as a bottom-sheet login wall over any screen | Public |
 | S-04 | `/profile/setup?returnTo=<path>` | Authenticated, profile missing |
-| S-10 (a–e) | `/sell/new?step=1..5` (draft id held in state after first save) | Authenticated |
+| S-10 (a–e) | `/sell/new?step=1..5`; a saved draft resumes via `/sell/new?id=<draftId>` | Authenticated |
 | S-11 | `/sell` | Authenticated |
 | S-12 | `/sell/[id]/edit` | Authenticated (owner only) |
 | S-13 | `/favorites` | Authenticated |
 | S-14 | `/notifications` | Authenticated |
 | S-15 | `/profile` | Authenticated |
 | S-16 | `/profile/language` | Public (anonymous choice stored locally) |
-| S-18 | `/admin` (redirects to `/admin/pending` when authorized) | Admin |
-| S-19 | `/admin/pending` | Admin |
-| S-20 | `/admin/listings/[id]` | Admin |
-| S-21 | `/admin/reports` | Admin |
-| S-22 | `/admin/users` | Admin |
+| S-18 | `/admin` — the consolidated moderation queue + inline review (no redirect; there is no separate `/admin/pending`) | Admin |
+| S-19 | consolidated into `/admin` (the pending queue is the PENDING tab of the queue at S-18) | Admin |
+| S-20 | consolidated into `/admin` (inline approve/reject via a bottom sheet on the queue card; **no separate `/admin/listings/[id]` route ships**) | Admin |
+| S-21 | *design-only — no `/admin/reports` route shipped yet* | Admin |
+| S-22 | *design-only — no `/admin/users` route shipped yet* | Admin |
 | S-23 | `/admin/stats` | Admin |
+| S-24 | catch-all `not-found` (no fixed path; any unmatched URL and `notFound()`) | Public |
+| S-27 | `/admin/feedback` | Admin |
 
 **Login wall behavior (canonical):** any login-required action by an anonymous user opens S-02 as a bottom sheet with the pending action remembered; after S-03 (and S-04 for new users) succeeds, the user lands back on the originating screen and the pending action (contact reveal, favorite, report, sell) is executed automatically. Cancelling the sheet returns to the originating screen with nothing lost.
 
@@ -140,7 +146,7 @@ flowchart TD
     S03 --> C2{"OTP correct?"}
     C2 -->|"Wrong code"| E1["Inline error with attempt counter"]
     E1 -->|"Attempt 1 or 2"| S03
-    E1 -->|"3rd failure - code invalidated"| R1["Resend new OTP after 30 s cooldown"]
+    E1 -->|"5th failure - code invalidated"| R1["Resend new OTP after 30 s cooldown"]
     R1 --> S03
     C2 -->|"Correct - new user"| S04["S-04 Profile setup"]
     C2 -->|"Correct - returning user"| G1{"Under 10 active listings?"}
@@ -149,13 +155,13 @@ flowchart TD
     G1 -->|"No - BR-02"| LIM["Limit message on S-11 - archive or mark sold first"]
     G1 -->|"Yes"| W1["S-10a Species and breed"]
     W1 --> W2["S-10b Animal details"]
-    W2 --> W3["S-10c Photos - min 1 max 5"]
+    W2 --> W3["S-10c Photos - min 3 max 10"]
     W3 --> C3{"Upload ok?"}
     C3 -->|"Network fail"| E2["Photo queued with Retry button"]
     E2 --> W3
     C3 -->|"File too big or wrong type"| E3["Rejected client-side with message"]
     E3 --> W3
-    C3 -->|"At least 1 uploaded"| W4["S-10d Price and location"]
+    C3 -->|"At least 3 uploaded"| W4["S-10d Price and location"]
     W4 --> W5["S-10e Declaration and review"]
     W5 --> C4{"Declaration ticked?"}
     C4 -->|"No"| D1["Submit disabled - hint shown - stays DRAFT"]
@@ -173,11 +179,12 @@ flowchart TD
 |---|---|---|
 | User declines/never ticks declaration | Submit button disabled with hint "हमीपत्र स्वीकारल्याशिवाय जाहिरात पाठवता येणार नाही" (listing cannot be sent without accepting the declaration); DRAFT retained | S-10e |
 | App killed / battery dies mid-wizard | DRAFT autosaved at last completed step; S-11 shows it under "अपूर्ण" (incomplete) with "पुढे चालू ठेवा" (continue) | S-10, S-11 |
-| Photo upload fails (network) | Photo shows failed state with retry; other photos unaffected; Next blocked until ≥ 1 photo succeeds (BR-01) | S-10c |
+| Photo upload fails (network) | Photo shows failed state with retry; other photos unaffected; Next blocked until ≥ 3 photos succeed (BR-01/BR-023) | S-10c |
 | Photo > 5 MB or unsupported format | Rejected client-side before upload; server presign re-validates content-type + size (BR-01) | S-10c |
-| 6th photo attempted | Add-photo button hidden at 5 (BR-01) | S-10c |
+| 11th photo attempted | Add-photo button hidden at 10 (BR-01/BR-023) | S-10c |
+| Dropdown meta (districts/breeds) fetch fails | Inline error with a retry control; the wizard blocks the dependent step until meta loads | S-10 |
 | Already 10 active listings | Wizard entry blocked; message shows count and suggests marking sold/archiving (BR-02) | S-11 |
-| Wrong OTP 3 times | Code invalidated; must resend (30 s cooldown) | S-03 |
+| Wrong OTP 5 times | Code invalidated; must resend (30 s cooldown) | S-03 |
 | Price left empty or 0 | Inline validation; Next disabled | S-10d |
 | Fresh user exits before S-04 completes | No `users` row yet; next login re-enters S-04 (server has no profile) | S-04 |
 
@@ -259,20 +266,20 @@ flowchart TD
 | Situation | Expected behavior | Screen |
 |---|---|---|
 | Listing turns SOLD between list and detail view | S-07 shows "हे जनावर विकले गेले आहे" banner; contact bar hidden; similar-listings CTA → S-06 | S-07 |
-| Shared link to SOLD/PENDING/REJECTED/EXPIRED/ARCHIVED/DRAFT listing | Public fetch returns 404 (BR-034): "ही जाहिरात आता उपलब्ध नाही" (this listing is no longer available) state with browse CTA → S-05 (owner sees their own listing normally) | S-07 |
+| Shared link to a hidden listing | An existing **SOLD** listing → in-page "हे जनावर विकले गेले आहे" sold banner; an existing **PENDING/REJECTED/EXPIRED/ARCHIVED/DRAFT** listing → in-page "ही जाहिरात आता उपलब्ध नाही" unavailable banner. Both hide the contact bar and carry the always-home back control + "इतर जनावरे पहा" browse CTA → S-06 (BR-034). A **genuinely non-existent id** → `notFound()` → branded 404 (S-24). Owner/admin see their own listing normally. | S-07, S-24 |
 | Viewer is the listing's own seller | Contact bar replaced by "जाहिरात बदला" (edit listing) shortcut → S-12 | S-07 |
 | WhatsApp not installed | `wa.me` universal link opens in browser; revealed phone number stays visible on S-07 for a manual call | S-07 |
 | Interest rate limit reached (BR-09) | Toast "आज खूप विक्रेत्यांशी संपर्क झाला आहे. कृपया उद्या पुन्हा प्रयत्न करा." (you have contacted many sellers today, please try again tomorrow — BR-064); browsing unaffected | S-07 |
 | Banned buyer taps contact | API 403; message directs to grievance contact (see §7); session signed out | S-07 |
 | Anonymous favorite tap | Login wall; favorite applied automatically after login | S-07 |
 | Login wall cancelled | Sheet closes; user remains on S-07 with nothing lost | S-07 |
-| Duplicate interest same listing same day | Allowed within the 20/day cap — each reveal is logged as its own event (metric requirement) | S-07 |
+| Re-tapping the same contact on a listing already revealed | A per-listing reveal cache keeps the revealed seller after the sheet closes; re-tapping a contact type already revealed on that listing reuses it and does **not** re-POST `/listings/{id}/interest` — so repeats are neither re-logged nor counted against the 20/day cap (BR-09). Distinct listings, and the first tap of each contact type, still log one event each. | S-07 |
 
 ---
 
-### 4.4 Flow D — Authentication (Firebase phone OTP)
+### 4.4 Flow D — Authentication (server phone OTP + Firebase custom token)
 
-**Narrative.** All OTP sending/verifying happens in the Firebase client SDK — the backend never sends OTPs (BR-09). S-02 validates a 10-digit Indian mobile before invoking Firebase; send failures (throttling, network) surface as retryable errors. S-03 runs a 60-second timer: resend unlocks on expiry, always with a 30-second cooldown between sends. Three wrong codes invalidate the code and force a resend. On success the client gets a Firebase ID token and calls `GET /users/me` with `Authorization: Bearer <token>`: not-found routes to profile setup (S-04 → `POST /users`), ACTIVE routes to `returnTo` or home, BANNED shows a block message and signs out. Session persistence and silent token refresh are handled by the SDK, so returning users skip this flow entirely.
+**Narrative.** The **server** sends and verifies the OTP (not the Firebase client SDK). S-02 validates a 10-digit Indian mobile, then `POST /auth/otp/send` dispatches a code through the SMS provider (Fast2SMS "quick" route). S-03 runs a 120-second resend timer with a 30-second cooldown between sends; a sent code stays valid for 10 minutes, and **five** wrong codes invalidate it and force a fresh send. `POST /auth/otp/verify` checks the code and, on success, mints a **Firebase custom token** that the client exchanges via `signInWithCustomToken()` — so the Bearer flow to `GET /users/me` is unchanged: not-found routes to profile setup (S-04 → `POST /users`), ACTIVE routes to `returnTo` or home, BANNED shows a block message and signs out. Send failures surface as retryable errors on S-02 (throttles show the cooldown; the raw provider reason is logged server-side, not shown to the user). `OTP_TEST_MODE` (dev/CI only) uses the fixed code 246810 with no real SMS. The auth-mechanism decision is owned by docs 00/09/13; this doc only depicts the flow. Session persistence and silent token refresh are handled by the Firebase SDK, so returning users skip this flow entirely.
 
 ```mermaid
 flowchart TD
@@ -280,16 +287,16 @@ flowchart TD
     S02 --> V1{"Valid 10-digit Indian mobile?"}
     V1 -->|"No"| E0["Inline error - input kept"]
     E0 --> S02
-    V1 -->|"Yes"| SEND["Firebase client SDK sends OTP"]
+    V1 -->|"Yes"| SEND["Server sends OTP via SMS provider - Fast2SMS"]
     SEND --> C0{"Send ok?"}
-    C0 -->|"Throttled or network fail"| E4["Error - thodya velane punha prayatna kara"]
+    C0 -->|"Throttled or provider send failure"| E4["Retryable error - thodya velane punha prayatna kara - reason logged server-side"]
     E4 --> S02
-    C0 -->|"Sent"| S03["S-03 OTP verify - 60 s timer"]
+    C0 -->|"Sent"| S03["S-03 OTP verify - 120 s timer"]
     S03 --> C1{"Code result?"}
-    C1 -->|"Correct"| OK["Firebase ID token issued"]
-    C1 -->|"Wrong - attempt 1 or 2"| E1["Inline error - chukicha OTP"]
+    C1 -->|"Correct"| OK["Server verifies, mints Firebase custom token, client signs in"]
+    C1 -->|"Wrong - attempt 1 to 4"| E1["Inline error - chukicha OTP"]
     E1 --> S03
-    C1 -->|"Wrong - attempt 3"| E2["Code invalidated"]
+    C1 -->|"Wrong - attempt 5"| E2["Code invalidated"]
     E2 --> RS
     C1 -->|"Timer expired"| RS["Resend enabled - 30 s cooldown between sends"]
     RS --> SEND
@@ -306,13 +313,13 @@ flowchart TD
 
 | Situation | Expected behavior | Screen |
 |---|---|---|
-| Invalid phone (letters, < 10 digits, non-Indian prefix) | Inline validation before any Firebase call; send disabled | S-02 |
-| Firebase throttling (too many requests) | "थोड्या वेळाने पुन्हा प्रयत्न करा" (try again after a while); no counter shown to avoid abuse probing | S-02 |
-| SMS never arrives | Resend unlocked at timer expiry (60 s); after 3 resends in a session, hint suggests checking the number and trying later (Firebase quota also applies) | S-03 |
-| Wrong code 3 times | Code invalidated; verify disabled until a fresh code is sent | S-03 |
+| Invalid phone (letters, < 10 digits, non-Indian prefix) | Inline validation before any send call; send disabled | S-02 |
+| SMS-provider send failure / throttle (429) | "थोड्या वेळाने पुन्हा प्रयत्न करा" (try again after a while); no counter shown to avoid abuse probing; the raw provider reason is logged server-side, not surfaced to the user | S-02 |
+| SMS never arrives | Resend unlocked at timer expiry (120 s); after several resends the hint suggests checking the number and trying later (per-phone/IP send caps also apply) | S-03 |
+| Wrong code 5 times | Code invalidated; verify disabled until a fresh code is sent | S-03 |
 | User entered wrong phone number | "नंबर बदला" (change number) link → back to S-02 with input kept | S-03 |
 | Auto-read OTP (WebOTP API) fails | Manual entry always available; auto-read is progressive enhancement only | S-03 |
-| Banned user authenticates | Firebase succeeds but API returns banned status → block screen, sign-out, grievance contact shown | S-03 |
+| Banned user authenticates | Custom-token sign-in succeeds but API returns banned status → block screen, sign-out, grievance contact shown | S-03 |
 | ID token expires mid-session | Firebase SDK silently refreshes; on hard failure, login wall opens preserving `returnTo` | any |
 | User closes app between S-03 and S-04 | Firebase session persists; next open routes straight to S-04 (profile still missing) | S-04 |
 
@@ -320,12 +327,12 @@ flowchart TD
 
 ### 4.5 Flow E — Search & filter
 
-**Narrative.** Search (S-06) is driven entirely by `GET /listings` with cursor pagination (BR-11: 20/page, max 50) and only returns APPROVED listings. The filters sheet covers species, breed (dependent on species), district, price range, and sort; applied filters render as removable chips and are mirrored into the URL so results are shareable. Infinite scroll fetches the next cursor until exhausted. The empty state never strands the user: it offers one-tap filter reset and a broaden-district shortcut. Network failures show an inline retry without wiping already-loaded results, and going back from a detail page restores both filters and scroll position — critical on 3G (product principle 5).
+**Narrative.** Search (S-06) is driven entirely by `GET /listings` with cursor pagination (BR-11: 20/page, max 50) and only returns APPROVED listings. The filters sheet covers a free-text **q** (village / breed MR+EN / seller name / listing id), species, breed (dependent on species), district, taluka, price range, minimum milk yield, age range, a pregnant-only toggle, and sort; the home search bar opens this same sheet **in place** on S-05, and applying it — like tapping a species chip — navigates to S-06 with the filters mirrored into the URL so results are shareable. A **sticky results header** shows an **active-filter count badge** + one-tap "सर्व काढा" (clear all). Infinite scroll fetches the next cursor until exhausted. Empty results never strand the user, and the copy matches the case: **(a)** filtered — no match for the current filters → clear-filters CTA; **(b)** near-you — no listings in your district → browse-all CTA; **(c)** platform-empty — none yet → a "coming soon" message with a post-a-listing CTA. Network failures show an inline retry without wiping already-loaded results, and going back from a detail page restores both filters and scroll position — critical on 3G (product principle 5). Canonical query contract owned by doc 08.
 
 ```mermaid
 flowchart TD
     S05["S-05 Home"] -->|"Tap search bar or species chip"| S06["S-06 Search results"]
-    S06 -->|"Open filters sheet"| FS["Filters - species, breed, district, price, sort"]
+    S06 -->|"Open filters sheet"| FS["Filters - q, species, breed, district, taluka, price, min milk, age range, pregnant, sort + active-filter badge"]
     FS --> VAL{"Min price over max price?"}
     VAL -->|"Yes"| FE["Inline error - apply blocked"]
     FE --> FS
@@ -336,10 +343,13 @@ flowchart TD
     LIST -->|"Scroll near end"| C2{"nextCursor present?"}
     C2 -->|"Yes"| Q
     C2 -->|"No"| END["End marker - sarva jahirati pahilya"]
-    C1 -->|"Zero results"| EMPTY["Empty state - kahihi sapadle nahi"]
-    EMPTY -->|"Clear filters CTA"| RESET["All filters reset"]
+    C1 -->|"Zero results"| EMPTY{"Which empty case?"}
+    EMPTY -->|"Filtered - no match"| RESET["Clear-filters CTA - all filters reset"]
     RESET --> Q
-    EMPTY -->|"Change filters CTA"| FS
+    EMPTY -->|"Change filters"| FS
+    EMPTY -->|"Near-you - district empty"| BROWSE["Browse-all CTA - all listings"]
+    BROWSE --> Q
+    EMPTY -->|"Platform empty - none yet"| POST["Coming-soon message + post-a-listing CTA"]
     C1 -->|"Network error"| ERR["Inline offline row with Retry - loaded cards kept"]
     ERR -->|"Retry"| Q
     LIST -->|"Tap card"| S07["S-07 Listing detail"]
@@ -350,7 +360,9 @@ flowchart TD
 
 | Situation | Expected behavior | Screen |
 |---|---|---|
-| Zero results for filter combo | Empty state "काहीही सापडले नाही. फिल्टर बदलून पुन्हा पहा." + "फिल्टर काढा" reset CTA + change-filters CTA | S-06 |
+| Zero results for the current filters | Empty state "या शोधाशी जुळणारे जनावर सापडले नाही. फिल्टर बदला किंवा काढा." + "फिल्टर काढा" (clear) CTA | S-06 |
+| No listings in the user's district (near-you feed) | Empty state "तुमच्या जिल्ह्यात अजून जनावरे नाहीत." + "सर्व जनावरे पहा" (browse all) CTA → S-06 | S-05 |
+| Platform has no listings yet | Empty state "अजून जनावरे उपलब्ध नाहीत. लवकरच नवीन जाहिराती येतील." + "जाहिरात टाका" (post a listing) CTA → S-10 | S-05 |
 | min price > max price | Apply blocked with inline error under the price fields | S-06 filters sheet |
 | Species changed after breed selected | Breed selection resets; breed list re-fetched via `GET /meta/breeds?species=` | S-06 filters sheet |
 | Network drop mid-scroll | Inline retry row appended; existing cards stay rendered | S-06 |
@@ -472,6 +484,9 @@ flowchart LR
         S07["S-07 Listing detail"]
         S08["S-08 Photo viewer"]
         S09["S-09 Seller snippet"]
+        S24["S-24 Branded 404"]
+        S25["S-25 App menu overlay"]
+        S26["S-26 Feedback sheet overlay"]
     end
     subgraph AUTH["Auth - route or sheet"]
         S02["S-02 Phone entry"]
@@ -492,14 +507,19 @@ flowchart LR
         S18["S-18 Login guard"]
         S19["S-19 Pending queue"]
         S20["S-20 Review detail"]
-        S21["S-21 Reports queue"]
-        S22["S-22 Users and ban"]
+        S21["S-21 Reports queue - design-only, not yet shipped"]
+        S22["S-22 Users and ban - design-only, not yet shipped"]
         S23["S-23 Stats dashboard"]
+        S27["S-27 Feedback inbox"]
     end
     S01 --> S05
     S05 --> S06
     S06 --> S07
     S05 --> S07
+    S05 --> S25
+    S25 --> S26
+    S24 --> S05
+    S24 --> S06
     S07 --> S08
     S07 --> S09
     S07 --> S17
@@ -526,12 +546,13 @@ flowchart LR
     S18 --> S22
     S20 --> S22
     S18 --> S23
+    S18 --> S27
     S20 --> S08
 ```
 
 ### 5.2 Bottom navigation (user PWA)
 
-Four fixed tabs, always visible on top-level user screens (hidden inside the wizard S-10 and on overlays to prevent accidental exits — wizard has its own save-and-exit).
+Four fixed tabs, always visible on top-level user screens (hidden inside the wizard S-10 and on overlays to prevent accidental exits — wizard has its own save-and-exit). A hamburger **app menu (S-25)** at the top-right of the home header supplements (does not replace) these tabs; **LOG OUT (बाहेर पडा) is reachable both from the app menu and on S-15** (previously it had no home anywhere in the app).
 
 | Tab | Label (MR / EN) | Icon | Target | Anonymous behavior |
 |---|---|---|---|---|
@@ -542,8 +563,9 @@ Four fixed tabs, always visible on top-level user screens (hidden inside the wiz
 
 ### 5.3 Admin area placement
 
-- Admin screens (S-18…S-23) live at **`/admin/*`** in the same Next.js codebase (D1) — a separate web area with its own sidebar navigation (Pending · Reports · Users · Stats), **not** in the PWA bottom nav and never linked from any user-facing screen.
-- Desktop-first layout, English-first UI (internal user; Marathi names in §3.1 are for reference only).
+- Admin screens live at **`/admin/*`** in the same Next.js codebase (D1) — a separate web area with a **3-tab top nav: रांग (queue, `/admin`) · आकडेवारी (stats, `/admin/stats`) · अभिप्राय (feedback, `/admin/feedback`)**, **not** in the PWA bottom nav and never linked from any user-facing screen (except the `is_admin`-only link in the app menu, S-25).
+- The queue at `/admin` **consolidates the pending queue + inline review (S-19 + S-20)** with status tabs तपासणीत / मंजूर / नाकारल्या and inline approve/reject via a bottom sheet. There are currently **no separate `/admin/pending`, `/admin/reports`, `/admin/listings/[id]`, or `/admin/users` routes shipped** — S-21 (reports) and S-22 (users) remain design-only.
+- Desktop-first layout; the shipped panel is **Marathi-labelled** (the "English-first" framing in earlier drafts does not match the shipped UI).
 - Guarded twice: UI route guard on `is_admin` (S-18) + server-side verification of the Firebase ID token and `is_admin` on every `/api/v1/admin/*` call ([../12-security/README.md](../12-security/README.md)).
 
 ---
@@ -572,6 +594,14 @@ Doc 10 owns the full copy deck; the strings below are canonical because flows in
 | edit.remoderationWarning | बदल केल्यास जाहिरात पुन्हा तपासणीत जाईल | If you make changes, the listing will go back for review | S-12 |
 | report.success | तुमची तक्रार नोंदवली आहे. आम्ही लवकरच तपासू. | Your complaint is recorded. We will check soon. | S-17 |
 | report.duplicate | तुमची तक्रार आधीच नोंदवली आहे | Your complaint is already recorded | S-17 |
+| related.seeAll | सर्व पहा | See all | S-07 |
+| share.cta | शेअर करा | Share | S-07 |
+| notFound.title | हे पान सापडले नाही | This page was not found | S-24 |
+| notFound.body | तुम्ही शोधत असलेले जनावर किंवा पान आता उपलब्ध नाही. कदाचित ती जाहिरात काढली गेली असेल. | The animal or page you were looking for is no longer available; the listing may have been removed. | S-24 |
+| menu.logout | बाहेर पडा | Log out | S-25 |
+| menu.admin | जाहिरात तपासणी | Review listings (admin) | S-25 |
+| feedback.menu | अडचण कळवा / सूचना द्या | Report a problem / give a suggestion | S-25 / S-26 |
+| feedback.markDone | पूर्ण झाले | Marked done | S-27 |
 | error.offline | इंटरनेट नाही. पुन्हा प्रयत्न करा. | No internet. Try again. | global |
 
 ---
@@ -582,11 +612,11 @@ Stated success criterion (Phase 1 Sprint 6): **every screen is connected; no dea
 
 **Global invariants (apply to every screen):**
 
-1. **Back always works.** Every non-tab screen has a visible back affordance and honors the hardware/browser back, returning to its entry point (PWA history stack, D9).
+1. **Back always works.** Every non-tab screen has a visible back affordance and honors the hardware/browser back, returning to its entry point (PWA history stack, D9). A **deep-linked S-07** (no in-app history, the common WhatsApp-shared case) resolves its Back/home control to Home (S-05) rather than `router.back()`, so a visitor is never stranded on a blank/external page.
 2. **Bottom nav is the escape hatch.** All top-level user screens show the 4-tab nav; from anywhere in the user area, Home is one tap away. The wizard hides the nav but always offers "जतन करून बाहेर पडा" (save and exit) → S-11.
 3. **Every error state has retry or an alternate path** (offline rows, upload retries, OTP resend).
-4. **Every empty state has a CTA** (S-06 → clear filters; S-11 → create listing; S-13 → browse; S-14 → browse; S-19 → other admin queues).
-5. **Overlays are always dismissible** (S-08, S-09, S-17, login sheet) via close button, scrim tap, and back gesture — landing exactly where the user was.
+4. **Every empty state has a CTA** (S-06 filtered → clear filters; S-05 near-you feed → browse all; S-05 platform-empty → post a listing; S-11 → create listing; S-13 → browse; S-14 → browse; S-19/queue → all-caught-up state). The branded 404 (S-24) offers both a home CTA (→ S-05) and a browse CTA (→ S-06).
+5. **Overlays are always dismissible** (S-08, S-09, S-17, login sheet, the **app menu S-25**, the **feedback sheet S-26**, and the **share fallback sheet**) via close button, scrim tap, and back gesture — landing exactly where the user was.
 6. **Banned is not a black hole**: the block screen names the grievance contact **support@pashusetu.in** (IT Rules 2021 grievance mechanism, [../16-legal/README.md](../16-legal/README.md)).
 7. **Terminal listing states point forward**: SOLD/ARCHIVED cards in S-11 sit beside a permanent "+ नवीन जाहिरात" CTA.
 
@@ -601,6 +631,7 @@ Stated success criterion (Phase 1 Sprint 6): **every screen is connected; no dea
 | E — Search & filter | Empty results offer reset and re-filter CTAs; network errors keep loaded results and offer retry; filter validation errors block only the Apply button, never navigation; back from S-07 restores filters + scroll, so exploration never loses context. |
 | F — Admin moderation | Every queue row resolves to approve/reject/ban — nothing can remain unactionable; blocked reject (empty reason) keeps the form editable; conflict errors refresh to the true state; empty queue links onward to S-21/S-23; access-denied links back to S-05. |
 | G — Report handling | Reporter guards (duplicate/rate-limit) return the buyer to S-07 with clear messaging; every OPEN report terminates in resolve or dismiss; auto-hidden listings always have an explicit admin path back to APPROVED (re-approve on S-20) or out of market (reject/archive/ban) — no listing can be stranded hidden without an owner action pending in S-21. |
+| Overlays & feedback (S-24–S-27) | The branded 404 (S-24) offers home + browse CTAs; the app menu (S-25), feedback sheet (S-26), and share fallback are all dismissible back to their host. Feedback works signed-out — submit returns a confirmation and closes; every admin inbox item (S-27) terminates in a पूर्ण (done) triage, so nothing sits unhandled. |
 
 ---
 
@@ -608,8 +639,8 @@ Stated success criterion (Phase 1 Sprint 6): **every screen is connected; no dea
 
 [../10-frontend-design-requirements/README.md](../10-frontend-design-requirements/README.md) must:
 
-1. Produce wireframes/hi-fi for **all 23 screens + 5 wizard sub-steps** under the exact `S-xx` ids of §3.1 (Figma page names prefixed with the id, e.g. "S-07 Listing detail").
-2. Design **all states drawn in the flows**: loading, empty, error/offline, rate-limited, sold/unavailable banners, SLA badges, draft-resume cards.
+1. Produce wireframes/hi-fi for **all 27 screens + 5 wizard sub-steps** under the exact `S-xx` ids of §3.1 (Figma page names prefixed with the id, e.g. "S-07 Listing detail").
+2. Design **all states drawn in the flows**: loading, empty (all three home/search empty cases), error/offline, rate-limited, sold/unavailable banners, SLA badges, draft-resume cards, the **app menu (S-25)**, **feedback sheet (S-26)**, **share sheet**, and the **branded 404 (S-24)**.
 3. Reuse the §6 Marathi strings verbatim; extend (not replace) them in the copy deck.
 4. Respect the navigation of §5: 4-tab bottom nav, wizard without bottom nav, `/admin` as a separate desktop-first area.
 5. Honor foundation principles 3–5: icon+text pairing, minimal typing (pickers over free text everywhere except village and description), 3G-first weight budgets.
@@ -618,14 +649,14 @@ Stated success criterion (Phase 1 Sprint 6): **every screen is connected; no dea
 
 ## Acceptance checklist
 
-- [x] Screen inventory assigns stable ids S-01…S-23 (+ S-10a…S-10e) covering every MVP screen from the assignment list, with EN name, Marathi name, purpose, entry points, and primary actions per screen
+- [x] Screen inventory assigns stable ids S-01…S-27 (+ S-10a…S-10e) covering every MVP screen from the assignment list, with EN name, Marathi name, purpose, entry points, and primary actions per screen
 - [x] All seven flows (A–G) present, each with a mermaid flowchart containing both happy path and failure/edge branches
 - [x] Every flow has a 5–10 line narrative and an edge-case table (situation / expected behavior / screen id)
 - [x] Screen ids S-xx used consistently in every flowchart node and edge-case table
 - [x] Navigation map provided as a mermaid graph using S-xx ids; bottom nav (Home, Sell, Favorites, Profile) defined; admin placed in a separate `/admin` area outside the bottom nav
 - [x] Dead-end audit states, per flow plus global invariants, how the user always has a way forward/back
 - [x] All flows consistent with locked decisions D1–D10 (no chat, no payments, no separate backend, PWA, moderation-before-visibility) and with the canonical listing state machine transitions
-- [x] All business-rule constants match canonical values (photos 1–5 ≤ 5 MB, 10 active listings, 30-day expiry, 24 h SLA, ≥ 3 reports auto-hide, rate limits 60/min · 20/day · 5/day, cursor pagination 20/50, declaration required) and are cited by BR-xx ids
+- [x] All business-rule constants match canonical values (photos 3–10 ≤ 5 MB, 10 active listings, 30-day expiry, 24 h SLA, ≥ 3 reports auto-hide, rate limits 60/min · 20/day · 5/day, cursor pagination 20/50, declaration required) and are cited by BR-xx ids
 - [x] All referenced API endpoints exactly match the canonical `/api/v1` surface (no invented endpoints)
 - [x] Marathi strings are real Devanagari in a simple rural register with English glosses
 - [x] All eight mermaid blocks use quoted labels, no parentheses inside node labels, and valid flowchart syntax

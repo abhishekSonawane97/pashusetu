@@ -16,7 +16,7 @@
 
 ### 1.1 What
 
-PashuSetu (पशुसेतू — "the bridge for livestock") is a **Marathi-first, mobile-first Progressive Web App** where livestock farmers in rural Maharashtra list animals for sale — cows, buffaloes, bulls/oxen, goats and sheep — and buyers (traders, dairy farms, other farmers) search, filter and contact sellers directly by phone call or WhatsApp. Every listing is reviewed by an admin **before** it becomes publicly visible. The platform is completely free in MVP: no commission, no listing fee, no subscription.
+PashuSetu (पशुसेतू — "the bridge for livestock") is a **Marathi-first, mobile-first Progressive Web App** where livestock farmers in rural Maharashtra list animals for sale — cows, buffaloes, he-buffaloes (रेडा), bulls/oxen, goats and sheep — and buyers (traders, dairy farms, other farmers) search, filter and contact sellers directly by phone call or WhatsApp. Every listing is reviewed by an admin **before** it becomes publicly visible. The platform is completely free in MVP: no commission, no listing fee, no subscription.
 
 ### 1.2 Why
 
@@ -93,7 +93,7 @@ Full personas, demographics, digital-literacy profiles and journey maps: [../03-
 
 ## 4. Feature catalog
 
-The 12 MVP features map 1:1 to the foundation IN-scope list ([../00-foundation/README.md](../00-foundation/README.md) §4). Detailed per-feature specs (field-level validation, screen states, permissions) are owned by [../05-features/README.md](../05-features/README.md); user flows by [../06-user-flows/README.md](../06-user-flows/README.md); exact rule wording by [../04-business-rules/README.md](../04-business-rules/README.md).
+Features F-01–F-12 map 1:1 to the foundation IN-scope list ([../00-foundation/README.md](../00-foundation/README.md) §4). F-13 (Feedback channel) is an operational feature added in the go-live build and is **not** one of the original foundation §4 twelve — the foundation doc 00 §4 IN-scope list should be updated by its owner to include the feedback channel (cross-ref). Detailed per-feature specs (field-level validation, screen states, permissions) are owned by [../05-features/README.md](../05-features/README.md); user flows by [../06-user-flows/README.md](../06-user-flows/README.md); exact rule wording by [../04-business-rules/README.md](../04-business-rules/README.md).
 
 ### 4.0 Business rules index (BR ids referenced below)
 
@@ -200,9 +200,9 @@ Doc 04 owns the normative wording **and the canonical rule ids (three-digit `BR-
 **Acceptance criteria**
 
 1. `POST /api/v1/listings` creates a DRAFT with any subset of fields; the draft persists across app restarts and is resumable from My Listings (F-07).
-2. Field validation (enforced client- and server-side): species ∈ {COW, BUFFALO, BULL_OX, GOAT, SHEEP}; breed must belong to the chosen species; sex ∈ {FEMALE, MALE}; `age_months` 1–300; `weight_kg` optional 5–1500; `price_inr` integer 500–1,000,000 (₹500–₹10,00,000, BR-026); `negotiable` boolean; description **required**, 10–1,000 characters (BR-025); district required (seeded picker); village required (free text + Places assist); taluka required (BR-022).
-3. Milk fields (`milk_yield_lpd` 0–60, 0 = currently dry; `lactation_number` 0–15, 0 = not yet calved; `is_pregnant`) follow the BR-022 per-species matrix: `milk_yield_lpd` is **required** for COW, required for BUFFALO when sex = FEMALE, optional for female GOAT, and N/A for BULL_OX and SHEEP (never shown, must be null); `lactation_number`/`is_pregnant` follow the same matrix; `is_vaccinated` is asked for every listing. Server rejects matrix violations (e.g. `milk_yield_lpd` on a MALE or SHEEP listing) with `VALIDATION_ERROR`.
-4. Photo upload: client requests `POST /api/v1/uploads/presign` (validates content-type ∈ image/jpeg,image/png,image/webp and size ≤ 5 MB), PUTs directly to R2, then attaches via `POST /api/v1/listings/{id}/images`; min 1 / max 5 photos per listing; the UI nudges "किमान ३ फोटो टाका — जास्त फोटो, जास्त खरेदीदार" (Add at least 3 photos — more photos, more buyers); server generates and stores WebP variants.
+2. Field validation (enforced client- and server-side): species ∈ {COW, BUFFALO, BULL_OX, GOAT, SHEEP, REDA} (REDA = रेडा, a he-buffalo — like BULL_OX it is fixed sex MALE-only, so the server rejects a REDA listing that states FEMALE); breed must belong to the chosen species; sex ∈ {FEMALE, MALE}; `age_months` 1–300; `weight_kg` optional 5–1500; `price_inr` integer 500–1,000,000 (₹500–₹10,00,000, BR-026); `negotiable` boolean; description **required**, 10–1,000 characters (BR-025); district required (seeded picker); village required (free text + Places assist); taluka required (BR-022).
+3. Milk fields (`milk_yield_lpd` 0–60, 0 = currently dry; `lactation_number` 0–15, 0 = not yet calved; `is_pregnant`) follow the BR-022 per-species matrix: `milk_yield_lpd` is **required** for COW, required for BUFFALO when sex = FEMALE, optional for female GOAT, and N/A for BULL_OX, REDA and SHEEP (never shown, must be null); `lactation_number`/`is_pregnant` follow the same matrix; `is_vaccinated` is asked for every listing. Server rejects matrix violations (e.g. `milk_yield_lpd` on a MALE, REDA or SHEEP listing) with `VALIDATION_ERROR`.
+4. Photo upload: client requests `POST /api/v1/uploads/presign` (validates content-type ∈ image/jpeg,image/png,image/webp and size ≤ 5 MB), PUTs directly to object storage, then attaches via `POST /api/v1/listings/{id}/images`; min 3 / max 10 photos per listing (BR-023); the UI nudges "किमान ३ फोटो टाका — जास्त फोटो, जास्त खरेदीदार" (Add at least 3 photos — more photos, more buyers); server generates and stores WebP variants.
 5. `POST /api/v1/listings/{id}/submit` succeeds only when: all required fields valid, ≥ 1 photo attached, and the seller declaration checkbox is accepted (BR-12); it sets status PENDING, stores `declaration_accepted = true` + `declaration_at`, and shows "तपासणीसाठी पाठवले. २४ तासांत मंजुरी अपेक्षित." (Sent for review. Approval expected within 24 hours.)
 6. Creating an 11th active listing (`POST /api/v1/listings`) fails with HTTP 409 `LISTING_LIMIT_REACHED` and the Marathi message "तुमच्या १० जाहिराती आधीच सुरू आहेत. नवीन जाहिरात टाकण्यासाठी जुनी जाहिरात 'विकले गेले' करा किंवा काढून टाका." (You already have 10 running listings. Mark an old one sold or remove it to post a new one.) — BR-02/BR-024.
 7. Editing an APPROVED listing's photos/description/attributes moves it back to PENDING with an explicit confirmation dialog first; a price-only change (with optional `negotiable` toggle) keeps it APPROVED and updates instantly — BR-04.
@@ -276,7 +276,7 @@ Doc 04 owns the normative wording **and the canonical rule ids (three-digit `BR-
 3. All populated attributes render as a labeled Marathi table; unset optional fields (e.g. weight) are omitted entirely — never shown as "null", "-" or "N/A".
 4. The seller block shows first name, village, district and member-since month — and never the phone number in page data or HTML source (BR-10); contact buttons are the only path to the number.
 5. `view_count` increments by 1 on every public detail fetch of an APPROVED listing — **no deduplication in MVP** (per-IP dedup is a Phase 2 refinement, BR-034) — and never for the listing's owner or admins; the owner sees the count on My Listings (F-07).
-6. The share action uses the Web Share API (fallback: copy link) with the prefilled Marathi text "PashuSetu वर हे जनावर पाहा: {url}" (See this animal on PashuSetu: {url}).
+6. The share action uses the Web Share API (fallback: WhatsApp / Facebook / Telegram deep links + copy link) with a prefilled Marathi text composed of the listing's breed/species heading, price and location plus the tagline "पशुसेतू वर पहा 👇" (See it on PashuSetu 👇), e.g. "गीर गाय — ₹65,000 / सातारा / पशुसेतू वर पहा 👇". The share payload carries only the listing URL + this Marathi text and NEVER the seller phone (consistent with FR-08 / BR-066). The fallback-channel component specifics (deep-link formats, copy-link) are owned by [../10-frontend-design-requirements/README.md](../10-frontend-design-requirements/README.md).
 7. A deleted/expired/sold listing URL shows a friendly 404 state "ही जाहिरात आता उपलब्ध नाही." (This listing is no longer available.) with a CTA back to search, returning HTTP 404 (and therefore dropping out of search indexes).
 
 **Business rules** — BR-10 (phone concealment; public visibility only when APPROVED). Details: [../04-business-rules/README.md](../04-business-rules/README.md).
@@ -435,7 +435,7 @@ Doc 04 owns the normative wording **and the canonical rule ids (three-digit `BR-
 | Field | Value |
 |---|---|
 | **ID** | F-10 |
-| **Description** | Internal web panel (desktop-first, English UI acceptable) for users with `is_admin = true`: pending-listings queue (oldest first) with full preview and duplicate warnings, approve/reject with mandatory reason, reports queue with resolve/dismiss, user ban/unban, immutable audit log, and a stats dashboard for the §2 metrics. |
+| **Description** | Internal web panel (desktop-first, English UI acceptable) for users with `is_admin = true`: pending-listings queue (oldest first) with full preview and duplicate warnings, approve/reject with mandatory reason, reports queue with resolve/dismiss, user ban/unban, immutable audit log, and a read-only analytics dashboard. The panel is organized into three navigation sections — रांग (the pending-listings queue, existing), आकडेवारी (the read-only stats dashboard — AC-9 / WS5-A) and अभिप्राय (the app-feedback inbox — F-13). |
 | **Business purpose** | Moderation-before-visibility is the trust cornerstone (locked decisions D10 + principle 2); this panel is the operating console that makes the 24-hour SLA (BR-05) achievable for a solo founder. |
 | **User story** | As the admin, I want a single queue where I can approve or reject each pending listing in under a minute so that honest farmers go live within 24 hours and fakes never go live at all. |
 | **Priority** | Must |
@@ -451,8 +451,9 @@ Doc 04 owns the normative wording **and the canonical rule ids (three-digit `BR-
 6. `GET /api/v1/admin/reports?status=OPEN` lists open reports grouped by listing with reason counts; resolve (`POST .../resolve` — upholds the report; admin then rejects/archives the listing) and dismiss (`POST .../dismiss`) both require the report id and log RESOLVE_REPORT / DISMISS_REPORT.
 7. `POST /api/v1/admin/users/{id}/ban` requires a reason, sets user status BANNED, archives all their listings in the same transaction (BR-08), logs BAN, and sends the ban SMS (F-11); unban restores ACTIVE but does not restore archived listings.
 8. `GET /api/v1/admin/audit-log` returns the immutable `moderation_log` (filterable by admin, action, date); every approve/reject/ban/unban/resolve/dismiss/auto-hide row is present; log rows are never updated or deleted.
-9. `GET /api/v1/admin/stats` returns the counters behind §2: users by role, listings by status, median + p95 moderation turnaround, inquiry rate, reports open/resolved — rendered as a simple dashboard.
+9. `GET /api/v1/admin/stats` (admin-only) returns the read-only counters that back the WS5-A analytics dashboard rendered at the dedicated page route `/admin/stats`: total listings and listings-by-status; new listings today and this week; the sum of `view_count` over APPROVED listings plus the top-5 most-viewed (id, view count, species, breed_mr, district_mr); interest events by type (CALL / WHATSAPP / INTEREST) all-time plus a last-7-day total (across types); the count of APPROVED listings with zero interest events; and the top-5 districts by APPROVED listing count. Every figure is a Prisma read-aggregate over existing tables — **no schema change**. (Route contract: [../08-api/README.md](../08-api/README.md); aggregation logic: [../09-backend/README.md](../09-backend/README.md).)
 10. Two admins acting on the same listing concurrently: the second write returns 409 `INVALID_STATE_TRANSITION` (optimistic state guard) and the panel refreshes the row.
+11. The admin panel navigation has three tabs — रांग (queue), आकडेवारी (stats), अभिप्राय (feedback); the अभिप्राय inbox (`GET /api/v1/admin/feedback`, `PATCH /api/v1/admin/feedback/{id}`) is admin-only (requireAdmin, [../12-security/README.md](../12-security/README.md)) and is specified in F-13.
 
 **Business rules** — BR-05 (SLA), BR-06 (auto-hide arrivals appear in this queue flagged "reports"), BR-07 (duplicate warning), BR-08 (ban semantics). Details: [../04-business-rules/README.md](../04-business-rules/README.md).
 
@@ -520,7 +521,7 @@ Doc 04 owns the normative wording **and the canonical rule ids (three-digit `BR-
 2. For anonymous users the choice persists in localStorage; on login it syncs to `language_pref`, and the server value wins on conflict.
 3. 100% of user-facing strings — labels, buttons, errors, empty states, confirmation dialogs, in-app notifications — come from `mr.json` / `en.json` catalogs; CI fails the build if a key exists in `en.json` but not `mr.json` ([../14-testing-qa/README.md](../14-testing-qa/README.md)).
 4. A missing translation at runtime falls back mr → en → raw key, and logs a Sentry warning; users never see `undefined`.
-5. Breed and district names render from `name_mr` in Marathi mode and `name_en` in English mode; species labels use the foundation glossary terms (गाय, म्हैस, बैल, शेळी, मेंढी).
+5. Breed and district names render from `name_mr` in Marathi mode and `name_en` in English mode; species labels use the foundation glossary terms (गाय, म्हैस, रेडा, बैल, शेळी, मेंढी).
 6. Numbers use Latin digits with Indian grouping (₹1,25,000) in both languages; dates render in the active language ("२ दिवसांपूर्वी" is NOT used — relative dates use Latin digits: "2 दिवसांपूर्वी" / "2 days ago") for numeral consistency.
 7. The Marathi register is simple and rural-friendly: short sentences, everyday words (जनावर not पशुधन in body copy), respectful आपण/तुम्ही forms — enforced by the content guidelines in [../10-frontend-design-requirements/README.md](../10-frontend-design-requirements/README.md).
 
@@ -534,6 +535,41 @@ Doc 04 owns the normative wording **and the canonical rule ids (three-digit `BR-
 - Mixed-script search input (e.g. "gir गाय"): filtering uses structured pickers, not free text, so no transliteration problem in MVP.
 
 **Future improvements** — Hindi locale (Phase 2, opens border districts and migrant traders); voice guidance in Marathi; transliterated search when free-text search ships.
+
+---
+
+### F-13 — Feedback channel (अडचण कळवा / सूचना द्या)
+
+| Field | Value |
+|---|---|
+| **ID** | F-13 |
+| **Description** | App-wide feedback channel usable signed-out or signed-in. A FeedbackSheet opened from the app menu ("अडचण कळवा / सूचना द्या") posts to public `POST /api/v1/feedback` (optionalAuth: `userId` attached only when logged in; anonymous accepted). Admins triage submissions in an `/admin/feedback` inbox. Distinct from F-09 (single-listing report) — this is a product-wide problem/suggestion channel, not tied to any one listing. |
+| **Business purpose** | One-tap way for low-literacy farmers/buyers to flag a problem or suggest an improvement without leaving the app; feeds product iteration and surfaces bugs beyond the Postgres/Sentry signals. |
+| **User story** | As a farmer who hit a confusing screen, I want to tap "अडचण कळवा" and type one line so that the team hears about it — even before I log in. |
+| **Priority** | Should (operational; shipped in the go-live build, added after the original foundation §4 scope) |
+| **Dependencies** | optionalAuth ([../12-security/README.md](../12-security/README.md)); `POST /api/v1/feedback` (public), `GET /api/v1/admin/feedback`, `PATCH /api/v1/admin/feedback/{id}` (requireAdmin) — [../08-api/README.md](../08-api/README.md); `Feedback` model + `FeedbackType` (PROBLEM \| SUGGESTION \| OTHER) + `FeedbackStatus` (NEW \| SEEN \| DONE) + migration `20260714095640_add_feedback` — [../07-database/README.md](../07-database/README.md); admin panel F-10 |
+
+**Acceptance criteria**
+
+1. The FeedbackSheet is reachable from the app-menu entry "अडचण कळवा / सूचना द्या" and submits successfully while signed out.
+2. `POST /api/v1/feedback` accepts `{ type ∈ PROBLEM|SUGGESTION|OTHER, message, contact?, path? }`; optionalAuth attaches `userId` only when a valid token is present (never 401s); anonymous submissions are accepted; a row is created with `status = NEW`.
+3. The optional `contact` field may hold a phone/other contact and is deliberately **exempt** from the no-phone-in-user-content rule (BR-065) that governs listings — feedback is a private ops channel, never a public surface, so the exemption is stated in BR-065 / BR-067 ([../04-business-rules/README.md](../04-business-rules/README.md)).
+4. `GET /api/v1/admin/feedback` (admin-only) lists submissions (optionally filtered by status, plus the unhandled NEW count); the `/admin/feedback` inbox shows tabs नवीन / पूर्ण / सर्व with a "पूर्ण झाले" triage action; `PATCH /api/v1/admin/feedback/{id}` sets `status` to one of NEW / SEEN / DONE (lifecycle NEW → SEEN → DONE), and the inbox's "पूर्ण झाले" action marks an item DONE.
+5. Non-admin calls to `/api/v1/admin/feedback*` return 403 `FORBIDDEN` (requireAdmin, [../12-security/README.md](../12-security/README.md)).
+6. Deleting a user sets `Feedback.userId` to NULL (`ON DELETE SET NULL`) so submissions survive for audit; anonymous rows keep `userId = null`.
+
+**Business rules** — `contact` exempt from BR-065 for this channel (BR-067); requireAdmin on the admin feedback routes. Details: [../04-business-rules/README.md](../04-business-rules/README.md).
+
+**Edge cases**
+
+- Anonymous submit with no `contact`: accepted, but no follow-up is possible (nothing identifies the sender).
+- Empty / over-limit `message`: rejected with `VALIDATION_ERROR` (exact bounds owned by [../08-api/README.md](../08-api/README.md)).
+- A logged-in sender's `userId` is nulled on later account deletion (the relation never cascades the feedback row away).
+- A stored `path` for a route that has since changed is kept verbatim as a debugging hint, not resolved as a live link.
+
+**Future improvements** — Auto-capture the current screen/listing via `path`; in-app reply to the submitter; screenshot attachment; tagging/routing; linking a PROBLEM to a Sentry issue.
+
+(Cross-ref: a detailed functional spec for this channel belongs in a new [../05-features/README.md](../05-features/README.md) entry; the DB model is owned by [../07-database/README.md](../07-database/README.md) and the endpoint contracts by [../08-api/README.md](../08-api/README.md).)
 
 ---
 

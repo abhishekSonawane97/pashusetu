@@ -31,11 +31,11 @@ Turn a photo of an animal into a structured, searchable, moderated Marathi listi
 
 1. Entry: "+ नवीन जाहिरात" on **S-11** (or the Sell tab deep-links to **S-10a** when the user has zero listings). If the user already has 10 ACTIVE listings, the wizard is blocked on S-11 with the BR-024 message and shortcuts to mark-sold/archive.
 2. **S-10 host shell**: five progress dots, per-step Back, and "जतन करून बाहेर पडा" (save and exit) → S-11. Bottom nav hidden inside the wizard (doc 06 §5.2).
-3. **S-10a — Step 1: species & breed.** Icon grid of the 5 species (गाय / म्हैस / बैल / शेळी / मेंढी); breed picker filtered via `GET /meta/breeds?species=`, always including "गावठी / स्थानिक" (local/crossbred). **Draft autosave rule:** the first forward tap (S-10a → S-10b) calls `POST /listings` creating the DRAFT; every later forward/back navigation and the save-and-exit action calls `PATCH /listings/{id}` with the step's fields. Field values typed since the last successful PATCH are also kept in localStorage so a crash loses at most the current step (README §3.3 — no offline write queue).
+3. **S-10a — Step 1: species & breed.** Icon grid of the 6 species (गाय / म्हैस / बैल / शेळी / मेंढी / रेडा) (रेडा = REDA, the he-buffalo / male buffalo — fixed-sex MALE like बैल); breed picker filtered via `GET /meta/breeds?species=`, always including "गावठी / स्थानिक" (local/crossbred). **Draft autosave rule:** the first forward tap (S-10a → S-10b) calls `POST /listings` creating the DRAFT; every later forward/back navigation and the save-and-exit action calls `PATCH /listings/{id}` with the step's fields. Each forward tap server-validates that step's fields on the same POST/PATCH; a 422 `VALIDATION_ERROR` blocks the advance and renders inline field errors on the current step. Field values typed since the last successful PATCH are also kept in localStorage so a crash loses at most the current step (README §3.3 — no offline write queue).
 4. **S-10b — Step 2: details.** Sex (hidden/fixed for COW=FEMALE and BULL_OX=MALE, BR-022), age as years + months inputs (client converts to `ageMonths`), weight (optional), milk fields per the conditional matrix below, pregnant/vaccinated toggles, description.
-5. **S-10c — Step 3: photos.** 1–5 photos via camera or gallery (BR-023). Per photo: presign → direct PUT to R2 → attach (sequence below); thumbnail with progress ring, retry on failure, delete, drag-to-reorder (`sortOrder` 0–4; index 0 = cover). Nudge shown until 3 photos exist: "किमान 3 फोटो टाकल्यास जनावर लवकर विकले जाते" (With at least 3 photos the animal sells faster). Photo-tips sheet: "उन्हात, पूर्ण जनावर दिसेल असा फोटो काढा" (Shoot in daylight with the full animal visible) — reduces BR-082 rejections. Add-photo button hides at 5. "पुढे" (Next) disabled until ≥ 1 photo attached.
+5. **S-10c — Step 3: photos.** 1–10 photos, multi-selected from the gallery or camera in a single pick (the earlier forced camera-only capture was dropped; the file input is now `multiple`) (BR-023). Per photo: presign → direct PUT to R2 → attach (sequence below); thumbnail with progress ring, retry on failure, delete, drag-to-reorder (`sortOrder` 0–9; index 0 = cover). Nudge shown until 3 photos exist: "किमान 3 फोटो टाकल्यास जनावर लवकर विकले जाते" (With at least 3 photos the animal sells faster). Photo-tips sheet: "उन्हात, पूर्ण जनावर दिसेल असा फोटो काढा" (Shoot in daylight with the full animal visible) — reduces BR-082 rejections. Add-photo button hides at 10; a counter chip shows "{n} / 10 फोटो". "पुढे" (Next) disabled until ≥ 1 photo attached.
 6. **S-10d — Step 4: price & location.** Price in ₹ (integer keypad), negotiable toggle "किंमतीत बदल शक्य" (price negotiable, default on), district (pre-filled from profile), taluka (required), village (required; Places assist with silent free-text fallback).
-7. **S-10e — Step 5: declaration & review.** Read-only summary card of the entire listing + the mandatory declaration checkbox (canonical text, BR-027):
+7. **S-10e — Step 5: declaration & review** (step header "तपासा आणि पाठवा"). A full field-by-field read-back card mirroring the public detail page: a breed + species heading, then price + negotiability ("बोलणी होऊ शकते" when negotiable), then labelled rows for लिंग (sex), वय (age), वजन (weight), दूध (milk), वेत (lactation), गाभण (pregnant), लसीकरण (vaccinated), ठिकाण (village · taluka · district) and फोटो count, plus the description — unset / N-A fields are omitted. A privacy reassurance line is rendered above the checkbox: "तुमचा नंबर फक्त लॉगिन केलेल्या खरेदीदारांनाच दिसेल." Then the mandatory declaration checkbox (canonical text, BR-027):
    > मी जाहीर करतो/करते की मी या जनावराचा/जनावरीचा कायदेशीर मालक आहे, ही विक्री महाराष्ट्र राज्याच्या कायद्यांनुसार आहे, आणि हे जनावर कत्तलीसाठी विकले जात नाही.
    > *(I declare that I am the lawful owner of this animal, that this sale complies with the laws of the State of Maharashtra, and that this animal is not being sold for slaughter.)*
    Submit button "तपासणीसाठी पाठवा" (send for review) is disabled until ticked, with the hint "हमीपत्र स्वीकारल्याशिवाय जाहिरात पाठवता येणार नाही" (the listing cannot be sent without accepting the declaration).
@@ -56,7 +56,7 @@ sequenceDiagram
     R2-->>C: 200 OK
     C->>API: POST /api/v1/listings/{id}/images with r2Key
     API-->>C: 201 image attached with sortOrder
-    Note over API: magic-bytes + size re-check, 6th image rejected PHOTO_LIMIT_EXCEEDED
+    Note over API: magic-bytes + size re-check, 11th image rejected PHOTO_LIMIT_EXCEEDED
 ```
 
 Server generates WebP variants asynchronously (BR-023; sizes in [../09-backend/README.md](../09-backend/README.md)); EXIF orientation normalized so no sideways animals (PRD F-03 edge). Interrupted PUTs leave orphaned R2 keys that a daily job garbage-collects.
@@ -67,7 +67,7 @@ Required (R) applies **at submit** — a DRAFT may be saved partially filled (BR
 
 | Field | Type | Required | Validation rule | Error message EN | Error message MR |
 |---|---|---|---|---|---|
-| species | enum | R | `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP` | Choose the animal type | जनावराचा प्रकार निवडा |
+| species | enum | R | `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP\|REDA` | Choose the animal type | जनावराचा प्रकार निवडा |
 | breedId | string (cuid) | R | Must belong to the chosen species (BR-022) | Choose a breed for this animal | या जनावराची जात निवडा |
 | sex | enum | R | `FEMALE\|MALE`; COW forces FEMALE, BULL_OX forces MALE — mismatch rejected | Sex does not match the animal type | जनावराच्या प्रकाराशी लिंग जुळत नाही |
 | ageMonths | integer | R | 1–300 (entered as years + months) | Enter age between 1 month and 25 years | वय 1 महिना ते 25 वर्षांच्या दरम्यान टाका |
@@ -82,29 +82,31 @@ Required (R) applies **at submit** — a DRAFT may be saved partially filled (BR
 | taluka | string | R | ≤ 60 chars | Taluka is too long | तालुक्याचे नाव खूप मोठे आहे |
 | village | string | R | 2–60 chars, free text | Enter the village name | गावाचे नाव टाका |
 | description | string | R | 10–1000 Unicode code points after trim (BR-025); **no phone numbers** (BR-065, incl. Devanagari digits) | Write 10–1000 characters. Do not include phone numbers. | 10 ते 1000 अक्षरांत लिहा. फोन नंबर लिहू नका. |
-| photos | 1–5 files | R (≥ 1) | JPEG/PNG/WebP, each ≤ 5 MB (BR-023); HEIC rejected at presign (client transcodes via canvas where supported) | Add at least 1 photo (JPEG/PNG, up to 5 MB) | किमान 1 फोटो टाका (JPEG/PNG, जास्तीत जास्त 5 MB) |
+| photos | 1–10 files | R (≥ 1) | JPEG/PNG/WebP, each ≤ 5 MB (BR-023); HEIC rejected at presign (client transcodes via canvas where supported) | Add at least 1 photo (JPEG/PNG, up to 5 MB) | किमान 1 फोटो टाका (JPEG/PNG, जास्तीत जास्त 5 MB) |
 | declarationAccepted | boolean | R at submit | Must be `true` (BR-027) | Accept the declaration to submit | जाहिरात पाठवण्यासाठी हमीपत्र स्वीकारा |
+
+> The canonical `Species` enum is owned by [../07-database/README.md](../07-database/README.md) (DB schema) and BR-022 ([../04-business-rules/README.md](../04-business-rules/README.md)); only the picker set is restated above. `REDA` is the he-buffalo (male buffalo), fixed-sex MALE like `BULL_OX`.
 
 **Per-species conditional fields (BR-022 matrix — N/A fields are null and never rendered):**
 
-| Field | COW | BUFFALO | BULL_OX | GOAT | SHEEP |
-|---|---|---|---|---|---|
-| sex | fixed FEMALE (hidden) | asked | fixed MALE (hidden) | asked | asked |
-| milkYieldLpd | **Required** | **Required if FEMALE** | not shown | Optional if FEMALE | not shown |
-| lactationNumber | Optional | Optional if FEMALE | not shown | Optional if FEMALE | not shown |
-| isPregnant | Optional | Optional if FEMALE | not shown | Optional if FEMALE | Optional if FEMALE |
-| isVaccinated | Optional | Optional | Optional | Optional | Optional |
-| weightKg | Optional | Optional | Optional | Optional (recommended) | Optional (recommended) |
+| Field | COW | BUFFALO | BULL_OX | GOAT | SHEEP | REDA |
+|---|---|---|---|---|---|---|
+| sex | fixed FEMALE (hidden) | asked | fixed MALE (hidden) | asked | asked | fixed MALE (hidden) |
+| milkYieldLpd | **Required** | **Required if FEMALE** | not shown | Optional if FEMALE | not shown | not shown |
+| lactationNumber | Optional | Optional if FEMALE | not shown | Optional if FEMALE | not shown | not shown |
+| isPregnant | Optional | Optional if FEMALE | not shown | Optional if FEMALE | Optional if FEMALE | not shown |
+| isVaccinated | Optional | Optional | Optional | Optional | Optional | Optional |
+| weightKg | Optional | Optional | Optional | Optional (recommended) | Optional (recommended) | Optional |
 
-Server rejects milk fields on MALE/N-A combinations with `VALIDATION_ERROR` (never trusts client hiding).
+Server rejects milk / lactation / pregnancy fields on MALE / N-A combinations — including REDA (fixed MALE) — with `VALIDATION_ERROR` (never trusts client hiding).
 
 ## Business logic
 
 - Creation always produces a `DRAFT`; nothing skips moderation — BR-020, D10, disallowed transition `DRAFT → APPROVED` (BR-032).
 - Quota check (count + insert atomically) at `POST /listings`: 11th ACTIVE listing → 409 `LISTING_LIMIT_REACHED` with "तुमच्या 10 जाहिराती आधीच सुरू आहेत. नवीन जाहिरात टाकण्यासाठी जुनी जाहिरात 'विकले गेले' करा किंवा काढून टाका." — BR-024.
-- Photos: min 1 / max 5, ≤ 5 MB, JPEG/PNG/WebP; presign validates content-type + size and issues single-use 10-minute PUT URLs to server-generated keys; attach re-checks magic bytes; 6th attach → 409 `PHOTO_LIMIT_EXCEEDED`; bad type/size → 422 `INVALID_UPLOAD`; server stores WebP variants; **no video** — BR-023, NFR-08.
+- Photos: min 1 / max 10 (≥3 recommended), ≤ 5 MB, JPEG/PNG/WebP; the client uploads a multi-file selection sequentially (presign → PUT → attach per file); presign validates content-type + size and issues single-use 10-minute PUT URLs to server-generated keys; attach re-checks magic bytes; 11th attach → 409 `PHOTO_LIMIT_EXCEEDED`; bad type/size → 422 `INVALID_UPLOAD`; server stores WebP variants; **no video** — BR-023 (numeric min/max owned by BR-023, doc 04 — must read max 10), NFR-08.
 - Description hard-blocks Indian mobile patterns (ASCII + Devanagari digits normalized) → 422 `PHONE_IN_DESCRIPTION` with "कृपया वर्णनात फोन नंबर लिहू नका. खरेदीदारांना तुमचा नंबर 'कॉल करा' बटणाने आपोआप मिळेल."; 8–9 digit runs set the moderation soft flag — BR-065.
-- Submit guards (T-02): all required fields valid per BR-022, ≥ 1 photo, price in bounds (BR-026), description passes BR-025 + BR-065, declaration accepted (else 422 `DECLARATION_REQUIRED`). Success sets `PENDING`, stores `declaration_accepted = true` + `declaration_at = now`, computes the BR-029 duplicate flag, and emits the admin in-app notification `NTF-ADMIN-PENDING`.
+- Submit guards (T-02): all required fields valid per BR-022, ≥ 1 photo, price in bounds (BR-026), description passes BR-025 + BR-065, declaration accepted (else 422 `DECLARATION_REQUIRED`). Success sets `PENDING`, stores `declaration_accepted = true` + `declaration_at = now`, computes the BR-029 duplicate flag, and emits the admin in-app notification `NTF-ADMIN-PENDING`. On a field-scoped submit failure the client maps each returned field key to its owning step and jumps to the lowest-numbered one so the seller lands where the fix lives.
 - Submit is idempotent for `DRAFT → PENDING`: a double-tap returns the already-PENDING listing (PRD F-03 edge).
 - The declaration is re-affirmed on **every** submission entering PENDING (first submit and every resubmit) — BR-027.
 - Editing rules after submission (incl. price-only exception and re-moderation) are owned by [listing-manage.md](listing-manage.md) / BR-028.
@@ -114,8 +116,8 @@ Server rejects milk fields on MALE/N-A combinations with `VALIDATION_ERROR` (nev
 
 | Method + path | When |
 |---|---|
-| `GET /api/v1/meta/breeds?species=` | On species selection in S-10a (and on species change) |
-| `GET /api/v1/meta/districts` | On S-10d open (cached from profile flow when available) |
+| `GET /api/v1/meta/breeds?species=` | On species selection in S-10a (and on species change) (retryable — inline retry banner on load failure) |
+| `GET /api/v1/meta/districts` | On S-10d open (cached from profile flow when available) (retryable — inline retry banner on load failure) |
 | `POST /api/v1/listings` | First forward navigation S-10a → S-10b (creates the DRAFT) |
 | `PATCH /api/v1/listings/{id}` | Every step navigation and save-and-exit (autosave) |
 | `POST /api/v1/uploads/presign` | Per photo, before upload (S-10c) |
@@ -127,9 +129,9 @@ Server rejects milk fields on MALE/N-A combinations with `VALIDATION_ERROR` (nev
 
 | State | What the user sees |
 |---|---|
-| Loading | Breed/district picker skeletons; per-photo progress ring during PUT; submit button spinner during submit. |
+| Loading | Breed/district picker skeletons (which collapse into the retry banner if the meta load fails); per-photo progress ring during PUT; submit button spinner during submit. |
 | Empty | Fresh S-10a: nothing selected, Next disabled until species + breed chosen; S-10c with zero photos shows the camera/gallery CTAs + tips sheet link. |
-| Error | Inline field errors per table. Photo failures: failed thumbnail with "पुन्हा प्रयत्न करा" (retry) per photo — other photos unaffected; oversize/wrong-format rejected client-side before upload and re-validated at presign. Submit failure keeps the user on S-10e with the specific error mapped (e.g. `LISTING_LIMIT_REACHED`, `PHONE_IN_DESCRIPTION`, `DECLARATION_REQUIRED`). |
+| Error | Inline field errors per table. Meta-load failure (breeds or districts drop on a flaky rural connection) surfaces an inline banner with "पुन्हा प्रयत्न करा" (retry) that refetches both dropdowns; the rest of the wizard stays usable. Photo failures: failed thumbnail with "पुन्हा प्रयत्न करा" (retry) per photo — other photos unaffected; oversize/wrong-format rejected client-side before upload and re-validated at presign. On submit, a 422 `VALIDATION_ERROR` auto-navigates the wizard to the earliest step that renders an offending field (jump-to-step), showing the inline MR error there; non-field errors (e.g. `LISTING_LIMIT_REACHED`, `DECLARATION_REQUIRED`, `PHONE_IN_DESCRIPTION`) stay on S-10e. |
 | Success | Post-submit confirmation with the 24 h SLA promise (BR-041), then S-11 with the card under "तपासणीत". |
 | Edge | **App killed mid-wizard:** DRAFT resumes from S-11 at the first incomplete step. **Network drop mid-PUT:** photo never attaches; retry re-runs presign (URLs are single-use); orphaned keys GC'd daily. **Species changed after breed picked:** breed resets, list re-fetched. **Last photo deleted on a DRAFT:** allowed; submit stays blocked until ≥ 1 photo. **Declaration never ticked:** submit disabled; exit leaves a resumable DRAFT — never a lost listing. **Quota reached mid-flow** (another device submitted): submit returns 409 `LISTING_LIMIT_REACHED`; DRAFT retained. |
 
@@ -146,13 +148,14 @@ Server rejects milk fields on MALE/N-A combinations with `VALIDATION_ERROR` (nev
 ## Acceptance criteria
 
 1. The first forward navigation from S-10a creates a DRAFT via `POST /listings`; every subsequent step navigation persists via `PATCH /listings/{id}`; killing the app at any step leaves a DRAFT resumable from S-11 at the first incomplete step.
-2. The form renders exactly the BR-022 conditional matrix: COW hides sex (FEMALE) and requires milk yield; BULL_OX and SHEEP never show milk fields; server independently rejects milk fields on invalid combinations with 422 `VALIDATION_ERROR`.
-3. Photo upload follows presign → PUT → attach; presign rejects non-JPEG/PNG/WebP or > 5 MB with `INVALID_UPLOAD`; the 6th attach returns `PHOTO_LIMIT_EXCEEDED`; the add button hides at 5 photos; Next from S-10c requires ≥ 1 attached photo.
+2. The form renders exactly the BR-022 conditional matrix: COW hides sex (FEMALE) and requires milk yield; REDA (he-buffalo) hides sex as fixed MALE (like BULL_OX); BULL_OX, SHEEP and REDA never show milk fields; server independently rejects milk fields on invalid combinations with 422 `VALIDATION_ERROR`.
+3. Photo upload follows presign → PUT → attach; presign rejects non-JPEG/PNG/WebP or > 5 MB with `INVALID_UPLOAD`; the 11th attach returns `PHOTO_LIMIT_EXCEEDED`; the add button hides at 10 photos; Next from S-10c requires ≥ 1 attached photo.
 4. A description containing an Indian mobile pattern (ASCII or Devanagari digits) is rejected at save/submit with 422 `PHONE_IN_DESCRIPTION` and the canonical Marathi copy.
 5. Submit succeeds only with all required fields valid, ≥ 1 photo, and `declarationAccepted: true`; it sets status PENDING, stores `declaration_accepted` + `declaration_at`, and shows the 24-hour review promise; submit without the declaration returns 422 `DECLARATION_REQUIRED` and the checkbox hint is shown.
-6. Creating an 11th ACTIVE listing is blocked at `POST /listings` with 409 `LISTING_LIMIT_REACHED` and the canonical Marathi message; the wizard entry on S-11 is pre-blocked with shortcuts to free a slot.
-7. Double-tapping submit produces exactly one PENDING listing (idempotent T-02); the duplicate heuristic flag (BR-029) is computed at submit and visible only to admins.
-8. Price outside ₹500–₹10,00,000, age outside 1–300 months, or description outside 10–1000 characters each produce the inline MR error from the Fields table, client-side before submit and server-side authoritatively.
+6. A submit that fails server validation lands the seller on the earliest wizard step containing an offending field (jump-to-step), with that field's inline MR error shown; the declaration / quota / phone errors that are not field-scoped remain on the review step.
+7. Creating an 11th ACTIVE listing is blocked at `POST /listings` with 409 `LISTING_LIMIT_REACHED` and the canonical Marathi message; the wizard entry on S-11 is pre-blocked with shortcuts to free a slot.
+8. Double-tapping submit produces exactly one PENDING listing (idempotent T-02); the duplicate heuristic flag (BR-029) is computed at submit and visible only to admins.
+9. Price outside ₹500–₹10,00,000, age outside 1–300 months, or description outside 10–1000 characters each produce the inline MR error from the Fields table, client-side before submit and server-side authoritatively.
 
 ## Out of scope
 
@@ -165,7 +168,7 @@ Server rejects milk fields on MALE/N-A combinations with `VALIDATION_ERROR` (nev
 
 - [x] All 12 mandatory sections of README §2 present in order, plus this checklist per foundation §7
 - [x] Wizard steps match doc 06 Flow A (S-10 host, S-10a–S-10e, S-11 return); DRAFT autosave via `POST /listings` on first forward tap then `PATCH /listings/{id}` per navigation; per-species conditional field matrix matches BR-022 exactly with server-side re-validation
-- [x] Photo pipeline matches BR-023 and doc 08 (presign → direct PUT to R2 → attach; 1–5 photos, JPEG/PNG/WebP ≤ 5 MB; `INVALID_UPLOAD` at presign, `PHOTO_LIMIT_EXCEEDED` on 6th attach; no video)
+- [x] Photo pipeline matches BR-023 and doc 08 (presign → direct PUT to R2 → attach; 1–10 photos, JPEG/PNG/WebP ≤ 5 MB; `INVALID_UPLOAD` at presign, `PHOTO_LIMIT_EXCEEDED` on 11th attach; no video)
 - [x] All limits cited from owners: quota 10 → 409 `LISTING_LIMIT_REACHED` (BR-024), price ₹500–₹10,00,000 (BR-026), description 10–1000 with phone block → 422 `PHONE_IN_DESCRIPTION` (BR-025/BR-065), age 1–300 months
 - [x] Declaration checkbox carries the exact BR-027 canonical Marathi text; submit stores `declaration_accepted` + `declaration_at`, sets `PENDING` per T-02, emits `NTF-ADMIN-PENDING`, and omission returns 422 `DECLARATION_REQUIRED`; declaration re-affirmed on every submission entering PENDING
 - [x] Only canonical `/api/v1` paths from doc 08 referenced; error codes match the doc 08 registry; submit idempotent for `DRAFT → PENDING`
