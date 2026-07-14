@@ -29,6 +29,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/stats" className="opacity-90 hover:opacity-100">
             आकडेवारी
           </Link>
+          <Link href="/admin/feedback" className="opacity-90 hover:opacity-100">
+            अभिप्राय
+          </Link>
         </nav>
       </header>
       <main className="mx-auto w-full max-w-2xl p-4 lg:max-w-7xl">

@@ -16,6 +16,7 @@ import { useAuth } from '@/lib/firebase/use-auth'
 import { useMe } from '@/lib/api/use-me'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import { Icon, type IconName } from '@/components/ui/Icon'
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet'
 
 type MenuItem = { href: string; icon: IconName; label: string }
 const ITEMS: MenuItem[] = [
@@ -40,6 +41,7 @@ export function AppMenu() {
   const auth = useAuth()
   const { profile } = useMe()
   const [open, setOpen] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   const loggedIn = auth.status === 'in'
 
@@ -107,6 +109,18 @@ export function AppMenu() {
                 जाहिरात तपासणी
               </Link>
             )}
+            {/* Feedback — reachable by everyone, including signed-out visitors. */}
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                setFeedbackOpen(true)
+              }}
+              className={`${rowCls} w-full text-left`}
+            >
+              <Icon name="send" size={22} className="text-[var(--color-text-2)]" />
+              अडचण कळवा / सूचना द्या
+            </button>
           </nav>
 
           {/* Log out — only when signed in. */}
@@ -122,6 +136,8 @@ export function AppMenu() {
           )}
         </div>
       </BottomSheet>
+
+      <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </>
   )
 }

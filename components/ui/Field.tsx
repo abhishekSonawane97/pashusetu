@@ -101,3 +101,36 @@ export function SelectField({
     </div>
   )
 }
+
+export function TextArea({
+  label,
+  error,
+  hint,
+  className,
+  id,
+  ...rest
+}: BaseProps & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const autoId = useId()
+  const fieldId = id ?? autoId
+  const errId = `${fieldId}-err`
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={fieldId} className="text-[16px] font-bold text-[var(--color-text)]">
+        {label}
+      </label>
+      {hint && <p className="text-[14px] text-[var(--color-text-2)]">{hint}</p>}
+      <textarea
+        id={fieldId}
+        className={cn(controlBase, 'py-3', className)}
+        aria-invalid={!!error}
+        aria-describedby={error ? errId : undefined}
+        {...rest}
+      />
+      {error && (
+        <p id={errId} role="alert" className="text-[14px] text-[var(--color-error)]">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}

@@ -112,6 +112,22 @@ enum ModerationAction {
   @@map("moderation_action")
 }
 
+enum FeedbackType {
+  PROBLEM // अडचण — काहीतरी बिघडले / चालत नाही
+  SUGGESTION // सूचना — नवीन कल्पना / मागणी
+  OTHER // इतर
+
+  @@map("feedback_type")
+}
+
+enum FeedbackStatus {
+  NEW // नवीन — अजून पाहिले नाही
+  SEEN // पाहिले
+  DONE // सोडवले / पूर्ण
+
+  @@map("feedback_status")
+}
+
 // ---------- Models ----------
 
 model User {
@@ -138,6 +154,7 @@ model User {
   notifications     Notification[]
   adminActions      ModerationLog[] @relation("ModerationAdmin")
   moderationEntries ModerationLog[] @relation("ModerationTargetUser")
+  feedback          Feedback[]
 
   @@index([districtId], map: "users_district_idx")
   @@map("users")
@@ -285,6 +302,25 @@ model Report {
   @@index([reporterId, createdAt(sort: Desc)], map: "reports_reporter_idx")
   @@index([status, createdAt], map: "reports_status_created_idx")
   @@map("reports")
+}
+
+// App feedback / problem reports (NFR-10) — distinct from the listing-abuse Report
+// above. userId is nullable (a signed-out visitor can still report a problem) and
+// SetNull on user delete. No listing link: this is about the app, not one ad.
+model Feedback {
+  id        String         @id @default(cuid())
+  type      FeedbackType
+  message   String // free text; length bounded in the validation layer
+  contact   String? // optional phone/name the user leaves for follow-up
+  userId    String?        @map("user_id") // set when the submitter is logged in; null if anonymous
+  path      String? // the in-app path they were on, for context
+  status    FeedbackStatus @default(NEW)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)], map: "feedback_status_created_idx")
+  @@map("feedback")
 }
 
 model Notification {
