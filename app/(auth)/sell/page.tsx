@@ -15,6 +15,7 @@ import { Icon } from '@/components/ui/Icon'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { apiFetch } from '@/lib/api/client'
 import { formatInr } from '@/lib/utils/format'
 import type { ListingStatus } from '@/lib/validation/common'
@@ -57,10 +58,13 @@ function MyListingsInner() {
   const [items, setItems] = useState<Item[] | null>(null)
   const [meta, setMeta] = useState<{ activeCount: number; activeLimit: number } | null>(null)
   const [error, setError] = useState(false)
+  const [confirmingSold, setConfirmingSold] = useState<string | null>(null)
+  const [soldBusy, setSoldBusy] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   // Fetch inline as a cancellable async IIFE — the sets are all post-await, so
-  // there is no synchronous setState in the effect body. Re-runs when tab changes;
-  // the loading reset (items→null) happens in the tab click handler.
+  // there is no synchronous setState in the effect body. Re-runs when tab OR
+  // reloadKey changes (reloadKey bumps after a mark-as-sold to refresh the list).
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -81,7 +85,26 @@ function MyListingsInner() {
     return () => {
       cancelled = true
     }
-  }, [tab])
+  }, [tab, reloadKey])
+
+  // Mark an APPROVED listing SOLD (T-06) so buyers stop contacting the seller.
+  async function markSold() {
+    const id = confirmingSold
+    if (!id) return
+    setSoldBusy(true)
+    try {
+      const res = await apiFetch(`/api/v1/listings/${id}/sold`, { method: 'POST' })
+      if (res.ok) {
+        setConfirmingSold(null)
+        setItems(null) // skeleton while the refreshed list loads
+        setReloadKey((k) => k + 1)
+      }
+    } catch {
+      /* leave the dialog open so the user can retry */
+    } finally {
+      setSoldBusy(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -157,10 +180,13 @@ function MyListingsInner() {
       {items && items.length > 0 && (
         <ul className="flex flex-col gap-3">
           {items.map((l) => (
-            <li key={l.id}>
+            <li
+              key={l.id}
+              className="overflow-hidden rounded-card border border-[var(--color-border-card)]"
+            >
               <Link
-                href={l.status === 'DRAFT' ? `/sell/new` : `/listings/${l.id}`}
-                className="flex gap-3 rounded-card border border-[var(--color-border-card)] p-2"
+                href={l.status === 'DRAFT' ? `/sell/new?id=${l.id}` : `/listings/${l.id}`}
+                className="flex gap-3 p-2"
               >
                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded bg-[var(--color-muted)]">
                   {l.thumbnailUrl ? (
@@ -191,6 +217,27 @@ function MyListingsInner() {
                   )}
                 </div>
               </Link>
+              {(l.status === 'APPROVED' || l.status === 'PENDING' || l.status === 'REJECTED') && (
+                <div className="flex gap-2 border-t border-[var(--color-border-card)] p-2">
+                  <Link
+                    href={`/sell/new?id=${l.id}`}
+                    className="flex min-h-[var(--touch-min)] flex-1 items-center justify-center gap-1 rounded border border-[var(--color-primary)] text-[14px] font-bold text-[var(--color-primary)]"
+                  >
+                    <Icon name="edit" size={16} />
+                    {l.status === 'REJECTED' ? 'बदला व पुन्हा पाठवा' : 'बदला'}
+                  </Link>
+                  {l.status === 'APPROVED' && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingSold(l.id)}
+                      className="flex min-h-[var(--touch-min)] flex-1 items-center justify-center gap-1 rounded border border-[var(--color-border-card)] text-[14px] font-bold text-[var(--color-text-2)]"
+                    >
+                      <Icon name="check" size={16} />
+                      विकले गेले
+                    </button>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -209,6 +256,16 @@ function MyListingsInner() {
           नवीन जाहिरात
         </Link>
       </div>
+
+      <ConfirmDialog
+        open={confirmingSold !== null}
+        title="विकले म्हणून खूण करायचे?"
+        message="ही जाहिरात 'विकले गेले' म्हणून दाखवली जाईल आणि खरेदीदार तुम्हाला संपर्क करणार नाहीत."
+        confirmLabel="होय, विकले गेले"
+        loading={soldBusy}
+        onConfirm={markSold}
+        onCancel={() => setConfirmingSold(null)}
+      />
     </div>
   )
 }

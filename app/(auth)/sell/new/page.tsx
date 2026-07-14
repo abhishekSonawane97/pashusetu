@@ -5,8 +5,8 @@
 // the end. Per-species conditional fields follow the BR-022 matrix. Bottom nav is
 // hidden here (BottomNav HIDDEN /^\/sell\/new/). The declaration text is verbatim.
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AuthGate } from '@/components/auth/AuthGate'
 import { Container } from '@/components/layout/Container'
 import { Button } from '@/components/ui/Button'
@@ -53,8 +53,51 @@ type Draft = {
   description?: string
 }
 
+// Which wizard step renders each field's error → jump the user to the earliest
+// offending step when submit fails on a field that lives on a step they can't see
+// (Sell #1). Server submit guards return keys from this set.
+const FIELD_STEP: Record<string, number> = {
+  breedId: 1,
+  sex: 2,
+  ageMonths: 2,
+  weightKg: 2,
+  milkYieldLpd: 2,
+  lactationNumber: 2,
+  isPregnant: 2,
+  isVaccinated: 2,
+  description: 2,
+  photos: 3,
+  priceInr: 4,
+  negotiable: 4,
+  districtId: 4,
+  taluka: 4,
+  village: 4,
+}
+
+// Shape of GET /listings/{id} we read to hydrate the wizard for edit/resume
+// (relations come back as objects, numerics as numbers → mapped into Draft).
+type LoadedListing = {
+  species?: Species
+  breed?: { id: string } | null
+  sex?: Sex | null
+  ageMonths?: number | null
+  weightKg?: number | null
+  milkYieldLpd?: number | null
+  lactationNumber?: number | null
+  isPregnant?: boolean | null
+  isVaccinated?: boolean | null
+  priceInr?: number | null
+  negotiable?: boolean
+  district?: { id: string } | null
+  taluka?: string | null
+  village?: string | null
+  description?: string | null
+  images?: Array<{ id: string; sortOrder: number; urls: { card: string } }>
+}
+
 function WizardInner() {
   const router = useRouter()
+  const params = useSearchParams()
   const [step, setStep] = useState(1)
   const [draft, setDraft] = useState<Draft>({ negotiable: true })
   const [listingId, setListingId] = useState<string | null>(null)
@@ -69,6 +112,50 @@ function WizardInner() {
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }))
   const sex = draft.species ? (fixedSexFor(draft.species) ?? draft.sex) : undefined
+
+  // Edit / resume: /sell/new?id=<listingId> loads an existing listing (a saved
+  // DRAFT to continue, or a live/REJECTED listing to edit) into the wizard instead
+  // of starting a blank NEW one — so drafts resume and listings become editable
+  // (My Listings #3 / #4). Owner token → GET returns all fields for any status.
+  useEffect(() => {
+    const id = params.get('id')
+    if (!id) return
+    let cancelled = false
+    apiFetch(`/api/v1/listings/${id}`)
+      .then((r) => (r.ok ? (r.json() as Promise<LoadedListing>) : null))
+      .then((d) => {
+        if (cancelled || !d) return
+        setListingId(id)
+        setDraft({
+          species: d.species,
+          breedId: d.breed?.id,
+          sex: d.sex ?? undefined,
+          ageMonths: d.ageMonths != null ? String(d.ageMonths) : undefined,
+          weightKg: d.weightKg != null ? String(d.weightKg) : undefined,
+          milkYieldLpd: d.milkYieldLpd != null ? String(d.milkYieldLpd) : undefined,
+          lactationNumber: d.lactationNumber != null ? String(d.lactationNumber) : undefined,
+          isPregnant: d.isPregnant ?? undefined,
+          isVaccinated: d.isVaccinated ?? undefined,
+          priceInr: d.priceInr != null ? String(d.priceInr) : undefined,
+          negotiable: d.negotiable ?? true,
+          districtId: d.district?.id,
+          taluka: d.taluka ?? undefined,
+          village: d.village ?? undefined,
+          description: d.description ?? undefined,
+        })
+        setPhotos(
+          (d.images ?? [])
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((img) => ({ id: img.id, cardUrl: img.urls.card })),
+        )
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once from the id param
+  }, [])
 
   // Breed/district lists MUST load or the user can't advance (both are required).
   // On a flaky rural connection the fetch can fail — surface an error + retry
@@ -170,7 +257,16 @@ function WizardInner() {
       })
       const body = await res.json()
       if (!res.ok) {
-        if (body?.error?.details?.fields) setFieldErrors(body.error.details.fields)
+        const fields = body?.error?.details?.fields as Record<string, string> | undefined
+        if (fields) {
+          setFieldErrors(fields)
+          // Jump to the earliest step that renders an offending field, so the user
+          // lands on a screen where they can actually fix it (Sell #1).
+          const steps = Object.keys(fields)
+            .map((k) => FIELD_STEP[k])
+            .filter((s): s is number => typeof s === 'number')
+          if (steps.length) setStep(Math.min(...steps))
+        }
         setError(body?.error?.message ?? 'जाहिरात पाठवता आली नाही.')
         return
       }
@@ -506,7 +602,9 @@ export default function SellNewPage() {
   return (
     <AuthGate>
       <Container variant="form">
-        <WizardInner />
+        <Suspense>
+          <WizardInner />
+        </Suspense>
       </Container>
     </AuthGate>
   )

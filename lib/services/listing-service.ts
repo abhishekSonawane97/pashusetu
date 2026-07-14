@@ -386,6 +386,17 @@ export async function submitListing(
   return ownerDetail(submitted)
 }
 
+/** T-06 mark-as-sold: owner takes their own APPROVED listing off the market. */
+export async function markSold(ctx: AuthContext, id: string) {
+  const row = await listingRepo.findOwned(id)
+  if (!row) throw AppError.listingNotFound()
+  assertOwnerVisible(ctx, row) // hidden listing → 404 for non-owners (no existence oracle)
+  if (row.status !== 'APPROVED') throw AppError.invalidStateTransition(row.status, 'markSold')
+  const sold = await listingRepo.markSoldTransition(id)
+  if (!sold) throw AppError.invalidStateTransition(row.status, 'markSold') // lost a concurrent race
+  return ownerDetail(sold)
+}
+
 function ownerDetail(row: DetailRow) {
   return buildDetail(row, {
     isOwner: true,

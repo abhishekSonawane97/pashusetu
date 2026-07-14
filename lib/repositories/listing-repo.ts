@@ -263,6 +263,21 @@ export async function markPendingForEdit(id: string): Promise<void> {
 }
 
 /**
+ * T-06 mark-as-sold (BR-033): APPROVED → SOLD, stamping soldAt so buyers stop
+ * contacting the seller. Guarded on status=APPROVED (same concurrency pattern as
+ * submitTransition) — returns null if the row wasn't APPROVED (lost race / wrong
+ * state), which the service maps to INVALID_STATE_TRANSITION.
+ */
+export async function markSoldTransition(id: string): Promise<ListingDetailRow | null> {
+  const res = await prisma.listing.updateMany({
+    where: { id, status: 'APPROVED' },
+    data: { status: 'SOLD', soldAt: new Date() },
+  })
+  if (res.count === 0) return null
+  return findDetailById(id)
+}
+
+/**
  * API-09 imageOrder: reassign sort_order 0..n-1 from a permutation of the
  * listing's CURRENT image ids (cover = index 0). Returns false without changes
  * if `orderedIds` is not an exact permutation (service maps → VALIDATION_ERROR).
