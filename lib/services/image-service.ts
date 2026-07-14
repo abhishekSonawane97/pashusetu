@@ -1,5 +1,5 @@
 // Image service — API-15 presign, API-16 attach, API-17 delete (doc 09 §7).
-// Photo edits allowed only while a listing can hold photos (BR-028); ≤5 photos
+// Photo edits allowed only while a listing can hold photos (BR-028); ≤10 photos
 // (BR-023); keys are listing-scoped and re-verified server-side (SEC-T05).
 
 import { AppError } from '@/lib/errors/app-error'
@@ -10,7 +10,7 @@ import * as r2 from '@/lib/r2/images'
 import { imageCuidFromKey, listingIdFromKey } from '@/lib/r2/keys'
 import type { PresignInput, AttachImageInput } from '@/lib/validation/images'
 
-const PHOTO_LIMIT = 5 // BR-023
+const PHOTO_LIMIT = 10 // BR-023 (raised 5→10 — more angles sell an animal faster)
 // Statuses that permit photo edits (BR-028): not EXPIRED/SOLD/ARCHIVED.
 const PHOTO_EDITABLE = ['DRAFT', 'PENDING', 'REJECTED', 'APPROVED']
 

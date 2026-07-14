@@ -1,7 +1,7 @@
-// PhotoUploader — S-10c. Uploads 1–5 photos per BR-023 via the pipeline:
+// PhotoUploader — S-10c. Uploads 1–10 photos per BR-023 via the pipeline:
 // presign (POST /uploads/presign) → PUT the file to storage → attach
-// (POST /listings/{id}/images). Shows thumbnails with a delete affordance and a
-// retry on failure. Client-side type/size pre-check mirrors the server guard.
+// (POST /listings/{id}/images). Accepts multiple files at once (gallery or camera)
+// and uploads them sequentially. Client-side type/size pre-check mirrors the server.
 
 'use client'
 
@@ -10,7 +10,7 @@ import Image from 'next/image'
 import { apiFetch } from '@/lib/api/client'
 import { Icon } from '@/components/ui/Icon'
 
-const MAX_PHOTOS = 5
+const MAX_PHOTOS = 10
 const MAX_BYTES = 5 * 1024 * 1024
 const ACCEPT = ['image/jpeg', 'image/png', 'image/webp']
 
@@ -36,45 +36,53 @@ export function PhotoUploader({
   }
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = '' // allow re-picking the same file
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = '' // allow re-picking the same file(s)
+    if (files.length === 0) return
     setError(null)
-    if (!ACCEPT.includes(file.type)) return setError('फक्त JPG, PNG किंवा WebP फोटो चालतात.')
-    if (file.size > MAX_BYTES) return setError('फोटो खूप मोठा आहे. 5 MB पर्यंतच चालेल.')
-    if (photos.length >= MAX_PHOTOS) return setError('जास्तीत जास्त 5 फोटो.')
-
     setBusy(true)
+    let current = photos // track locally — `photos` state is stale inside this loop
     try {
-      // 1) presign
-      const pres = await apiFetch('/api/v1/uploads/presign', {
-        method: 'POST',
-        body: JSON.stringify({ listingId, contentType: file.type, sizeBytes: file.size }),
-      })
-      if (!pres.ok) throw new Error('presign')
-      const { key, uploadUrl, headers } = await pres.json()
-      // 2) PUT the bytes straight to storage (no auth — signature is in the URL)
-      const put = await fetch(uploadUrl, { method: 'PUT', headers, body: file })
-      if (!put.ok) throw new Error('upload')
-      // 3) attach → server generates WebP variants
-      const att = await apiFetch(`/api/v1/listings/${listingId}/images`, {
-        method: 'POST',
-        body: JSON.stringify({ key }),
-      })
-      if (!att.ok) {
-        const body = await att.json().catch(() => null)
-        throw new Error(
-          body?.error?.code === 'PHOTO_LIMIT_EXCEEDED' ? 'जास्तीत जास्त 5 फोटो.' : 'upload',
-        )
+      for (const file of files) {
+        if (current.length >= MAX_PHOTOS) {
+          setError(`जास्तीत जास्त ${MAX_PHOTOS} फोटो.`)
+          break
+        }
+        if (!ACCEPT.includes(file.type)) {
+          setError('फक्त JPG, PNG किंवा WebP फोटो चालतात.')
+          continue
+        }
+        if (file.size > MAX_BYTES) {
+          setError('फोटो खूप मोठा आहे. 5 MB पर्यंतच चालेल.')
+          continue
+        }
+        // 1) presign → 2) PUT bytes to storage → 3) attach (server makes WebP variants)
+        const pres = await apiFetch('/api/v1/uploads/presign', {
+          method: 'POST',
+          body: JSON.stringify({ listingId, contentType: file.type, sizeBytes: file.size }),
+        })
+        if (!pres.ok) throw new Error('upload')
+        const { key, uploadUrl, headers } = await pres.json()
+        const put = await fetch(uploadUrl, { method: 'PUT', headers, body: file })
+        if (!put.ok) throw new Error('upload')
+        const att = await apiFetch(`/api/v1/listings/${listingId}/images`, {
+          method: 'POST',
+          body: JSON.stringify({ key }),
+        })
+        if (!att.ok) {
+          const body = await att.json().catch(() => null)
+          if (body?.error?.code === 'PHOTO_LIMIT_EXCEEDED') {
+            setError(`जास्तीत जास्त ${MAX_PHOTOS} फोटो.`)
+            break
+          }
+          throw new Error('upload')
+        }
+        const img = await att.json()
+        current = [...current, { id: img.id, cardUrl: img.urls.card }]
+        update(current) // show each thumbnail as it finishes
       }
-      const img = await att.json()
-      update([...photos, { id: img.id, cardUrl: img.urls.card }])
-    } catch (err) {
-      setError(
-        err instanceof Error && err.message !== 'upload' && !['presign'].includes(err.message)
-          ? err.message
-          : 'फोटो अपलोड झाला नाही. पुन्हा प्रयत्न करा.',
-      )
+    } catch {
+      setError('फोटो अपलोड झाला नाही. पुन्हा प्रयत्न करा.')
     } finally {
       setBusy(false)
     }
@@ -142,7 +150,7 @@ export function PhotoUploader({
         ref={inputRef}
         type="file"
         accept={ACCEPT.join(',')}
-        capture="environment"
+        multiple
         className="hidden"
         onChange={onPick}
       />
@@ -151,7 +159,7 @@ export function PhotoUploader({
           {error}
         </p>
       )}
-      <p className="text-[14px] text-[var(--color-text-3)]">{photos.length} / 5 फोटो</p>
+      <p className="text-[14px] text-[var(--color-text-3)]">{photos.length} / {MAX_PHOTOS} फोटो</p>
     </div>
   )
 }
