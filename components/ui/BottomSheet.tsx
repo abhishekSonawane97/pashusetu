@@ -85,9 +85,9 @@ export function BottomSheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative w-full max-w-md rounded-t-[var(--radius-sheet)] bg-[var(--color-surface)] pb-[env(safe-area-inset-bottom)] shadow-header outline-none md:flex md:max-h-[85vh] md:flex-col md:rounded-[var(--radius-sheet)]"
+        className="relative flex max-h-[90vh] w-full max-w-md flex-col rounded-t-[var(--radius-sheet)] bg-[var(--color-surface)] pb-[env(safe-area-inset-bottom)] shadow-header outline-none md:max-h-[85vh] md:rounded-[var(--radius-sheet)]"
       >
-        <div className="flex items-center justify-between border-b border-[var(--color-border-card)] p-4 md:shrink-0">
+        <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border-card)] p-4">
           <h2 className="text-[20px] font-bold">{title}</h2>
           <button
             type="button"
@@ -98,7 +98,10 @@ export function BottomSheet({
             <Icon name="close" size={24} title="बंद करा" />
           </button>
         </div>
-        <div className="p-4 md:overflow-y-auto">{children}</div>
+        {/* Content scrolls within the capped sheet on ALL viewports (not just md) —
+            a tall sheet (e.g. the full filter panel) must never overflow off the
+            top of a phone screen where it can't be scrolled to. */}
+        <div className="flex-1 overflow-y-auto p-4">{children}</div>
       </div>
     </div>
   )
