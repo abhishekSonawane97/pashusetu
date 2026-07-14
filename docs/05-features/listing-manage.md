@@ -31,16 +31,16 @@ The seller's control room: see every own listing by status, resume drafts, fix r
 
 1. Sell tab → **S-11** "माझ्या जाहिराती" with status tabs: अपूर्ण (Drafts), तपासणीत (In review / PENDING), चालू (Live / APPROVED), विकलेल्या (Sold), नाकारलेल्या (Rejected), मुदत संपलेल्या (Expired), बंद (Archived). Data via `GET /users/me/listings` (newest first, cursor-paginated, each card with `viewCount` + total interest-event count). Header shows the active-count meter "7/10" toward BR-024.
 2. Per-card actions by status (only valid transitions render, BR-031/BR-032):
-   - **DRAFT:** "पुढे चालू ठेवा" (continue → wizard at first incomplete step), "काढून टाका" (archive).
-   - **PENDING:** status note "तपासणी सुरू आहे — साधारण 24 तास" (under review — approx. 24 hours) with submission timestamp (BR-041); edit (→ S-12, with the queue-delay warning "बदल केल्यास तपासणीला थोडा जास्त वेळ लागू शकतो", BR-040); archive. Auto-hidden listings show "तक्रारींमुळे तपासणीसाठी थांबवले आहे" (paused for review due to reports).
-   - **APPROVED:** "जाहिरात बदला" (edit → S-12), "विकले गेले म्हणून नोंद करा" (mark sold), archive; days-left-to-expiry chip.
-   - **REJECTED:** admin's rejection reason verbatim in Marathi (BR-043 label + free text) pinned on the card, CTA "दुरुस्त करून पुन्हा पाठवा" (fix and resend → S-12); archive.
+   - **DRAFT:** the whole card is a link to `/sell/new?id={id}` that reopens the shared 5-step wizard, hydrated from `GET /listings/{id}`, resuming the pre-filled draft from step 1 (the seller pages forward through the wizard — it does not auto-open the first incomplete step); "काढून टाका" (archive).
+   - **PENDING:** status note "तपासणी सुरू आहे — साधारण 24 तास" (under review — approx. 24 hours) with submission timestamp (BR-041); edit — "बदला" → `/sell/new?id={id}` (the shared wizard), with the queue-delay warning "बदल केल्यास तपासणीला थोडा जास्त वेळ लागू शकतो" (BR-040); archive. Auto-hidden listings show "तक्रारींमुळे तपासणीसाठी थांबवले आहे" (paused for review due to reports).
+   - **APPROVED:** "बदला" (edit → `/sell/new?id={id}`, the shared wizard), "विकले गेले" (mark sold), archive; days-left-to-expiry chip.
+   - **REJECTED:** admin's rejection reason verbatim in Marathi (BR-043 label + free text) pinned on the card, CTA "बदला व पुन्हा पाठवा" (edit and resend → `/sell/new?id={id}`, the shared wizard); archive.
    - **EXPIRED:** "30 दिवसांसाठी पुन्हा सुरू करा" (restart for 30 days → one-tap renew); archive. **No edit action** (BR-028 — renew first, then edit).
    - **SOLD / ARCHIVED:** read-only cards, no actions; a permanent "+ नवीन जाहिरात" CTA sits beside them (doc 06 §7 invariant 7).
-3. **Mark sold:** confirm dialog "विकले गेले म्हणून नोंद करायची का? हे परत बदलता येणार नाही." (Mark as sold? This cannot be undone.) → `POST /listings/{id}/mark-sold` → card moves to विकलेल्या; listing leaves public search immediately (T-06).
+3. **Mark sold:** the "विकले गेले" action shows only on APPROVED cards → confirm dialog titled "विकले म्हणून खूण करायचे?" (Mark as sold?), body "ही जाहिरात 'विकले गेले' म्हणून दाखवली जाईल आणि खरेदीदार तुम्हाला संपर्क करणार नाहीत." (This listing will be shown as sold and buyers will not contact you.), confirm button "होय, विकले गेले" (Yes, sold) → `POST /listings/{id}/sold` → card moves to विकलेल्या; listing leaves public search immediately (T-06).
 4. **Renew:** one tap → `POST /listings/{id}/renew` → APPROVED with `expires_at = now + 30 days`, no re-moderation (T-08, BR-074); inline confirmation "जाहिरात 30 दिवसांसाठी पुन्हा सुरू झाली" (listing restarted for 30 days).
 5. **Archive:** confirm dialog "जाहिरात कायमची बंद होईल. पुन्हा सुरू करता येणार नाही." (The listing will close permanently. It cannot be reopened.) → `POST /listings/{id}/archive` (T-11).
-6. **Edit — S-12** "जाहिरात बदला": single scrollable page with the same fields + validation as the wizard ([listing-create.md](listing-create.md) Fields table), pre-filled; photos managed with the same presign/attach/delete flow.
+6. **Edit — S-12** "बदला": edit reopens the **same 5-step wizard** (S-10a–S-10e) at `/sell/new?id={listingId}`, hydrated from `GET /listings/{id}` (owner token → all fields for any status) — not a separate scrollable page. S-12 now names this hydrated-wizard flow, which reuses the wizard's fields + validation and the same presign/attach/delete photo flow ([listing-create.md](listing-create.md) Fields table). On submit, per-step validation maps each field error to its owning step and jumps the seller to the earliest offending step (that wizard/submit behaviour is owned by [listing-create.md](listing-create.md) F-03 — cross-referenced, not redefined here).
    - On an APPROVED listing, a warning banner explains BR-028: price-only saves keep it live; any other change sends it back for review. Changing a non-price field triggers the confirm dialog "बदल केल्यास जाहिरात पुन्हा तपासणीत जाईल" (if you make changes, the listing will go back for review). Saving a non-price change routes through resubmit (declaration re-affirmed, BR-027) → PENDING (T-09).
    - On a REJECTED listing, the rejection reason (and reason history, if rejected more than once) is pinned on top; saving ends with "पुन्हा पाठवा" (resend) → `POST /listings/{id}/submit` (T-05).
    - Price-only edit: `PATCH /listings/{id}` with `priceInr`/`negotiable` only → saves instantly, stays APPROVED, no dialog, `expires_at` unchanged (BR-028, BR-073).
@@ -72,9 +72,10 @@ Edit fields are identical to [listing-create.md](listing-create.md) (same table,
 | Method + path | When |
 |---|---|
 | `GET /api/v1/users/me/listings` | S-11 load + tab switches + pull-to-refresh (cursor-paginated) |
+| `GET /api/v1/listings/{id}` | Hydrate the wizard for resume (DRAFT) and edit (owner token → all fields for any status) |
 | `PATCH /api/v1/listings/{id}` | S-12 saves (price-only or full edit) and draft edits |
 | `POST /api/v1/listings/{id}/submit` | Resubmit from S-12 (REJECTED → PENDING; APPROVED non-price edit → PENDING with re-affirmed declaration) |
-| `POST /api/v1/listings/{id}/mark-sold` | Mark-sold confirm on S-11 |
+| `POST /api/v1/listings/{id}/sold` | Mark-sold confirm on S-11 |
 | `POST /api/v1/listings/{id}/renew` | Renew tap on an EXPIRED card |
 | `POST /api/v1/listings/{id}/archive` | Archive confirm on S-11 |
 | `POST /api/v1/uploads/presign` · `POST /api/v1/listings/{id}/images` · `DELETE /api/v1/listings/{id}/images/{imageId}` | Photo changes inside S-12 (same flow as create) |
@@ -99,7 +100,7 @@ No frozen NFR-10 client event covers this surface. Measurement is server-side pr
 2. Mark-sold renders only on APPROVED cards, requires the irreversible-confirm dialog, sets SOLD + `sold_at`, and removes the listing from public search immediately; SOLD cards render no edit/renew/archive actions.
 3. Renew renders only on EXPIRED cards; one tap returns the listing to APPROVED with `expires_at = now + 30 days` and no re-moderation; renewing a non-EXPIRED listing via API returns 409 `INVALID_STATE_TRANSITION`.
 4. An EXPIRED listing exposes no edit path; a forced `PATCH` returns 409 `EDIT_NOT_ALLOWED`; after renewal, editing follows the APPROVED rules including the re-moderation warning.
-5. A REJECTED card shows the admin's rejection reason verbatim in Marathi; "दुरुस्त करून पुन्हा पाठवा" opens S-12 with the reason pinned; resubmit moves it to PENDING with the declaration re-affirmed and the reason cleared.
+5. A REJECTED card shows the admin's rejection reason verbatim in Marathi; "बदला व पुन्हा पाठवा" reopens the 5-step wizard at `/sell/new?id={id}` (hydrated) with the reason pinned; resubmit moves it to PENDING with the declaration re-affirmed and the reason cleared.
 6. A price-only save on an APPROVED listing keeps it APPROVED with `expires_at` unchanged and no confirmation dialog; changing any other field (or any photo) first shows the re-moderation confirm dialog and, on save + resubmit, moves the listing to PENDING and out of public view.
 7. Archive is available from every non-terminal status with the permanent-closure warning; archived listings appear read-only under बंद and free a quota slot; the "7/10" meter updates.
 8. Non-owner mutation attempts on any of these endpoints return 403 `FORBIDDEN`; concurrent conflicting transitions resolve via the status precondition with 409 and a row refresh.

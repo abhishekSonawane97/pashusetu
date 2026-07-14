@@ -10,7 +10,7 @@
 
 > This document is the **complete API contract** of the PashuSetu MVP. A frontend developer must be able to build the entire app from this document alone. It owns: the error-code registry (delegated here by [../01-prd/README.md](../01-prd/README.md) FR-07), all request/response shapes, all HTTP statuses, and the wire conventions. Business behavior behind every endpoint is owned by [../04-business-rules/README.md](../04-business-rules/README.md) (`BR-xx` ids cited throughout); if a shape here ever disagrees with a BR rule, doc 04 wins and this doc is defective. The API is implemented as Next.js App Router route handlers in the single codebase (locked decision D1) — there is no separate backend service.
 
-**Endpoint index (34 endpoints, ids API-01…API-34):** §2.1 Auth & users (01–03) · §2.2 Reference data (04–05) · §2.3 Listings public (06–07) · §2.4 Listings seller (08–14) · §2.5 Uploads & images (15–17) · §2.6 Favorites (18–20) · §2.7 Interest (21) · §2.8 Reports (22) · §2.9 Notifications (23–24) · §2.10 Admin (25–34).
+**Endpoint index (39 endpoints, ids API-01…API-39):** §2.1 Auth & users (01–03) · §2.2 Reference data (04–05) · §2.3 Listings public (06–07) · §2.4 Listings seller (08–14) · §2.5 Uploads & images (15–17) · §2.6 Favorites (18–20) · §2.7 Interest (21) · §2.8 Reports (22) · §2.9 Notifications (23–24) · §2.10 Admin (25–34) · §2.11 Feedback (35–37) · §2.12 Authentication / OTP (38–39).
 
 ---
 
@@ -31,7 +31,7 @@
 
 Auth follows locked decision D3 and [../12-security/README.md](../12-security/README.md).
 
-- **Credential:** `Authorization: Bearer <Firebase ID token>` — the 1-hour JWT issued by the Firebase Auth client SDK after phone-OTP login. The client SDK auto-refreshes it; the backend never issues tokens and never sends OTPs (BR-010, BR-090 #1).
+- **Credential:** `Authorization: Bearer <Firebase ID token>` — the 1-hour Firebase JWT the client holds after login. It is now obtained via `signInWithCustomToken()`, exchanging a **custom token this API mints** in `POST /auth/otp/verify` (§2.12): the backend now sends the phone OTP through an India-native SMS provider and, on the correct code, mints that custom token. So — **superseding** the earlier "Firebase client SDK owns OTP" model — the backend now **does** send OTPs and **does** issue (custom) tokens. The client SDK still auto-refreshes the resulting ID token, and every downstream verification path (§1.2 below) is unchanged. Architecture decision and service internals: [../00-foundation/README.md](../00-foundation/README.md), [../12-security/README.md](../12-security/README.md), [../09-backend/README.md](../09-backend/README.md).
 - **Verification:** every authenticated request is verified server-side with the **Firebase Admin SDK** (`verifyIdToken`, default clock tolerance). The verified `firebase_uid` is resolved to the `users` row. No cookies, no server sessions.
 - **Guard levels** used in every endpoint table below:
 
@@ -148,7 +148,7 @@ Rural 3G drops connections mid-request; the contract makes blind retries safe wh
 | `POST /users/me/favorites` (API-19) | **Naturally idempotent** — the `(user_id, listing_id)` unique constraint dedupes; re-POST returns 200 with the existing row (BR-070) |
 | `DELETE /users/me/favorites/{listingId}` (API-20) | Idempotent — deleting an absent favorite returns 204 |
 | `POST /listings/{id}/submit` (API-10) | Repeat on an already-`PENDING` listing (same seller) → 200 no-op returning the `PENDING` listing; the declaration re-affirmation timestamp updates (BR-027). Not listed as disallowed in BR-032 |
-| `POST /listings/{id}/mark-sold` (API-11) | Repeat on an already-`SOLD` listing (same seller) → 200 no-op returning the `SOLD` listing. Not listed in the BR-032 `SOLD →` prohibition set (which covers edit/renew/re-list/archive/approve) |
+| `POST /listings/{id}/sold` (API-11) | Repeat on an already-`SOLD` listing (same seller) → 200 no-op returning the `SOLD` listing. Not listed in the BR-032 `SOLD →` prohibition set (which covers edit/renew/re-list/archive/approve) |
 | `POST /notifications/{id}/read` (API-24) | Idempotent — already-`READ` returns 200 |
 | `POST /listings/{id}/renew` (API-12) | **NOT blindly retryable** — a repeat lands on an `APPROVED` listing and returns 409 `INVALID_STATE_TRANSITION` (a second renew would silently extend expiry). After a timed-out renew, the client re-fetches the listing state instead of retrying |
 | Everything else | On timeout, re-fetch current state (`GET`) before re-attempting; any 409 `STATE_INVALID` after a retry means the first attempt succeeded |
@@ -162,7 +162,7 @@ There are no `Idempotency-Key` headers in MVP — the rules above make them unne
 | All authenticated **write** endpoints, combined | 60/min/user (BR-090 #2) | 429 `RATE_LIMITED` |
 | `POST /listings/{id}/interest` | 20/day/buyer, all types+listings (BR-064) | 429 `RATE_LIMITED` |
 | `POST /listings/{id}/report` | 5/day/user (BR-051) | 429 `RATE_LIMITED` |
-| OTP | None on this API — Firebase client SDK owns OTP entirely (BR-090 #1). **This API has no OTP endpoints** |
+| OTP (`POST /auth/otp/send`, `POST /auth/otp/verify` — §2.12) | **Now served by this API** (supersedes the earlier "Firebase client SDK owns OTP / no OTP endpoints" note): `send` throttled 5/phone/hour + 30 s resend cooldown + a coarse per-IP breadth cap; `verify` capped at 5 wrong attempts per code. Caps owned by [../04-business-rules/README.md](../04-business-rules/README.md) · [../12-security/README.md](../12-security/README.md) | 429 `RATE_LIMITED` (`Retry-After`) |
 | Public reads | No per-user limit; platform-level abuse protection (Vercel/Cloudflare) is owned by [../12-security/README.md](../12-security/README.md) |
 
 Limits are keyed on user id, never IP alone (rural CGNAT — PRD FR-05). Every 429 carries `details.retryAfterSeconds` + `Retry-After` header.
@@ -438,7 +438,7 @@ No parameters. **Response — 200**, not paginated, ordered by `nameEn`:
 | **Purpose** | Public search over `APPROVED` listings with filters, sort, cursor pagination — the buyer core loop (F-04, S-06) |
 | **Rate limit** | None (read) |
 
-Summary here; **full deep spec incl. every param, sort semantics and the visibility rule is §4.** Returns `{ "items": [ListingCard], "nextCursor": "…" }`, only `status = APPROVED`, default 20/max 50 per page (BR-090 #12).
+Summary here; **full deep spec incl. every param, sort semantics and the visibility rule is §4.** Returns `{ "items": [ListingCard], "nextCursor": "…" }`, only `status = APPROVED`, default 20/max 50 per page (BR-090 #12). Filters include free-text `q` and the WS3 attribute filters (milk / age / pregnancy) alongside species / breed / district / taluka / price (§4.1).
 
 ---
 
@@ -585,7 +585,7 @@ Provided fields are validated immediately; **completeness** (the R-columns of th
 
 ---
 
-#### API-11 — `POST /listings/{id}/mark-sold`
+#### API-11 — `POST /listings/{id}/sold`
 
 | | |
 |---|---|
@@ -1303,39 +1303,173 @@ No body. **Response — 200** `{ "id": "clx2u01aa0001l204me3jr9t7", "status": "A
 | | |
 |---|---|
 | **Purpose** | Metrics dashboard S-23 — the Postgres-truth source for every PRD §2 goal (G-01…G-12) |
-| **Rate limit** | None (read); may be cached 5 minutes server-side |
+| **Rate limit** | None (read); no server-side cache — the snapshot is computed per request |
 
-No parameters. **Response — 200** (fixed shape; window fields are rolling):
+No parameters. **Response — 200** (fixed shape; window fields are rolling; read-only aggregates over data the marketplace already collects — **no schema change**, inventory #15):
 
 ```json
 {
-  "generatedAt": "2026-07-04T06:00:00.000Z",
-  "users": { "total": 412, "farmers": 260, "buyers": 402, "banned": 3, "newLast7d": 38, "newLast30d": 150 },
   "listings": {
+    "total": 255,
     "byStatus": { "DRAFT": 25, "PENDING": 7, "APPROVED": 130, "SOLD": 41, "REJECTED": 12, "EXPIRED": 22, "ARCHIVED": 18 },
-    "newLast7d": 44,
-    "newLast30d": 170,
-    "bySpecies": { "COW": 96, "BUFFALO": 71, "BULL_OX": 20, "GOAT": 48, "SHEEP": 20 },
-    "byDistrict": [ { "districtId": "clxd1st0032l004satara0001", "nameMr": "सातारा", "count": 39 } ]
+    "newToday": 6,
+    "newWeek": 44
   },
-  "moderation": {
-    "pendingCount": 7,
-    "oldestPendingHours": 11.2,
-    "decisions7d": { "approved": 40, "rejected": 9 },
-    "decisions30d": { "approved": 152, "rejected": 41 },
-    "medianTurnaroundHours7d": 6.4,
-    "p95TurnaroundHours7d": 21.9,
-    "rejectionRate30d": 0.21
+  "views": {
+    "total": 4820,
+    "top": [
+      { "id": "clx4l01bb0001l404gt6yh1n2", "viewCount": 148, "species": "COW", "breedMr": "गीर", "districtMr": "सातारा" }
+    ]
   },
-  "inquiries": { "interestEvents7d": 210, "interestEvents30d": 840, "inquiryRate": 0.31 },
-  "reports": { "open": 4, "resolved30d": 11, "dismissed30d": 6 },
-  "favorites": { "total": 512 }
+  "interest": { "call": 320, "whatsapp": 190, "interest": 140, "total": 650, "last7dTotal": 210 },
+  "zeroEnquiryApproved": 37,
+  "topDistricts": [ { "nameMr": "सातारा", "count": 39 } ]
 }
 ```
 
-`inquiryRate` = distinct ever-`APPROVED` listings with ≥ 1 interest event ÷ ever-`APPROVED` listings (G-04); turnaround percentiles per BR-041; `byDistrict` covers all districts with ≥ 1 listing.
+- `listings.byStatus` — listing count per `status` enum value (keys from the D10 `ListingStatus` set); `total` = sum across statuses; `newToday` / `newWeek` = listings created since local midnight / within the last 7 days.
+- `views.total` — sum of `viewCount` over APPROVED listings; `views.top` — the **top-5 most-viewed APPROVED listings** (`viewCount` desc), each `{ id, viewCount, species, breedMr, districtMr }` with `breedMr` / `districtMr` = `null` when unset.
+- `interest` — all-time Call / WhatsApp / Interest event counts (`call`, `whatsapp`, `interest`) with `total` their sum, **plus** `last7dTotal` = all three types over the last 7 days (BR-062 events).
+- `zeroEnquiryApproved` — count of APPROVED listings with **no** interest event (Call/WhatsApp/Interest) at all.
+- `topDistricts` — **top-5 districts by APPROVED-listing count** (desc), each `{ nameMr, count }`.
+
+There is **no** `generatedAt` field and **no** server-side cache in the shipped version (the snapshot is recomputed per request). The shipped response carries no users, moderation-turnaround, favorites or `bySpecies` blocks (the earlier documented shape is superseded).
 
 **Errors:** `FORBIDDEN` 403. **Side effects:** none.
+
+---
+
+### 2.11 Feedback
+
+App-level feedback / problem reports (NFR-10) — **not** the listing-abuse Report flow (§2.8). A `Feedback` row has **no listing link**. The `Feedback` model, the `FeedbackType` (`PROBLEM\|SUGGESTION\|OTHER`) and `FeedbackStatus` (`NEW\|SEEN\|DONE`) enums, the `feedback_status_created_idx` index and migration `20260714095640_add_feedback` are owned by [../07-database/README.md](../07-database/README.md) and are not restated here.
+
+#### API-35 — `POST /feedback`
+
+| | |
+|---|---|
+| **Auth** | Public — `optionalAuth`: a valid `Authorization` token, if present, attaches the caller's `userId`; anonymous is allowed and this endpoint **never** returns 401 |
+| **Purpose** | Let any visitor (signed-in or not) report a problem or suggest an improvement (NFR-10) |
+| **Rate limit** | Global write limit only, and only when a token is present |
+
+**Request body** (strict — unknown field → 400)
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `type` | string | yes | `PROBLEM\|SUGGESTION\|OTHER` |
+| `message` | string | yes | 3–1000 chars after trim — the actual problem / suggestion |
+| `contact` | string | no | 1–120 chars after trim — an optional phone / name for follow-up |
+| `path` | string | no | ≤ 200 chars after trim — the in-app path the user was on, for context |
+
+Unlike listing text, feedback is **exempt from the BR-065 no-phone rule** (rule owned by [../04-business-rules/README.md](../04-business-rules/README.md)): a phone number in `contact` or `message` is allowed, because follow-up is the point.
+
+**Response — 201** `{ "id": "clxfb01aa0001l204me3jr9t7", "status": "NEW" }` — a new row is always created with `status = NEW`.
+
+**Errors:** `VALIDATION_ERROR` 400/422 (bad/oversized field, unknown field). **Side effects:** one `Feedback` row (`user_id` = the caller's id, or `null` when anonymous); no notification, no listing link.
+
+---
+
+#### API-36 — `GET /admin/feedback?status=`
+
+| | |
+|---|---|
+| **Auth** | Admin (`requireAdmin`) |
+| **Purpose** | The admin feedback inbox (NFR-10) — newest-first, optional status filter, with an unhandled count |
+| **Rate limit** | None (read) |
+
+**Query params**
+
+| Param | Type | Required | Validation |
+|---|---|---|---|
+| `status` | string | no | `NEW\|SEEN\|DONE`; omitted → all statuses |
+
+**Response — 200** `{ "items": [Feedback…], "newCount": <int> }` — `items` are the most-recent `Feedback` rows (each with the submitter's `{ id, name, phone }` when signed-in, else `null`), newest-first; `newCount` = rows still in `NEW`.
+
+> **Pagination deviation (deliberate — not a §1.4 violation):** this list is **not** cursor-paginated. It returns a fixed server page size of **50** most-recent rows and **no** `nextCursor`. Feedback volume is low at launch; keyset pagination is a documented later step. Stated here so it does not read as a §1.4 breach.
+
+**Errors:** `FORBIDDEN` 403 (non-admin) · `VALIDATION_ERROR` 400 (bad `status`). **Side effects:** none.
+
+---
+
+#### API-37 — `PATCH /admin/feedback/{id}`
+
+| | |
+|---|---|
+| **Auth** | Admin (`requireAdmin`) |
+| **Purpose** | Advance a feedback item through the triage states `NEW → SEEN → DONE` |
+| **Rate limit** | Global write limit |
+
+**Path param:** `id` — feedback cuid.
+
+**Request body** (strict)
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `status` | string | yes | `NEW\|SEEN\|DONE` |
+
+**Response — 200** `{ "id": "clxfb01aa0001l204me3jr9t7", "status": "SEEN" }` — echoes the new status.
+
+**Errors:** `NOT_FOUND` 404 (unknown `id`) · `FORBIDDEN` 403 · `VALIDATION_ERROR` 400/422 (bad/unknown `status`). **Side effects:** the row's `status` is updated; nothing else.
+
+---
+
+### 2.12 Authentication (OTP)
+
+Phone-OTP login is now served by this API, superseding the earlier Firebase-client-SDK-only model (§1.2, §1.8). Both endpoints are **Public** (pre-auth) and reuse the **existing closed error registry (§1.3)** — no new error codes are introduced. The code validity window, wrong-attempt cap and resend cooldown are rule / architecture values owned by [../04-business-rules/README.md](../04-business-rules/README.md) (caps) and [../12-security/README.md](../12-security/README.md) (security model); only their **wire surface** is documented here.
+
+#### API-38 — `POST /auth/otp/send`
+
+| | |
+|---|---|
+| **Auth** | Public |
+| **Purpose** | Send (or resend) a login OTP to a phone (S-02 / S-03) |
+| **Rate limit** | Per phone: 5 / hour + a 30 s resend cooldown; per IP: a coarse breadth cap (values owned by doc 04 / doc 12) |
+
+**Request body** (strict)
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `phone` | string | yes | 10-digit Indian national number (`^[6-9]\d{9}$`); the server prefixes `+91` |
+
+**Response — 200** `{ "sent": true }` — always this exact body; it **never reveals** whether the phone already has an account.
+
+**Errors**
+
+| Code | HTTP | When |
+|---|---|---|
+| `RATE_LIMITED` | 429 | Per-phone resend cooldown / hourly cap, or the per-IP breadth cap; carries `details.retryAfterSeconds` + `Retry-After` |
+| `INTERNAL` | 500 | A downstream SMS-provider send failure. The provider's `status_code` / `message` is captured **server-side only** for diagnosis and is **never** on the wire — and never contains the OTP code or the provider API key (those live only in the outbound request) |
+| `VALIDATION_ERROR` | 400/422 | Malformed / absent `phone` |
+
+**Side effects:** an OTP challenge is stored/refreshed for the phone; on success one SMS is dispatched via the India-native provider.
+
+---
+
+#### API-39 — `POST /auth/otp/verify`
+
+| | |
+|---|---|
+| **Auth** | Public |
+| **Purpose** | Verify the code and return a Firebase **custom token** the client exchanges via `signInWithCustomToken()` (§1.2) |
+| **Rate limit** | Per code: at most 5 wrong attempts, after which a fresh code is required (value owned by doc 04 / doc 12) |
+
+**Request body** (strict)
+
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `phone` | string | yes | As API-38 |
+| `code` | string | yes | 6 digits (`^\d{6}$`) |
+
+**Response — 200** `{ "customToken": "<Firebase custom token>" }` — the client calls `signInWithCustomToken()` with it to obtain the Bearer ID token used everywhere else (§1.2).
+
+**Errors — the OTP failure-reason wire contract**
+
+| Code | HTTP | When |
+|---|---|---|
+| `VALIDATION_ERROR` | 422 | The named OTP failure reason, in `details.fields.otp`: `"invalid"` = the code is wrong · `"expired"` = no challenge exists or it has expired (a sent code is valid **10 minutes**; value owned by doc 04). Clients branch on `details.fields.otp` for the S-03 error copy |
+| `RATE_LIMITED` | 429 | The 5-wrong-attempt cap for this code is exhausted — the client must request a fresh code (API-38); carries `details.retryAfterSeconds` + `Retry-After` |
+| `VALIDATION_ERROR` | 400/422 | Malformed `phone` / `code` at the schema (`details.fields.phone` / `details.fields.code`) — distinct from the semantic `otp` reason above |
+
+**Side effects:** on success the challenge is consumed (single-use — the code cannot be replayed) and a custom token is minted for the caller's Firebase uid; nothing else.
 
 ---
 
@@ -1454,17 +1588,23 @@ Concurrency: two admins acting on the same listing — the second hits the `WHER
 
 | Param | Type | Required | Default | Validation / semantics |
 |---|---|---|---|---|
+| `q` | string | no | — | 1–60 chars after trim; free-text search (WS3, F-04). Case-insensitive `contains` over village, taluka, breed `nameMr` / `nameEn` and seller name, **plus** an exact match on the listing `id` (paste an id / shared link). Empty (after trim) or > 60 chars → 400 |
 | `species` | string | no | — | `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP`; unknown value → 400 |
 | `breedId` | string | no | — | Must exist **and** belong to `species` when both are given; mismatch or orphan `breedId` (without `species` it just must exist) → 400 `VALIDATION_ERROR` (F-04 AC-3) |
 | `districtId` | string | no | — | Must be a seeded MH district → else 400 |
+| `taluka` | string | no | — | 1–60 chars; **exact** match on the listing's `taluka` (BR-022 free-text tehsil). Distinct from `q`, whose `contains` match also covers taluka |
 | `minPrice` | int | no | — | ≥ 0; integer INR |
 | `maxPrice` | int | no | — | ≥ 0; `minPrice > maxPrice` → 400 `VALIDATION_ERROR` (F-04 AC-4; the client blocks this before sending) |
+| `minMilk` | number | no | — | 0–60; minimum milk yield in L/day — returns only listings with `milkYieldLpd` ≥ `minMilk` (so null-milk males / non-milch animals are excluded) |
+| `minAge` | int | no | — | 1–300 months |
+| `maxAge` | int | no | — | 1–300 months; `minAge > maxAge` → 400 `VALIDATION_ERROR` (mirrors the `minPrice` / `maxPrice` rule; the client blocks it before sending) |
+| `isPregnant` | string | no | — | Literal `'1'` only; `'1'` returns only listings flagged pregnant (`isPregnant = true`, female-only per the BR-022 matrix). Any other value → 400 |
 | `sort` | string | no | `newest` | `newest` \| `price_asc` \| `price_desc` |
 | `sellerId` | string | no | — | All approved listings of one seller — powers S-09 "इतर जाहिराती पाहा" (see this seller's other listings) |
 | `cursor` | string | no | — | Opaque (§1.4); invalid/expired → 400, client restarts from page one |
 | `limit` | int | no | 20 | 1–50; > 50 → 422 (BR-090 #12) |
 
-All filters combine with AND. Filter state is fully URL-encodable for shareable results (F-04 AC-6). **There is no free-text `q` parameter in MVP** — the S-05/S-06 search bar drives the structured filters only (F-12: pickers, not free text); text search is a Phase 2 extension.
+All filters combine with AND. Filter state is fully URL-encodable for shareable results (F-04 AC-6). **A free-text `q` parameter now ships** (WS3, superseding the earlier Phase-2 deferral): `q` performs a case-insensitive `contains` match over village, taluka, breed `nameMr` / `nameEn` and seller name, **plus** an exact match on the listing `id`, and combines (AND) with every structured filter above — so it too is URL-encodable into a shareable result (F-04 AC-6).
 
 ### 4.2 Sort semantics & cursors
 
@@ -1485,7 +1625,7 @@ The cursor encodes the keyset tuple of the last item (base64url, opaque). Becaus
 
 ### 4.4 Response — 200
 
-`items` are `ListingCard` objects (§1.9): `id`, `species`, `breed` (both names), `sex`, `ageMonths`, `priceInr`, `negotiable`, `isPregnant` (drives the "गाभण" badge — F-04 AC-2), `milkYieldLpd`, `district` (both names), `taluka`, `village`, `thumbnailUrl` (cover image `thumb` WebP variant — the 400 px/≤ 40 KB NFR-02 budget), `approvedAt`. No description, no images array, no seller, no view count — the card is deliberately light for 3G list rendering (NFR-01).
+`items` are `ListingCard` objects (§1.9): `id`, `species`, `breed` (both names), `sex`, `ageMonths`, `priceInr`, `negotiable`, `isPregnant` (drives the "गाभण" badge — F-04 AC-2), `milkYieldLpd`, `district` (both names), `taluka`, `village`, `thumbnailUrl` (cover image `thumb` WebP variant — the 400 px/≤ 40 KB NFR-02 budget), `approvedAt`. No description, no images array, no seller, no view count — the card is deliberately light for 3G list rendering (NFR-01). The WS3 `q`, `taluka`, `minMilk`, `minAge` / `maxAge` and `isPregnant` filters change **which** `ListingCard`s are returned but **not** the card shape — `isPregnant` and `milkYieldLpd` are already fields on `ListingCard` (driving the गाभण / milk badges), so these filters add **no** new response fields.
 
 Example — `GET /api/v1/listings?species=COW&districtId=clxd1st0032l004satara0001&maxPrice=80000&sort=price_asc&limit=2`:
 
@@ -1555,8 +1695,8 @@ Example — `GET /api/v1/listings?species=COW&districtId=clxd1st0032l004satara00
 - [x] Pagination spec: `cursor` param, `nextCursor` in response, default 20, max 50, >50 → 422 per BR-090 #12; meta endpoints explicitly exempted
 - [x] Localization spec: `Accept-Language: mr|en` affects only `message` strings; reference data always returns both `nameEn` and `nameMr`; `whatsappUrl` prefill follows buyer `language_pref` (BR-063)
 - [x] Timestamps ISO-8601 UTC; ids opaque cuid strings; money integer INR; camelCase JSON mapped to snake_case DB names — all stated with examples
-- [x] Idempotency stance documented: retry-safe `POST /interest` (each event logged, analytics dedupe) and naturally deduped favorites, plus no-op rules for submit/mark-sold/read and the explicit renew non-retry warning
-- [x] Every one of the 34 canonical endpoints documented (API-01…API-34), grouped Auth&Users / Reference data / Listings public / Listings seller / Uploads&Images / Favorites / Interest / Reports / Notifications / Admin — paths exactly matching the canonical `/api/v1` surface, no invented endpoints
+- [x] Idempotency stance documented: retry-safe `POST /interest` (each event logged, analytics dedupe) and naturally deduped favorites, plus no-op rules for submit/sold/read and the explicit renew non-retry warning
+- [x] Every one of the 39 canonical endpoints documented (API-01…API-39), grouped Auth&Users / Reference data / Listings public / Listings seller / Uploads&Images / Favorites / Interest / Reports / Notifications / Admin / Feedback / Authentication (OTP) — paths exactly matching the canonical `/api/v1` surface, no invented endpoints
 - [x] Every endpoint entry states: method+path, auth/role, one-line purpose, request params/body table with field/type/required/validation citing BR ids, success status with realistic Marathi-flavored JSON example, endpoint-specific error table, rate limit, and side effects (state transitions T-xx, `moderation_log` rows, `interest_events` rows, `NTF-*` notifications)
 - [x] All four key flows present as valid mermaid `sequenceDiagram` blocks: (a) first login → `POST /users` → `GET /users/me`; (b) create listing end-to-end with presign (`key`, `uploadUrl`, `expiresIn`, required `headers`, R2 PUT semantics) and attach; (c) buyer contact with seller name/phone/`whatsappUrl` reveal; (d) moderation approve/reject with notification side effects
 - [x] Search deep spec: complete query param table (`species`, `breedId`, `districtId`, `minPrice`, `maxPrice`, `sort=newest|price_asc|price_desc`, `cursor`, `limit`), keyset sort semantics, `ListingCard` shape with first-image thumbnail URL, and the exact visibility rule — only `status=APPROVED` returned; owner sees own non-approved via `/users/me/listings` only (BR-034)

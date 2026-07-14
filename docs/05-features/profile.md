@@ -3,9 +3,9 @@
 | Field | Value |
 |---|---|
 | **Status** | Draft |
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Owner** | Founder (Abhishek) |
-| **Last updated** | 2026-07-04 |
+| **Last updated** | 2026-07-14 |
 | **Depends on** | [../01-prd/README.md](../01-prd/README.md) (F-02) · [../04-business-rules/README.md](../04-business-rules/README.md) (BR-010, BR-011, BR-013) · [../06-user-flows/README.md](../06-user-flows/README.md) (Flow A/D, S-04, S-15) · [auth.md](auth.md) |
 
 ## Purpose
@@ -29,13 +29,22 @@ A minimal, mostly-tap profile — name, district, optional taluka/village, role 
 
 ## UX workflow
 
-1. After first successful OTP verification, `GET /users/me` returns 404 → **S-04** "प्रोफाइल तयार करा" (create profile) opens with `returnTo` preserved.
+1. The single Profile route `/profile` resolves via `GET /users/me` into one of three modes rather than always rendering the create form: **setup** (404 → first login → the **S-04** create form, header "तुमची माहिती भरा", subtitle "फक्त नाव आणि जिल्हा — एका मिनिटात पूर्ण होईल.", primary button "पुढे जा", opened with `returnTo` preserved); **view** (200 → the returning-user default, a read-only card — see step 6); **edit** (opened from view). Screen IDs S-04/S-15 both map onto this one `/profile` route; reconciling the screen inventory is doc 06's job (cross-ref only).
 2. User enters **name** (text field) and picks **district** from the 36-district picker (`GET /meta/districts`, Marathi labels, searchable list — no typing needed beyond scroll/filter).
 3. Optional: **taluka** (free text) and **village** (free text with Google Places autocomplete assist; if Places errors or exceeds 2 s the field silently behaves as plain text — PRD F-02 AC-3).
 4. Role flags render as two pre-checked toggles — "मला जनावर विकायचे आहे" (I want to sell an animal) / "मला जनावर विकत घ्यायचे आहे" (I want to buy an animal). Both default `true` (BR-011); at least one must stay on.
 5. Tap "जतन करा" (Save) → `POST /api/v1/users` with `firebaseUid`, `phone` (E.164 from Firebase), `name`, `districtId`, optional `taluka`/`village`, `languagePref` (from the S-01 choice, default `MR`). On success → `returnTo` (pending action auto-executes) or S-05.
-6. **Edits** happen on **S-15** "माझे प्रोफाइल": same fields pre-filled, phone shown read-only with "फोन नंबर बदलता येत नाही" (Phone number cannot be changed). Save → `PATCH /api/v1/users/me`; UI reflects changes without re-login.
+6. **Returning users** land on **S-15** in one of two modes. **VIEW** (the default): a read-only card headed "माझी माहिती" with subtitle "तुमची नोंदणी पूर्ण झाली आहे." and rows नाव / मोबाईल नंबर (formatted `+91 XXXXX XXXXX`) / जिल्हा / तालुका / गाव (empty optionals render as "—"), plus a "माहिती बदला" (Change details) action. **EDIT** (opened from view): the same form pre-filled (header "माहिती बदला", subtitle "बदल करून जतन करा.") — "जतन करा" → `PATCH /api/v1/users/me` returns to VIEW with the updated values, "रद्द करा" cancels back to VIEW. The phone is shown read-only **only** in the VIEW card (row "मोबाईल नंबर") and is **not** rendered as a field in the EDIT form — immutability is enforced by field omission. UI reflects changes without re-login.
 7. Language switching lives on **S-16** and is specified in [settings.md](settings.md); it persists via the same `PATCH /users/me` (`languagePref`).
+
+### Account menu (AppMenu)
+
+The hamburger **AppMenu** (top-right of the home header, `aria-label` "मेनू", opens the shared BottomSheet titled "मेनू") is the returning-user entry point to their profile. At the top sits an **account block**, sourced from `GET /users/me`:
+
+- **Signed in** — an avatar plus the user's `name` (fallback "तुमचे खाते") and, on the second line, their own formatted phone `+91 XXXXX XXXXX` (fallback: district `nameMr`; "प्रोफाइल पूर्ण करा" when the profile row is missing/incomplete — the BR-013 completeness prompt). The own phone is only ever returned by `GET /users/me` (BR-066).
+- **Signed out** — a "लॉगिन करा" button linking to `/login`.
+
+The menu links to माझी प्रोफाइल (→ `/profile`, the view/edit screen above) and, when signed in, ends with a "बाहेर पडा" (Log out) action. **Cross-ref only:** logout semantics are owned by [auth.md](auth.md) step 8 and [settings.md](settings.md) step 7 — the AppMenu runs Firebase `signOut()` then routes home. The menu's other rows — the primary nav items, the `जाहिरात तपासणी` admin link shown when `isAdmin` (BR-012), and the feedback entry "अडचण कळवा / सूचना द्या" (WS5-B Feedback channel, works signed-out) — are owned by docs 06/10, the admin docs, and the Feedback feature doc respectively.
 
 ## Fields & validation
 
@@ -74,9 +83,9 @@ All violations → 422 `VALIDATION_ERROR` with a per-field `details` map; the cl
 | State | What the user sees |
 |---|---|
 | Loading | District picker skeleton while `GET /meta/districts` loads; save button inline spinner during POST/PATCH. |
-| Empty | S-04 first render: empty name field focused, district unset, toggles pre-checked, save disabled until name + district valid. |
+| Empty | S-04 first render: empty name field focused, district unset, toggles pre-checked, save disabled until name + district valid. A **returning** user's default render is instead the read-only "माझी माहिती" VIEW card, not this setup form. |
 | Error | Inline field errors per table; network failure on save → toast "इंटरनेट नाही. पुन्हा प्रयत्न करा." with the form values retained and a retry action (README §3.3 — no background queue). |
-| Success | S-04: routed to `returnTo` with the pending action auto-executed. S-15: toast "जतन झाले" (Saved), fields stay editable. |
+| Success | S-04: routed to `returnTo` with the pending action auto-executed. S-15 edit: after "जतन करा" the screen returns to the read-only "माझी माहिती" card with the updated values, rather than staying in a form. |
 | Edge | **Places API slow/down:** village silently degrades to plain text. **Both toggles switched off:** save blocked client-side and rejected server-side (`VALIDATION_ERROR`). **Killed before S-04 save:** no `users` row; next login re-enters S-04. **Incomplete profile deep-links to a write action:** 403 `PROFILE_INCOMPLETE` → S-04 with `returnTo` back to the action. |
 
 ## Analytics
@@ -93,10 +102,12 @@ Profile edits fire no client event (server truth: `users.updated_at`).
 2. `POST /users` creates the row with both role flags defaulting `true` and `languagePref` from the S-01 choice; a second POST for the same Firebase UID returns `USER_ALREADY_EXISTS` and the client recovers via `GET /users/me` without user-visible error.
 3. Village autocomplete suggestions appear when Google Places responds within 2 s; on error/timeout the field accepts free text with no visible failure.
 4. `PATCH /users/me` persists edits to name, district, taluka, village, role flags, and languagePref; the UI reflects them immediately without re-login.
-5. The phone number renders read-only on S-15 with the copy "फोन नंबर बदलता येत नाही"; no UI path or API field allows changing it.
+5. The phone number renders read-only in the profile VIEW card (row "मोबाईल नंबर", formatted) and is **not** present as an editable field in the EDIT form; no UI path or API field allows changing it — immutability is enforced by field omission.
 6. Turning both role flags off is blocked client-side and, if forced via API, rejected with 422 `VALIDATION_ERROR`.
 7. A logged-in user with an incomplete profile can browse freely but is redirected to S-04 (with `returnTo`) when attempting listing creation, interest, favorite, or report — server enforced via 403 `PROFILE_INCOMPLETE`.
 8. A name consisting only of digits or a phone-number pattern is rejected with the inline MR error "तुमचे नाव टाका (2–50 अक्षरे)".
+9. A returning user opening `/profile` (`GET /users/me` 200) sees the read-only "माझी माहिती" card — not the create form; "माहिती बदला" opens the pre-filled edit form, "जतन करा" PATCHes and returns to the card with the updated values, and "रद्द करा" returns without saving.
+10. When signed in, the home AppMenu account block shows the user's name and formatted phone from `GET /users/me` and a "बाहेर पडा" logout action; when signed out it shows a "लॉगिन करा" button; the block shows "प्रोफाइल पूर्ण करा" when the profile is incomplete.
 
 ## Out of scope
 

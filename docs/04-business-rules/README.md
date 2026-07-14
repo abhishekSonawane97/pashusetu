@@ -3,9 +3,9 @@
 | Field | Value |
 |---|---|
 | **Status** | Draft |
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Owner** | Founder (Abhishek) |
-| **Last updated** | 2026-07-04 |
+| **Last updated** | 2026-07-14 |
 | **Depends on** | [../00-foundation/README.md](../00-foundation/README.md) · [../01-prd/README.md](../01-prd/README.md) · [../03-users/README.md](../03-users/README.md) |
 
 > **This document OWNS every platform rule.** Each rule has a stable id (`BR-xx`) that all other docs cite — features ([../05-features/README.md](../05-features/README.md)), user flows ([../06-user-flows/README.md](../06-user-flows/README.md)), database ([../07-database/README.md](../07-database/README.md)), API contracts ([../08-api/README.md](../08-api/README.md)), backend ([../09-backend/README.md](../09-backend/README.md)), security ([../12-security/README.md](../12-security/README.md)) and legal ([../16-legal/README.md](../16-legal/README.md)). If a downstream doc contradicts a BR id here, this doc wins. If this doc contradicts [../00-foundation/README.md](../00-foundation/README.md), the foundation doc wins.
@@ -29,7 +29,7 @@
 
 ### BR-010 — Registration
 
-- Sign-up is **phone OTP only** via Firebase Authentication (locked decision D3). The backend never sends or verifies OTPs; the Firebase client SDK handles the OTP round-trip and its own rate limiting.
+- Sign-up is **phone OTP only** (locked decision D3). The OTP round-trip is now **backend-managed** — the server generates the code, sends it via the SMS provider, verifies it, and mints the session (provider = Fast2SMS + Firebase custom-token session; this superseded the original Firebase-client-SDK OTP for go-live and is owned by [../00-foundation/README.md](../00-foundation/README.md), [../09-backend/README.md](../09-backend/README.md), [../13-deployment/README.md](../13-deployment/README.md)). Canonical OTP value rules: a sent code is **valid 10 minutes**; the **resend timer is 120 s** with a **minimum 30 s cooldown** between sends; at most **5 wrong-code attempts** are allowed before a fresh code is required. In dev/CI only, `OTP_TEST_MODE` accepts the fixed code `246810` (never in production).
 - After the first successful Firebase login the client MUST call `POST /api/v1/users` to create the profile row (`firebase_uid`, `phone` in E.164, `name`, `district_id`, optional `taluka`/`village`, `language_pref` defaulting to `MR`).
 - One phone number = one account (`users.phone` is unique; `users.firebase_uid` is unique).
 - No Aadhaar, no e-mail, no password is ever collected or stored (foundation §8).
@@ -43,7 +43,7 @@
 
 ### BR-012 — Admin provisioning
 
-- Admins are provisioned **manually by the Founder** by setting `is_admin = true` directly in the database (Prisma seed script or SQL console). There is **no UI or API** to grant or revoke the admin flag in MVP.
+- Admins are provisioned **manually by the Founder** by setting `is_admin = true` directly in the database (via `scripts/grant-admin.ts` — run `pnpm grant-admin +91…` — or a direct SQL `UPDATE`). There is **no UI or API** to grant or revoke the admin flag in MVP.
 - An admin is a normal user in every other respect (can list, favorite, buy).
 - Every admin mutation (approve, reject, ban, unban, resolve, dismiss, auto-hide) is written to `moderation_log` (BR-046).
 - Admin endpoints (`/api/v1/admin/*`) require a verified Firebase ID token whose user row has `is_admin = true`; otherwise → `FORBIDDEN` (HTTP 403).
@@ -53,7 +53,7 @@
 
 - A profile is **complete** when `name` (2–50 characters) and `district_id` (one of the 36 seeded Maharashtra districts) are set. `taluka` and `village` are optional at signup.
 - Browsing (`GET /listings`, `GET /listings/{id}`, `GET /meta/*`) never requires a profile — or even a login (BR-060).
-- Every **authenticated write** (create listing, favorite, interest, report) requires a complete profile. Incomplete profile → error code `PROFILE_INCOMPLETE` (HTTP 403); the client redirects to the profile completion screen.
+- Every **authenticated write** (create listing, favorite, interest, report) requires a complete profile (the one exception is the feedback channel, which accepts anonymous and profile-incomplete submissions — BR-067). Incomplete profile → error code `PROFILE_INCOMPLETE` (HTTP 403); the client redirects to the profile completion screen.
 - **Enforcement:** API middleware on all authenticated write routes.
 
 ### BR-014 — Bans: criteria, effects, reversal
@@ -102,26 +102,26 @@ MVP ships **helpline-mediated deletion with in-place anonymization** (no self-se
 
 ### BR-022 — Required vs optional fields per species
 
-Species enum: `COW | BUFFALO | BULL_OX | GOAT | SHEEP`. Field names per the canonical data model ([../07-database/README.md](../07-database/README.md)).
+Species enum: `COW | BUFFALO | BULL_OX | GOAT | SHEEP | REDA`. Field names per the canonical data model ([../07-database/README.md](../07-database/README.md)).
 
-| Field | COW | BUFFALO | BULL_OX | GOAT | SHEEP | Validation |
-|---|---|---|---|---|---|---|
-| `species` | R | R | R | R | R | enum |
-| `breed_id` | R | R | R | R | R | must belong to the chosen species; every species has a "local/crossbred" (स्थानिक/संकरित) option so R is always satisfiable |
-| `sex` | fixed `FEMALE` | R | fixed `MALE` | R | R | `COW` implies `FEMALE`; `BULL_OX` implies `MALE` (server rejects mismatches with `VALIDATION_ERROR`) |
-| `age_months` | R | R | R | R | R | integer 1–300 |
-| `weight_kg` | O | O | O | O (recommended) | O (recommended) | integer 5–1500 |
-| `milk_yield_lpd` | **R** | **R if `sex=FEMALE`**, else N/A | N/A | O if `sex=FEMALE` | N/A | number 0–60 (0 = currently dry) |
-| `lactation_number` | O | O if `sex=FEMALE` | N/A | O if `sex=FEMALE` | N/A | integer 0–15 (0 = not yet calved) |
-| `is_pregnant` | O | O if `sex=FEMALE` | N/A | O if `sex=FEMALE` | O if `sex=FEMALE` | boolean |
-| `is_vaccinated` | O | O | O | O | O | boolean |
-| `price_inr` | R | R | R | R | R | BR-026 |
-| `negotiable` | R | R | R | R | R | boolean, default `true` |
-| `district_id` | R | R | R | R | R | one of 36 seeded MH districts |
-| `taluka` | R | R | R | R | R | tehsil — string ≤ 60 chars (compulsory at submit; nullable while DRAFT) |
-| `village` | R | R | R | R | R | string 2–60 chars |
-| `description` | R | R | R | R | R | BR-025 |
-| photos | R | R | R | R | R | BR-023 |
+| Field | COW | BUFFALO | BULL_OX | GOAT | SHEEP | REDA | Validation |
+|---|---|---|---|---|---|---|---|
+| `species` | R | R | R | R | R | R | enum |
+| `breed_id` | R | R | R | R | R | R | must belong to the chosen species; every species has a "local/crossbred" (स्थानिक/संकरित) option so R is always satisfiable |
+| `sex` | fixed `FEMALE` | R | fixed `MALE` | R | R | fixed `MALE` | `COW` implies `FEMALE`; `BULL_OX` and `REDA` imply `MALE` (server rejects mismatches with `VALIDATION_ERROR`) |
+| `age_months` | R | R | R | R | R | R | integer 1–300 |
+| `weight_kg` | O | O | O | O (recommended) | O (recommended) | O | integer 5–1500 |
+| `milk_yield_lpd` | **R** | **R if `sex=FEMALE`**, else N/A | N/A | O if `sex=FEMALE` | N/A | N/A | number 0–60 (0 = currently dry) |
+| `lactation_number` | O | O if `sex=FEMALE` | N/A | O if `sex=FEMALE` | N/A | N/A | integer 0–15 (0 = not yet calved) |
+| `is_pregnant` | O | O if `sex=FEMALE` | N/A | O if `sex=FEMALE` | O if `sex=FEMALE` | N/A | boolean |
+| `is_vaccinated` | O | O | O | O | O | O | boolean |
+| `price_inr` | R | R | R | R | R | R | BR-026 |
+| `negotiable` | R | R | R | R | R | R | boolean, default `true` |
+| `district_id` | R | R | R | R | R | R | one of 36 seeded MH districts |
+| `taluka` | R | R | R | R | R | R | tehsil — string ≤ 60 chars (compulsory at submit; nullable while DRAFT) |
+| `village` | R | R | R | R | R | R | string 2–60 chars |
+| `description` | R | R | R | R | R | R | BR-025 |
+| photos | R | R | R | R | R | R | BR-023 |
 
 R = required at submit (`DRAFT` may be saved partially filled; the guard runs at `POST /listings/{id}/submit`). N/A fields MUST be null and MUST NOT be shown in the create form for that species/sex combination. Violations → `VALIDATION_ERROR` with a per-field `details` map.
 
@@ -131,14 +131,14 @@ R = required at submit (`DRAFT` may be saved partially filled; the guard runs at
 
 | Rule | Value |
 |---|---|
-| Photos per listing | **min 3, max 5** (foundation §4; the create UI explains the minimum with a Marathi nudge: "किमान ३ फोटो टाकल्यास जनावर लवकर विकले जाते" — "With at least 3 photos the animal sells faster") |
+| Photos per listing | **min 3, max 10** (foundation §4; the create UI explains the minimum with a Marathi nudge: "किमान ३ फोटो टाकल्यास जनावर लवकर विकले जाते" — "With at least 3 photos the animal sells faster") |
 | Max file size | **5 MB per photo** (validated at `POST /uploads/presign` and re-validated on attach) |
 | Accepted upload formats | **JPEG, PNG, WebP** (content-type validated at presign; magic-bytes re-check server-side on attach) |
 | Stored/served format | Server generates and serves **WebP variants** (original kept in R2; sizes defined in [../09-backend/README.md](../09-backend/README.md)) |
 | Video | **NOT supported in MVP.** No video upload, no video URL field. (Extension point only; see foundation OUT-of-scope list.) |
-| Ordering | `listing_images.sort_order` 0–4; image with `sort_order = 0` is the cover photo |
+| Ordering | `listing_images.sort_order` 0–9; image with `sort_order = 0` is the cover photo |
 
-- Upload flow: `POST /api/v1/uploads/presign` → direct PUT to R2 → `POST /api/v1/listings/{id}/images` to attach. Attaching a 6th image → `PHOTO_LIMIT_EXCEEDED`. Oversize/wrong type at presign → `INVALID_UPLOAD`.
+- Upload flow: `POST /api/v1/uploads/presign` → direct PUT to R2 → `POST /api/v1/listings/{id}/images` to attach. Attaching an 11th image → `PHOTO_LIMIT_EXCEEDED`. Oversize/wrong type at presign → `INVALID_UPLOAD`.
 - Photo **content** rules are in BR-082.
 - **Enforcement:** API (presign + attach) + R2 object-size check + moderation.
 
@@ -469,6 +469,7 @@ A ban (BR-014) is warranted when either:
   1. **Hard block at create/edit/submit**: server regex rejects clear Indian mobile patterns — `(\+?91[\s-]?)?[6-9]\d{9}` and any run of 10+ digits, checked against both ASCII digits and Devanagari digits (`०-९`, normalized before matching). Violation → `PHONE_IN_DESCRIPTION` (HTTP 422) with Marathi copy: "कृपया वर्णनात फोन नंबर लिहू नका. खरेदीदारांना तुमचा नंबर 'कॉल करा' बटणाने आपोआप मिळेल." ("Please don't write phone numbers in the description. Buyers get your number automatically via the Call button.")
   2. **Soft flag for moderation**: any run of 8–9 digits (possible split/obfuscated numbers, e.g., "98765 432 10" or numbers written in words) sets a "possible contact info" badge in the moderation queue; the admin rejects with `CONTACT_IN_DESCRIPTION` (BR-043) if it is a contact attempt. Phone numbers written on photo overlays are caught by the same rejection reason during photo review (BR-082).
 - Rationale: the reveal-and-log funnel (BR-062) is the platform's only conversion metric; leaked numbers destroy it and enable scraping.
+- This rule applies to listing text and taluka/village only. The feedback channel (BR-067) is **not** subject to it — a callback number in feedback `message`/`contact` is expected and permitted, because feedback is never publicly displayed.
 - **Enforcement:** API (hard block) + moderation (soft flag).
 
 ### BR-066 — Seller phone never in public surfaces
@@ -476,6 +477,15 @@ A ban (BR-014) is warranted when either:
 - Public API payloads, server-rendered HTML, sitemaps, SEO metadata, Open Graph tags, and error messages MUST NOT contain seller phone numbers. The only egress is BR-062's authenticated, logged endpoint.
 - `GET /users/me` returns the caller's own phone; no endpoint returns another user's phone outside BR-062. Admin panel views may show phone numbers to admins only.
 - **Enforcement:** API payload shaping + review checklist in [../12-security/README.md](../12-security/README.md).
+
+### BR-067 — Feedback channel
+
+- Any visitor — **logged in or anonymous** — may submit app feedback via `POST /api/v1/feedback` with `type` ∈ `PROBLEM | SUGGESTION | OTHER`, a `message` (3–1000 chars), and optional `contact` and `path`. `userId` is attached only when a valid token is present (optionalAuth); an anonymous submission is allowed and is never blocked.
+- Feedback is the **sole write exempt from BR-013 profile-completeness** (a signed-out or profile-incomplete user can still report a problem) **and exempt from BR-065 (no phone numbers)** — the optional `contact` field is explicitly meant to hold a callback number; feedback text is never publicly displayed.
+- Feedback is **admin-triaged only**: `GET /api/v1/admin/feedback` + `PATCH /api/v1/admin/feedback/{id}` (both `requireAdmin`), status lifecycle `NEW → SEEN → DONE`.
+- **Enforcement:** API (optionalAuth on the public POST; requireAdmin on the admin routes).
+
+Enums (`FeedbackType`, `FeedbackStatus`) + the `Feedback` model are owned by [../07-database/README.md](../07-database/README.md); endpoint contracts by [../08-api/README.md](../08-api/README.md); the FeedbackSheet + `/admin/feedback` inbox UI by [../10-frontend-design-requirements/README.md](../10-frontend-design-requirements/README.md) / [../05-features/README.md](../05-features/README.md).
 
 ---
 
@@ -561,7 +571,7 @@ A listing containing any of the following is rejected (reason in parentheses); s
 |---|---|---|---|
 | 1 | Slaughter intent — explicit or coded (e.g., "कत्तलीसाठी", "meat purpose", per-kg meat pricing of live animals) | `SLAUGHTER_INTENT` | Severe → ban eligible on first offense (Maharashtra Animal Preservation Act; foundation §8) |
 | 2 | Endangered/protected/wild species (deer, tortoises, exotic birds, any Wildlife Protection Act animal) | `WRONG_CATEGORY` | Severe → ban eligible |
-| 3 | Any non-livestock animal (dogs, cats, poultry, horses, camels — outside the 5-species enum) | `WRONG_CATEGORY` | Standard |
+| 3 | Any non-livestock animal (dogs, cats, poultry, horses, camels — outside the 6-species enum) | `WRONG_CATEGORY` | Standard |
 | 4 | Abusive, obscene, casteist, or communal language | `OTHER` (free text) | Standard; severe abuse → ban eligible |
 | 5 | Fabricated claims presented as fact (fake vet certificates, invented milk yields contradicted by photos) | `FRAUD_SUSPECTED` | Counts toward 3-strike ban |
 | 6 | Links to other marketplaces, external URLs, QR codes in photos | `CONTACT_IN_DESCRIPTION` | Standard |
@@ -593,13 +603,15 @@ Single source of truth for every numeric limit on the platform. Docs 05/08/09/12
 
 | # | Limit | Value | Scope / window | Enforced at | Error code | Defined in |
 |---|---|---|---|---|---|---|
-| 1 | OTP send/verify | Handled entirely by **Firebase client SDK** (backend never sends OTP) | Firebase's own abuse controls | Firebase | — | BR-010 |
+| 1a | OTP code validity | **10 min** | Per sent code | API (server) | `VALIDATION_ERROR` (expired) | BR-010 |
+| 1b | OTP resend | **120 s timer, 30 s min cooldown** | Per phone | API | `RATE_LIMITED` (429) | BR-010 |
+| 1c | OTP wrong-code attempts | **5 per code** | Per sent code | API + DB (atomic) | `VALIDATION_ERROR` | BR-010 |
 | 2 | API writes | **60 / minute / user** | All authenticated mutating endpoints, rolling window | API middleware | `RATE_LIMITED` (429) | BR-090 |
 | 3 | Interest events | **20 / day / buyer** | All types + all listings, rolling 24h | API | `RATE_LIMITED` (429) | BR-064 |
 | 4 | Reports | **5 / day / user** | All listings, rolling 24h | API | `RATE_LIMITED` (429) | BR-051 |
 | 5 | Open report per listing per reporter | **1** | Per (listing, reporter) | API + DB | `REPORT_ALREADY_EXISTS` (409) | BR-050 |
 | 6 | Active listings | **10 / user** | Non-terminal statuses | API (create txn) | `LISTING_LIMIT_REACHED` (409) | BR-024 |
-| 7 | Photos per listing | **3 min – 5 max** | Per listing | API (attach/submit) | `PHOTO_LIMIT_EXCEEDED` (409) | BR-023 |
+| 7 | Photos per listing | **3 min – 10 max** | Per listing | API (attach/submit) | `PHOTO_LIMIT_EXCEEDED` (409) | BR-023 |
 | 8 | Photo file size | **≤ 5 MB** | Per file, JPEG/PNG/WebP only | Presign + attach | `INVALID_UPLOAD` (422) | BR-023 |
 | 9 | Description length | **10–1000 characters** | Per listing | API | `VALIDATION_ERROR` (422) | BR-025 |
 | 10 | Price bounds | **₹500 – ₹10,00,000** (integer INR) | Per listing | API | `VALIDATION_ERROR` (422) | BR-026 |
@@ -614,6 +626,7 @@ Single source of truth for every numeric limit on the platform. Docs 05/08/09/12
 | 19 | Moderation SLA | **24 hours to decision** (target) | Per PENDING listing | Process + admin metrics | — | BR-041 |
 | 20 | Deletion execution | **≤ 7 days** from verified request | Per request | Admin runbook | — | BR-015 |
 
+- The per-IP OTP send cap (toll-fraud guard) is enforced by the API; its value is owned by [../09-backend/README.md](../09-backend/README.md) / [../12-security/README.md](../12-security/README.md) and is deliberately not pinned in this table.
 - The 60/min write limit is deliberately generous (a human cannot hit it; scripts can) — it is an abuse backstop, not a UX constraint.
 - Rate-limit responses include a `details.retryAfterSeconds` field in the error envelope (contract in [../08-api/README.md](../08-api/README.md)).
 
@@ -631,7 +644,7 @@ Every business-behavior question raised in the Phase-1 plan ([../02-research/sou
 | Can sold listings be edited? | BR-028, BR-032 (never — SOLD is terminal) |
 | Can users report fake listings? | BR-050, BR-052 |
 | Maximum listings? | BR-024 (10 active per user) |
-| Photo limits? | BR-023 (3–5 photos, ≤5 MB, JPEG/PNG/WebP) |
+| Photo limits? | BR-023 (3–10 photos, ≤5 MB, JPEG/PNG/WebP) |
 | Video limits? | BR-023 (no video in MVP) |
 | Listing expiry? | BR-072, BR-073, BR-074 (30 days, 3-day warning, one-tap renew) |
 | Moderation process? | BR-040–BR-046 |
@@ -644,7 +657,7 @@ Every business-behavior question raised in the Phase-1 plan ([../02-research/sou
 ## Acceptance checklist
 
 - [x] Every rule has a stable `BR-xx` id; ids are unique and grouped by series (01x accounts, 02x listings, 03x lifecycle, 04x moderation, 05x reports, 06x contact/privacy, 07x favorites/notifications/expiry, 08x content, 09x limits)
-- [x] All canonical values reproduced exactly: photos 3–5 / ≤5 MB / JPEG-PNG-WebP / WebP variants / no video; 10 active listings; 30-day expiry with one-tap renew and no re-moderation; price-only edit exception; SOLD not editable/renewable; 24h moderation SLA; ≥3 open reports auto-hide; duplicate heuristic (same seller + species + ±10% price + 7 days, admin warning only); manual bans archiving all listings; OTP via Firebase client SDK; 60 writes/min; 20 interests/day; 5 reports/day; public browse; login-gated contact; phone reveal only via interest endpoint with logging; cursor pagination 20/50; mandatory seller declaration with stored `declaration_accepted` + timestamp
+- [x] All canonical values reproduced exactly: photos 3–10 / ≤5 MB / JPEG-PNG-WebP / WebP variants / no video; 10 active listings; 30-day expiry with one-tap renew and no re-moderation; price-only edit exception; SOLD not editable/renewable; 24h moderation SLA; ≥3 open reports auto-hide; duplicate heuristic (same seller + species + ±10% price + 7 days, admin warning only); manual bans archiving all listings; OTP backend-managed (code valid 10 min / 120 s resend timer / 5 wrong-attempt cap; SMS provider & custom-token session per 00-foundation & 13-deployment); 60 writes/min; 20 interests/day; 5 reports/day; public browse; login-gated contact; phone reveal only via interest endpoint with logging; cursor pagination 20/50; mandatory seller declaration with stored `declaration_accepted` + timestamp
 - [x] State machine covers every canonical transition (T-01–T-12), including both `APPROVED → PENDING` paths (non-price edit, auto-hide), `EXPIRED → APPROVED` renew, and non-terminal → `ARCHIVED` via seller archive and admin ban
 - [x] Disallowed transitions explicitly listed with `INVALID_STATE_TRANSITION` behavior (incl. `SOLD` → anything, `ARCHIVED` → anything)
 - [x] Transition table specifies Trigger, Actor, Guards, and Side-effects (notifications, `expires_at`, `moderation_log`) for every transition

@@ -3,9 +3,9 @@
 | Field | Value |
 |---|---|
 | **Status** | Approved |
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Owner** | Founder (Abhishek) |
-| **Last updated** | 2026-07-04 |
+| **Last updated** | 2026-07-14 |
 | **Depends on** | — (root document; everything depends on this) |
 
 > This is the single source of truth for PashuSetu. Every other document in `docs/` must be consistent with this file. If a downstream doc contradicts this file, this file wins and the downstream doc is defective.
@@ -46,9 +46,9 @@ Become India's largest livestock ecosystem — beyond buying and selling: veteri
 |---|---|---|---|
 | D1 | Application architecture | **Next.js full-stack** — single codebase, App Router, API route handlers. No separate Express/NestJS server in MVP. | Solo developer; one deploy; extract a dedicated backend only when scale demands (revisit trigger documented in ADRs, doc 11). |
 | D2 | Database | **Neon PostgreSQL** (serverless) via **Prisma ORM** | Highly relational domain (farmers→listings→breeds→districts); ACID; strong reporting. |
-| D3 | Authentication | **Firebase Authentication — phone OTP**. Roles: `farmer`, `buyer`, `admin`. A user may act as both farmer and buyer with one account. | OTP is the only viable auth for the audience; avoids Aadhaar/KYC compliance burden. |
-| D4 | File storage | **Cloudflare R2** (S3-compatible), presigned-URL direct uploads | Zero egress fees for an image-heavy marketplace. |
-| D5 | Hosting / CI | **Vercel** (hosting + previews) + **GitHub** + GitHub Actions (lint/typecheck/test/migrate checks) | Managed, free tier sufficient for MVP. |
+| D3 | Authentication | **Firebase Authentication — phone OTP**. Roles: `farmer`, `buyer`, `admin`. A user may act as both farmer and buyer with one account. *Go-live OTP channel: the SMS is sent via **Fast2SMS** (`SMS_OTP_PROVIDER=fast2sms`, `FAST2SMS_ROUTE=quick`, pre-DLT bridge), then a **Firebase custom token** mints the session — Firebase stays the identity/session layer, only the SMS delivery changed (Firebase Phone Auth's card requirement + ~₹6/OTP were unviable). `OTP_TEST_MODE` fixed code 246810 is dev/CI only. Numeric OTP rule values (10-min validity, 120s resend, 5-attempt cap) are owned by ../04-business-rules/README.md — not restated here.* | OTP is the only viable auth for the audience; avoids Aadhaar/KYC compliance burden. |
+| D4 | File storage | **Supabase Storage** (S3-compatible), presigned-URL direct uploads. *(Go-live amendment 2026-07-14 — was Cloudflare R2.)* | R2 required a payment card unavailable at go-live; Supabase exposes the same S3 API, so the switch is env-only (`R2_ENDPOINT` = Supabase S3 endpoint, `R2_FORCE_PATH_STYLE=1`, real `R2_REGION`) with no code change. Local dev still uses MinIO. Bucket layout/keys unchanged — see ../09-backend/README.md §7 and ../13-deployment/README.md for deployment. |
+| D5 | Hosting / CI | **Vercel** (hosting + previews) + **GitHub** + GitHub Actions (lint/typecheck/test/migrate checks). **Production is LIVE at pashusetu.online** (Vercel + Neon), go-live 2026-07. Prod DB migrations are applied MANUALLY (`prisma migrate deploy` via `DIRECT_URL`) BEFORE each code push — runbook in ../13-deployment/README.md (do not duplicate here). | Managed, free tier sufficient for MVP. |
 | D6 | Buyer→seller contact (MVP) | **Click-to-call + WhatsApp deep-link only**, plus a logged **"Send Interest" event** for conversion metrics. **In-app chat is Phase 2**, not MVP. | Rural users live on calls/WhatsApp; cuts large build+moderation scope. |
 | D7 | Team & sprint sizing | **Solo developer + external designer.** 2-week sprints sized for one dev. Designer works from doc 10 (design requirements), not from our sketches. | Reality of the team. |
 | D8 | Language | Marathi-first UI, English fallback (i18n from day 1). All project docs in English. | Audience is rural Maharashtra. |
@@ -60,7 +60,7 @@ Become India's largest livestock ecosystem — beyond buying and selling: veteri
 ### IN scope (MVP)
 1. Phone-OTP authentication (Firebase) & session management
 2. User profile (name, village/district, role flags)
-3. Animal listing CRUD with photos (3–5 per listing), species, breed, age, price, milk yield, health flags, location
+3. Animal listing CRUD with photos (3–10 per listing), species, breed, age, price, milk yield, health flags, location (canonical count rule = BR-023 in ../04-business-rules/README.md; stated here only for scope-completeness).
 4. Search & filters (species, breed, district, price range) with pagination
 5. Listing detail page (photo carousel, all attributes, seller contact)
 6. Contact seller: click-to-call, WhatsApp deep-link, "Send Interest" logged event
@@ -99,6 +99,7 @@ Payments/escrow · delivery/transport · AI price estimation · insurance · loa
 |---|---|---|
 | Cow | गाय (Gai) | Female bovine; primary listed species |
 | Buffalo | म्हैस (Mhais) | Water buffalo |
+| He-buffalo (Reda) | रेडा (Reda) | Male / draught water-buffalo; 6th listed species (added 2026-07) |
 | Goat | शेळी (Sheli) | — |
 | Sheep | मेंढी (Mendhi) | — |
 | Bull / Ox | बैल (Bail) | Draft/breeding male |

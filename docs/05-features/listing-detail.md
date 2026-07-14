@@ -3,10 +3,10 @@
 | Field | Value |
 |---|---|
 | **Status** | Draft |
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Owner** | Founder (Abhishek) |
-| **Last updated** | 2026-07-04 |
-| **Depends on** | [../01-prd/README.md](../01-prd/README.md) (F-05) · [../04-business-rules/README.md](../04-business-rules/README.md) (BR-034, BR-060, BR-062, BR-066) · [../06-user-flows/README.md](../06-user-flows/README.md) (Flow C, S-07, S-08, S-09) · [contact-seller.md](contact-seller.md) · [favorites.md](favorites.md) · [reporting.md](reporting.md) |
+| **Last updated** | 2026-07-14 |
+| **Depends on** | [../01-prd/README.md](../01-prd/README.md) (F-05) · [../04-business-rules/README.md](../04-business-rules/README.md) (BR-034, BR-060, BR-062, BR-066) · [../06-user-flows/README.md](../06-user-flows/README.md) (Flow C, S-07, S-08, S-09) · [contact-seller.md](contact-seller.md) · [favorites.md](favorites.md) · [reporting.md](reporting.md) · [search-filters.md](search-filters.md) (the related-animals shelf reuses its APPROVED search — query contract `listingRepo.searchApproved` by district + species) |
 
 ## Purpose
 
@@ -29,14 +29,15 @@ The conversion surface: one public, server-side-rendered page per APPROVED listi
 
 ## UX workflow
 
-1. Entry from S-05/S-06 cards, S-13 favorites, S-14 notifications, or a shared deep link `/listings/{id}` → **S-07** renders server-side: photo carousel, price + "बोलणी होऊ शकते" (negotiable) badge, attribute table, location (village, taluka, district), description, seller row, posted date, and the sticky contact bar (कॉल करा / WhatsApp / आवड कळवा — specified in [contact-seller.md](contact-seller.md)), plus favorite heart, share, and "तक्रार करा" (report).
+1. Entry from S-05/S-06 cards, S-13 favorites, S-14 notifications, or a shared deep link `/listings/{id}` → **S-07** renders server-side: photo carousel, price + "बोलणी होऊ शकते" (negotiable) badge, attribute table, location (village, taluka, district), description, seller row, posted date, and the sticky contact bar (कॉल करा / WhatsApp / आवड कळवा — specified in [contact-seller.md](contact-seller.md)), plus the favorite heart and "तक्रार करा" (report) triggers. Two floating controls overlay the carousel: a fixed **top-left back/home control** (aria-label "मुख्य पानावर जा", go to home page) and a fixed **top-right share control** (aria-label "शेअर करा", share) — share is this floating control, not part of the favorite-heart / report row. The back control always navigates to **home (`/`)**, never `router.back()`: a WhatsApp-shared deep link has no safe in-app history, so `back()` would strand the buyer on a blank/external page whereas home never strands; it is fixed and stays reachable while scrolling, and is present on the detail page and on the sold/unavailable banner states (workflow step 9).
 2. **Photo carousel:** swipeable, position indicator ("2/5"); first image is the preloaded LCP element (NFR-02). Tapping opens **S-08** full-screen viewer with pinch-zoom and swipe. A single-photo listing renders without swipe affordance or counter.
 3. **Attribute table** (Marathi labels): जात (breed), लिंग (sex), वय (age, rendered as years + months from `ageMonths`), वजन (weight), दूध उत्पादन (milk yield l/day), वेत (lactation), गाभण (pregnant), लसीकरण (vaccinated). Unset optional fields are omitted entirely — never "null", "-" or "N/A".
 4. **Description:** collapsed to 4 lines with "अधिक वाचा" (read more) toggle when longer.
 5. **Seller row** → **S-09** bottom sheet: first name, village + district, member-since month, count of active listings, and "या विक्रेत्याच्या इतर जाहिराती" (this seller's other listings) → S-06 filtered. **No phone number anywhere** (BR-062, BR-066).
-6. **Share:** Web Share API (fallback: copy link) with prefill "PashuSetu वर हे जनावर पाहा: {url}" (See this animal on PashuSetu: {url}); the Open Graph image is the listing's card variant so WhatsApp previews show the animal (NFR-09).
-7. **Owner view:** contact bar replaced by "ही तुमची जाहिरात आहे" (this is your listing) with a "जाहिरात बदला" (edit) shortcut → S-12; the owner also sees their own non-APPROVED listings here with a status banner. Admins see any status with a banner.
-8. **Unavailable state:** a public fetch of a non-APPROVED listing (sold, expired, hidden, rejected, archived, draft) returns HTTP 404 → S-07 renders "ही जाहिरात आता उपलब्ध नाही" (this listing is no longer available) with a browse CTA → S-05/S-06. When the client already knows the status is SOLD (e.g. navigating from a favorites card, or the status changed while the page was open), it shows the specific banner "हे जनावर विकले गेले आहे" (this animal has been sold) with the contact bar hidden — the API itself still 404s SOLD listings publicly (BR-034).
+6. **Related animals:** below the seller card sit one or more horizontal, swipe-scrollable shelves of other APPROVED listings, rendered as S-06-style ListingCards. The MVP ships a single **"nearby"** shelf — other animals of the **same species in the same district** — titled "{जिल्हा} मधील जनावरे" (animals in {district}) with a "सर्व पहा" (see all) link → S-06 filtered by that district + species. The current listing is excluded and animals are de-duplicated across shelves; a district with no other animals renders no shelf (the section is simply absent). Server-rendered so the card links are in the SSR HTML (SEO, NFR-09); pure-CSS scroll-snap, no client JS. The shelf reuses the APPROVED search — its query contract lives in [search-filters.md](search-filters.md).
+7. **Share:** the primary path is the native **Web Share sheet** (`navigator.share`), which on mobile offers WhatsApp / Facebook / Telegram / etc. directly. On desktop and browsers without Web Share it falls back to a bottom sheet ("शेअर करा", share) of explicit per-platform links — **WhatsApp** (wa.me), **Facebook** (sharer), **Telegram** (t.me) — plus **"लिंक कॉपी करा"** (copy link), which flips to "लिंक कॉपी झाली ✓" (link copied) after a tap. The payload is the Marathi blurb "{जात} {प्रजाती} — ₹{किंमत}\n{गाव, तालुका, जिल्हा}\nपशुसेतू वर पहा 👇" (breed + species — price · location · "see it on पशुसेतू") followed by the public {url}. It carries **no seller phone** (BR-066); the Open Graph image is the listing's card variant so WhatsApp previews show the animal (NFR-09).
+8. **Owner view:** contact bar replaced by "ही तुमची जाहिरात आहे" (this is your listing) with a "जाहिरात बदला" (edit) shortcut → S-12; the owner also sees their own non-APPROVED listings here with a status banner. Admins see any status with a banner.
+9. **Unavailable state:** a public fetch of a non-APPROVED listing (sold, expired, hidden, rejected, archived, draft) returns HTTP 404 → S-07 renders "ही जाहिरात आता उपलब्ध नाही" (this listing is no longer available) with the fixed **top-left back/home control** and a browse CTA reading "इतर जनावरे पहा" (see other animals) → S-06 (`/listings`). When the client already knows the status is SOLD (e.g. navigating from a favorites card, or the status changed while the page was open), it shows the specific banner "हे जनावर विकले गेले आहे" (this animal has been sold) with the contact bar hidden — this banner state also renders the top-left back/home control — the API itself still 404s SOLD listings publicly (BR-034). A hard not-found path calls Next `notFound()` → the global branded Marathi 404 page (owned by the frontend/routing doc).
 
 ## Fields & validation
 
@@ -75,8 +76,8 @@ Read-only surface — no user input except taps. Rendered-field rules:
 |---|---|
 | Loading | SSR delivers content-first paint; client hydration shows skeletons only for authed extras (favorite state, own-listing check). Photo tiles show blur-up placeholders until the WebP loads. |
 | Empty | Not applicable to a valid listing (≥ 1 photo guaranteed by BR-023); an unset optional attribute is simply omitted. |
-| Error | 404 → "ही जाहिरात आता उपलब्ध नाही" + browse CTA (HTTP 404 status for SEO). Photo load failure: grey placeholder with the alt text; page remains usable. Network loss: cached version renders with the stale-data banner (README §3.3). |
-| Success | Full page as specified; share sheet opens with the prefill; carousel counter tracks position. |
+| Error | 404 → "ही जाहिरात आता उपलब्ध नाही" + browse CTA (HTTP 404 status for SEO); the 404 / sold / unavailable states still render the fixed top-left back-to-home control, so a deep-linked buyer is never stranded. Photo load failure: grey placeholder with the alt text; page remains usable. Network loss: cached version renders with the stale-data banner (README §3.3). |
+| Success | Full page as specified; the native Web Share sheet opens (or the explicit WhatsApp / Facebook / Telegram + copy-link fallback sheet on desktop) with the Marathi prefill; carousel counter tracks position. |
 | Edge | **Turns non-APPROVED while open:** a contact tap gets 404 from the interest endpoint → page swaps to the unavailable/sold state without a crash. **Owner opens own listing:** contact bar replaced by the edit shortcut; no self-interest possible. **1-photo listing:** no swipe affordance/counter. **Very long description:** 4-line collapse with "अधिक वाचा". **SOLD known client-side:** sold banner + hidden contact bar (workflow step 8). |
 
 ## Analytics
@@ -94,14 +95,16 @@ Read-only surface — no user input except taps. Rendered-field rules:
 3. All populated attributes render in a labeled Marathi table; unset optional fields are omitted entirely — the strings "null", "-", "N/A" never appear.
 4. Neither the page payload, the SSR HTML source, SEO/OG metadata, nor the S-09 seller sheet contains the seller's phone number — enforced by the automated phone-concealment test.
 5. `view_count` increments on every public detail fetch of an APPROVED listing and never for the owner or admins; the count is visible to the seller on S-11.
-6. The share action uses the Web Share API with copy-link fallback and the canonical Marathi prefill; the OG image is the listing's card variant.
+6. The share action uses the native Web Share API when available and otherwise a fallback sheet with explicit WhatsApp / Facebook / Telegram links plus copy-link; it carries the canonical Marathi blurb and public URL, contains no seller phone, and the OG image is the listing's card variant.
 7. A deleted/expired/sold listing URL returns HTTP 404 with the friendly "ही जाहिरात आता उपलब्ध नाही" state and a browse CTA; when the client knows the listing is SOLD it shows the sold banner and hides the contact bar.
 8. The owner viewing their own listing sees "ही तुमची जाहिरात आहे" with an edit shortcut instead of contact buttons.
 9. The page meets NFR-01 budgets on Fast 3G (TTI ≤ 5 s, LCP ≤ 4 s) with detail images ≤ 180 KB WebP variants.
+10. Below the seller card, a horizontal "nearby" shelf shows other APPROVED animals of the same species in the same district, excludes the current listing, and is server-rendered (the card links are present in the SSR HTML); a district with no other animals renders no shelf.
+11. A fixed back control on the detail page — and on the sold/unavailable banner states — always navigates to home (`/`), so a freshly opened shared/deep link is never a dead-end.
 
 ## Out of scope
 
-- Vet certificates, seller ratings, similar-listings module, district price context — Phase 2/3 (PRD F-05 future improvements).
+- Vet certificates, seller ratings, district price context — Phase 2/3 (PRD F-05 future improvements).
 - A public "recently sold" showcase — SOLD listings 404 publicly in MVP (BR-034; Phase 2 idea).
 - Per-viewer view-count deduplication — Phase 2 refinement (BR-034).
 
