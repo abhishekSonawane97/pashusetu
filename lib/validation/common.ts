@@ -63,6 +63,11 @@ export const cuidSchema = z.string().regex(/^c[a-z0-9]{20,}$/, 'invalid id')
 
 // Enum schemas — exact doc 07 values (BR-022, BR-050, BR-062).
 export const speciesSchema = z.enum(['COW', 'BUFFALO', 'BULL_OX', 'GOAT', 'SHEEP', 'REDA'])
+// Species a seller may LIST. REDA (रेडा / he-buffalo) is RETIRED from the marketplace:
+// a male buffalo skews to slaughter buyers, against the platform's not-for-slaughter
+// stance. It stays in speciesSchema + the DB enum as a dormant value (so existing
+// archived rows still read) but can never be listed, filtered, or shown to users.
+export const listableSpeciesSchema = z.enum(['COW', 'BUFFALO', 'BULL_OX', 'GOAT', 'SHEEP'])
 export const sexSchema = z.enum(['FEMALE', 'MALE'])
 export const interestTypeSchema = z.enum(['CALL', 'WHATSAPP', 'INTEREST'])
 export const reportReasonSchema = z.enum([

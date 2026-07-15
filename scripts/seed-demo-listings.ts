@@ -1,16 +1,16 @@
 // scripts/seed-demo-listings.ts — DEV/DEMO ONLY. NOT wired into `prisma db seed`
 // (that runs on every prod deploy — this must never touch prod). Populates the
 // marketplace with 10 APPROVED listings per species (COW/BUFFALO/BULL_OX/GOAT/
-// SHEEP/REDA) across a set of seed sellers, each with a generated cover image
+// SHEEP) across a set of seed sellers, each with a generated cover image
 // processed into the same thumb/card/detail WebP variants + key scheme as the
 // real pipeline (lib/r2). Every listing carries a taluka (now compulsory, BR-022).
+// (REDA/he-buffalo is retired from the marketplace and is not seeded.)
 // Idempotent: wipes prior seed-seller listings first. Run from the repo root:
 //   node --import tsx scripts/seed-demo-listings.ts
 //
 // SEED_ONLY=<SPECIES> restricts the run to one species: it wipes + recreates only
-// that species' seed listings and leaves the others untouched (used to add रेडा
-// without re-seeding the whole marketplace). e.g.:
-//   SEED_ONLY=REDA node --import tsx scripts/seed-demo-listings.ts
+// that species' seed listings and leaves the others untouched. e.g.:
+//   SEED_ONLY=COW node --import tsx scripts/seed-demo-listings.ts
 //
 // Reads .env.local itself so it works as a plain script (no prisma-db-seed env).
 
@@ -29,7 +29,7 @@ for (const raw of readFileSync('.env.local', 'utf8').split('\n')) {
   if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
 }
 
-type Species = 'COW' | 'BUFFALO' | 'BULL_OX' | 'GOAT' | 'SHEEP' | 'REDA'
+type Species = 'COW' | 'BUFFALO' | 'BULL_OX' | 'GOAT' | 'SHEEP'
 type Sex = 'FEMALE' | 'MALE'
 
 const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL
@@ -91,7 +91,6 @@ const DESC: Record<Species, string> = {
   BULL_OX: 'शेतीकामासाठी उत्तम बैल, ताकदवान आणि मेहनती, चांगल्या जातीचा.',
   GOAT: 'निरोगी शेळी, चांगली वाढ, मांस व दुधासाठी उत्तम, लसीकरण पूर्ण.',
   SHEEP: 'निरोगी मेंढी, चांगली लोकर व मांस, कळपासाठी योग्य, तंदुरुस्त.',
-  REDA: 'ताकदवान रेडा (नर म्हैस), पैदाशीसाठी व शेतीकामासाठी उत्तम, मजबूत बांधा.',
 }
 const PLAN: Record<
   Species,
@@ -126,8 +125,6 @@ const PLAN: Record<
     color: { r: 120, g: 132, b: 72 },
   },
   SHEEP: { sex: 'FEMALE', price: [6000, 16000], age: [8, 36], color: { r: 214, g: 205, b: 182 } },
-  // रेडा (he-buffalo) — fixed MALE, no milk; priced as a breeding/draft animal.
-  REDA: { sex: 'MALE', price: [60000, 150000], age: [24, 96], color: { r: 74, g: 78, b: 86 } },
 }
 const SPECIES_EN: Record<Species, string> = {
   COW: 'Cow',
@@ -135,7 +132,6 @@ const SPECIES_EN: Record<Species, string> = {
   BULL_OX: 'Bullock',
   GOAT: 'Goat',
   SHEEP: 'Sheep',
-  REDA: 'He-buffalo',
 }
 const PER_SPECIES = 10
 
@@ -148,10 +144,7 @@ const between = ([lo, hi]: [number, number], t: number) => Math.round(lo + (hi -
 // the generated placeholder art so the seed still runs on a bare checkout.
 const ASSET_DIR = join(process.cwd(), 'scripts', 'seed-assets')
 function realPhotos(species: Species): string[] {
-  // रेडा (he-buffalo) has no dedicated photo set — it IS a buffalo, so reuse the
-  // buffalo photos as its source art (each REDA listing still gets its own
-  // uploaded objects via attachCover, so there's no shared-object coupling).
-  const dirName = species === 'REDA' ? 'buffalo' : species.toLowerCase()
+  const dirName = species.toLowerCase()
   const dir = join(ASSET_DIR, dirName)
   if (!existsSync(dir)) return []
   return readdirSync(dir)

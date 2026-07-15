@@ -54,7 +54,8 @@ const DISTRICTS: Array<[nameEn: string, nameMr: string]> = [
 // so breed_id is always satisfiable (BR-022). Khillar exists for both COW and
 // BULL_OX by design (unique per (species, name_en)).
 const LOCAL: [string, string] = ['Local / Crossbred', 'गावठी / संकरित']
-const BREEDS: Record<Species, Array<[nameEn: string, nameMr: string]>> = {
+// Partial: REDA (retired) is intentionally omitted — no REDA breeds are seeded.
+const BREEDS: Partial<Record<Species, Array<[nameEn: string, nameMr: string]>>> = {
   COW: [
     ['Gir', 'गीर'],
     ['Sahiwal', 'साहिवाल'],
@@ -93,16 +94,6 @@ const BREEDS: Record<Species, Array<[nameEn: string, nameMr: string]>> = {
     LOCAL,
   ],
   SHEEP: [['Deccani', 'दख्खनी'], ['Madgyal', 'माडग्याळ'], LOCAL],
-  // रेडा (he-buffalo) — shares the buffalo breed list (same animal, male).
-  REDA: [
-    ['Murrah', 'मुऱ्हा'],
-    ['Jafarabadi', 'जाफराबादी'],
-    ['Mehsana', 'मेहसाणा'],
-    ['Nagpuri', 'नागपुरी'],
-    ['Pandharpuri', 'पंढरपुरी'],
-    ['Surti', 'सुरती'],
-    LOCAL,
-  ],
 }
 
 async function main() {

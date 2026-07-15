@@ -11,10 +11,10 @@ import { z } from 'zod'
 import {
   description,
   interestTypeSchema,
+  listableSpeciesSchema,
   priceInr,
   sexSchema,
   shortText,
-  speciesSchema,
 } from './common'
 import type { Sex, Species } from './common'
 
@@ -127,7 +127,7 @@ export function listingFieldIssues(
 // arrive later while the listing is DRAFT.
 export const createListingSchema = z
   .object({
-    species: speciesSchema,
+    species: listableSpeciesSchema, // REDA retired — not listable
     breedId: z.string().min(1).optional(),
     sex: sexSchema.optional(),
     ageMonths: ageMonths.optional(),
@@ -160,7 +160,7 @@ export type CreateListingInput = z.infer<typeof createListingSchema>
 // approvedAt, expiresAt…) do not exist here.
 export const updateListingSchema = z
   .object({
-    species: speciesSchema.optional(),
+    species: listableSpeciesSchema.optional(), // REDA retired — not listable
     breedId: z.string().min(1).optional(),
     sex: sexSchema.optional(),
     ageMonths: ageMonths.optional(),
