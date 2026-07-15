@@ -1,9 +1,10 @@
-// Top progress bar for client-side navigations. Next's App Router shows NO
-// feedback while a route transition fetches (a 2-3s RSC load looks like a dead
-// tap, so users re-tap). This starts a thin bar the instant an internal link/tab
-// is clicked and finishes it when the new path commits — YouTube/GitHub style.
-// Uses usePathname only (never useSearchParams) so it doesn't force every page
-// out of static rendering.
+// Navigation feedback for client-side route transitions. Next's App Router shows
+// NO feedback while a route transition fetches (a 2–3s RSC load looks like a dead
+// tap, so users re-tap). Two layers: (1) a thin top bar that starts the instant an
+// internal link is clicked (0ms feedback), and (2) a CENTERED spinner that appears
+// if the transition takes more than a moment — it's unmissable and it blocks the
+// re-tap. Uses usePathname only (never useSearchParams) so it doesn't force every
+// page out of static rendering.
 
 'use client'
 
@@ -15,6 +16,7 @@ type Phase = 'idle' | 'loading' | 'done'
 export function NavigationProgress() {
   const pathname = usePathname()
   const [phase, setPhase] = useState<Phase>('idle')
+  const [showSpinner, setShowSpinner] = useState(false)
 
   // Start on a plain left-click of an internal link to a DIFFERENT path.
   useEffect(() => {
@@ -41,7 +43,7 @@ export function NavigationProgress() {
     return () => document.removeEventListener('click', onClick, true)
   }, [])
 
-  // New path committed → finish the bar.
+  // New path committed → finish.
   useEffect(() => {
     setPhase((p) => (p === 'loading' ? 'done' : p))
   }, [pathname])
@@ -58,19 +60,45 @@ export function NavigationProgress() {
     }
   }, [phase])
 
+  // Centered spinner only after a short delay, so fast (cached / prefetched)
+  // navigations don't flash a full-screen overlay.
+  useEffect(() => {
+    if (phase === 'loading') {
+      const t = setTimeout(() => setShowSpinner(true), 180)
+      return () => clearTimeout(t)
+    }
+    setShowSpinner(false)
+  }, [phase])
+
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-[9999] h-[3px]">
-      <div
-        className="h-full bg-[var(--color-primary)] shadow-[0_0_8px_var(--color-primary)]"
-        style={{
-          width: phase === 'loading' ? '92%' : phase === 'done' ? '100%' : '0%',
-          opacity: phase === 'idle' ? 0 : 1,
-          transition:
-            phase === 'loading'
-              ? 'width 2.2s cubic-bezier(0.15, 0.7, 0.3, 1)'
-              : 'width 0.18s ease-out, opacity 0.3s ease 0.15s',
-        }}
-      />
-    </div>
+    <>
+      {/* Layer 1 — immediate thin top bar (0ms). */}
+      <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-[9999] h-[3px]">
+        <div
+          className="h-full bg-[var(--color-primary)] shadow-[0_0_8px_var(--color-primary)]"
+          style={{
+            width: phase === 'loading' ? '92%' : phase === 'done' ? '100%' : '0%',
+            opacity: phase === 'idle' ? 0 : 1,
+            transition:
+              phase === 'loading'
+                ? 'width 2.2s cubic-bezier(0.15, 0.7, 0.3, 1)'
+                : 'width 0.18s ease-out, opacity 0.3s ease 0.15s',
+          }}
+        />
+      </div>
+
+      {/* Layer 2 — centered spinner for a transition that takes a moment. It covers
+          the screen (blocking the re-tap) until the new route commits. */}
+      {showSpinner && (
+        <div
+          role="status"
+          aria-label="लोड होत आहे…"
+          className="fixed inset-0 z-[9998] flex items-center justify-center backdrop-blur-[1px]"
+          style={{ background: 'color-mix(in srgb, var(--color-surface) 72%, transparent)' }}
+        >
+          <span className="h-10 w-10 animate-spin rounded-full border-[3px] border-[var(--color-border-card)] border-t-[var(--color-primary)]" />
+        </div>
+      )}
+    </>
   )
 }

@@ -36,6 +36,14 @@
   --font-sans: var(--font-latin), var(--font-devanagari), Arial, sans-serif;
 }
 
+/* Shimmer sweep for skeleton placeholders — perceived-speed loading feedback.
+   A lighter band translates across the muted base. */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 /* Marathi-first body: Devanagari line-height >= 1.6 (tokens §Type). Latin digits only. */
 body {
   background: var(--color-surface);
