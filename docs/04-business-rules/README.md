@@ -16,7 +16,7 @@
 
 | Term | Definition |
 |---|---|
-| ACTIVE listing | A listing in any **non-terminal** status: `DRAFT`, `PENDING`, `APPROVED`, `REJECTED`, `EXPIRED`. Counts toward the per-user listing quota (BR-024). |
+| ACTIVE listing | A listing in any **non-terminal** status: `DRAFT`, `PENDING`, `APPROVED`, `REJECTED`, `EXPIRED`. Shown as an informational count in My Listings (no cap — BR-024 removed 2026-07-16). |
 | Terminal status | `SOLD` and `ARCHIVED`. A listing in a terminal status never returns to the market. |
 | Public listing | A listing in status `APPROVED` (the only status visible to anyone other than the seller and admins). |
 | Contact action | A logged-in buyer tapping Call, WhatsApp, or "Send Interest" on a listing — always via `POST /api/v1/listings/{id}/interest` (BR-062). |
@@ -92,7 +92,7 @@ MVP ships **helpline-mediated deletion with in-place anonymization** (no self-se
 
 - **Any `ACTIVE` user with a complete profile** can create listings (BR-011, BR-013). No seller verification step in MVP ("Verified seller" is a Phase 2 badge; schema extension point only).
 - Creation (`POST /api/v1/listings`) always produces a `DRAFT`; nothing is public before moderation (locked decision D10).
-- Guards at creation: user `ACTIVE` (else `USER_BANNED`), profile complete (else `PROFILE_INCOMPLETE`), quota available (BR-024, else `LISTING_LIMIT_REACHED`).
+- Guards at creation: user `ACTIVE` (else `USER_BANNED`), profile complete (else `PROFILE_INCOMPLETE`). There is **no active-listing cap** (BR-024 removed 2026-07-16; the `LISTING_LIMIT_REACHED` code is retained but never fires).
 - **Enforcement:** API.
 
 ### BR-021 — One animal per listing
@@ -142,12 +142,12 @@ R = required at submit (`DRAFT` may be saved partially filled; the guard runs at
 - Photo **content** rules are in BR-082.
 - **Enforcement:** API (presign + attach) + R2 object-size check + moderation.
 
-### BR-024 — Maximum active listings per user
+### BR-024 — Active-listing cap (REMOVED)
 
-- A user may hold at most **10 ACTIVE listings** (statuses `DRAFT`, `PENDING`, `APPROVED`, `REJECTED`, `EXPIRED` all count; `SOLD` and `ARCHIVED` do not).
-- Enforced at `POST /api/v1/listings` (creation). Renewal (BR-074) needs no extra check because an `EXPIRED` listing already counts as ACTIVE.
-- Violation → `LISTING_LIMIT_REACHED` (HTTP 409) with Marathi client copy: "तुमच्या १० जाहिराती आधीच सुरू आहेत. नवीन जाहिरात टाकण्यासाठी जुनी जाहिरात 'विकले गेले' करा किंवा काढून टाका." ("You already have 10 running listings. Mark an old one sold or remove it to post a new one.")
-- **Enforcement:** API, inside the create transaction (count + insert atomically).
+- **Removed 2026-07-16 (owner decision).** There is **no active-listing cap** — sellers/dealers may hold **unlimited** ACTIVE listings (`DRAFT`, `PENDING`, `APPROVED`, `REJECTED`, `EXPIRED`). The former "maximum 10 ACTIVE listings per user" rule no longer applies.
+- Abuse is bounded instead by **pre-publication moderation** (nothing goes public without admin approval — locked decision D10) plus the **60-writes/min per-user rate limit** (BR-090 #2).
+- Implementation (shipped in commit `18bb7ed`): `ACTIVE_LIMIT` is now `null`, `createDraftWithQuota` skips the count check when the limit is null, and the My-Listings meter shows a plain active count instead of "X / 10". The `LISTING_LIMIT_REACHED` error code is **retained defensively but never fires**.
+- **Enforcement:** none (no cap). The `POST /api/v1/listings` create transaction still records the listing atomically.
 
 ### BR-025 — Description length limits
 
@@ -210,7 +210,7 @@ R = required at submit (`DRAFT` may be saved partially filled; the guard runs at
 
 `DRAFT | PENDING | APPROVED | SOLD | REJECTED | EXPIRED | ARCHIVED` — exactly as locked in decision D10. No other status may be introduced by any doc or migration without a foundation-level change.
 
-| Status | Meaning | Public? | Counts toward quota (BR-024)? |
+| Status | Meaning | Public? | Counts as ACTIVE? (My-Listings count — no cap, BR-024 removed) |
 |---|---|---|---|
 | `DRAFT` | Being composed by seller | No | Yes |
 | `PENDING` | Awaiting moderation (first submit, resubmit, post-edit, or auto-hidden) | No | Yes |
@@ -247,17 +247,17 @@ Complete transition table. "System" = scheduled job or automatic server logic; e
 
 | Id | From | To | Trigger (API / event) | Actor | Guards | Side-effects |
 |---|---|---|---|---|---|---|
-| T-01 | — | `DRAFT` | `POST /listings` | Seller | User `ACTIVE`; profile complete (BR-013); ACTIVE count < 10 (BR-024) | Row created; `created_at` set |
+| T-01 | — | `DRAFT` | `POST /listings` | Seller | User `ACTIVE`; profile complete (BR-013) — no active-listing cap (BR-024 removed) | Row created; `created_at` set |
 | T-02 | `DRAFT` | `PENDING` | `POST /listings/{id}/submit` | Seller | Actor is seller; field matrix valid (BR-022); ≥3 photos (BR-023); description passes BR-025 + BR-065; price in bounds (BR-026); declaration accepted (BR-027) | `declaration_accepted=true`, `declaration_at=now`; duplicate flag computed (BR-029); admin in-app notification `NTF-ADMIN-PENDING` |
 | T-03 | `PENDING` | `APPROVED` | `POST /admin/listings/{id}/approve` | Admin | Actor `is_admin`; seller still `ACTIVE` | `approved_at=now` (set on every approval); **`expires_at = now + 30 days`** (always reset, including re-approval after edit or auto-hide); `moderation_log` `APPROVE`; seller notified `NTF-LISTING-APPROVED` (SMS + in-app); any OPEN reports that triggered an auto-hide must already be resolved/dismissed (BR-052) |
 | T-04 | `PENDING` | `REJECTED` | `POST /admin/listings/{id}/reject` | Admin | Actor `is_admin`; **reason mandatory** (taxonomy BR-043; `OTHER` requires free text) | `rejection_reason` stored; `moderation_log` `REJECT` with reason; seller notified `NTF-LISTING-REJECTED` (SMS + in-app, includes reason) |
 | T-05 | `REJECTED` | `PENDING` | `POST /listings/{id}/submit` (resubmit after edit) | Seller | Same guards as T-02 (declaration re-affirmed) | Same side-effects as T-02; `rejection_reason` cleared |
-| T-06 | `APPROVED` | `SOLD` | `POST /listings/{id}/sold` | Seller | Actor is seller | `sold_at=now`; listing leaves public search immediately; frees one quota slot (BR-024) |
+| T-06 | `APPROVED` | `SOLD` | `POST /listings/{id}/sold` | Seller | Actor is seller | `sold_at=now`; listing leaves public search immediately |
 | T-07 | `APPROVED` | `EXPIRED` | Daily expiry job (BR-072) | System | `expires_at < now` | Seller notified `NTF-LISTING-EXPIRED` (in-app); listing leaves public search |
 | T-08 | `EXPIRED` | `APPROVED` | `POST /listings/{id}/renew` | Seller | Actor is seller; user `ACTIVE`; listing unedited (always true — `EXPIRED` is not editable, BR-028) | **`expires_at = now + 30 days`**; `approved_at` unchanged; **no re-moderation** (BR-074); no notification needed (UI confirms inline) |
 | T-09 | `APPROVED` | `PENDING` | `PATCH /listings/{id}` changing any field other than `price_inr`/`negotiable`, or any photo attach/delete | Seller (system-applied) | Actor is seller | Listing hidden from public immediately; admin notified `NTF-ADMIN-PENDING`; UI warned the seller before saving; declaration re-affirmed at the accompanying resubmit |
 | T-10 | `APPROVED` | `PENDING` | 3rd OPEN report created on the listing (BR-045) | System | Count of `reports` with `status=OPEN` for this listing ≥ 3 | Listing hidden; `moderation_log` `AUTO_HIDE` (no admin_id semantics — logged with a system admin account, see BR-046); admin in-app `NTF-ADMIN-AUTOHIDE`; seller in-app `NTF-LISTING-HIDDEN` |
-| T-11 | any non-terminal | `ARCHIVED` | `POST /listings/{id}/archive` | Seller | Actor is seller | Listing leaves market forever; frees quota slot; no moderation_log (seller action, kept in `updated_at` + status history) |
+| T-11 | any non-terminal | `ARCHIVED` | `POST /listings/{id}/archive` | Seller | Actor is seller | Listing leaves market forever; no moderation_log (seller action, kept in `updated_at` + status history) |
 | T-12 | any non-terminal | `ARCHIVED` | `POST /admin/users/{id}/ban` (bulk) or account deletion (BR-015) | Admin / System | Ban per BR-014 / deletion per BR-015 | All the user's ACTIVE listings archived in one transaction; single `moderation_log` entry per user (ban → `BAN`; deletion → `AUTO_HIDE` per BR-015), never one per listing |
 
 ### BR-032 — Disallowed transitions (explicit)
@@ -610,7 +610,7 @@ Single source of truth for every numeric limit on the platform. Docs 05/08/09/12
 | 3 | Interest events | **20 / day / buyer** | All types + all listings, rolling 24h | API | `RATE_LIMITED` (429) | BR-064 |
 | 4 | Reports | **5 / day / user** | All listings, rolling 24h | API | `RATE_LIMITED` (429) | BR-051 |
 | 5 | Open report per listing per reporter | **1** | Per (listing, reporter) | API + DB | `REPORT_ALREADY_EXISTS` (409) | BR-050 |
-| 6 | Active listings | **10 / user** | Non-terminal statuses | API (create txn) | `LISTING_LIMIT_REACHED` (409) | BR-024 |
+| 6 | Active listings | **No cap** (BR-024 removed 2026-07-16) | Non-terminal statuses (informational My-Listings count) | — (no enforcement; abuse bounded by pre-publication moderation + #2 60/min write limit) | `LISTING_LIMIT_REACHED` retained but never fires | BR-024 |
 | 7 | Photos per listing | **3 min – 10 max** | Per listing | API (attach/submit) | `PHOTO_LIMIT_EXCEEDED` (409) | BR-023 |
 | 8 | Photo file size | **≤ 5 MB** | Per file, JPEG/PNG/WebP only | Presign + attach | `INVALID_UPLOAD` (422) | BR-023 |
 | 9 | Description length | **10–1000 characters** | Per listing | API | `VALIDATION_ERROR` (422) | BR-025 |
@@ -643,7 +643,7 @@ Every business-behavior question raised in the Phase-1 plan ([../02-research/sou
 | Who can delete listings? | BR-028 (delete = archive, seller only; T-11/T-12) |
 | Can sold listings be edited? | BR-028, BR-032 (never — SOLD is terminal) |
 | Can users report fake listings? | BR-050, BR-052 |
-| Maximum listings? | BR-024 (10 active per user) |
+| Maximum listings? | BR-024 (no cap — removed 2026-07-16; unlimited active listings) |
 | Photo limits? | BR-023 (3–10 photos, ≤5 MB, JPEG/PNG/WebP) |
 | Video limits? | BR-023 (no video in MVP) |
 | Listing expiry? | BR-072, BR-073, BR-074 (30 days, 3-day warning, one-tap renew) |
@@ -657,7 +657,7 @@ Every business-behavior question raised in the Phase-1 plan ([../02-research/sou
 ## Acceptance checklist
 
 - [x] Every rule has a stable `BR-xx` id; ids are unique and grouped by series (01x accounts, 02x listings, 03x lifecycle, 04x moderation, 05x reports, 06x contact/privacy, 07x favorites/notifications/expiry, 08x content, 09x limits)
-- [x] All canonical values reproduced exactly: photos 3–10 / ≤5 MB / JPEG-PNG-WebP / WebP variants / no video; 10 active listings; 30-day expiry with one-tap renew and no re-moderation; price-only edit exception; SOLD not editable/renewable; 24h moderation SLA; ≥3 open reports auto-hide; duplicate heuristic (same seller + species + ±10% price + 7 days, admin warning only); manual bans archiving all listings; OTP backend-managed (code valid 10 min / 120 s resend timer / 5 wrong-attempt cap; SMS provider & custom-token session per 00-foundation & 13-deployment); 60 writes/min; 20 interests/day; 5 reports/day; public browse; login-gated contact; phone reveal only via interest endpoint with logging; cursor pagination 20/50; mandatory seller declaration with stored `declaration_accepted` + timestamp
+- [x] All canonical values reproduced exactly: photos 3–10 / ≤5 MB / JPEG-PNG-WebP / WebP variants / no video; no active-listing cap (BR-024 removed 2026-07-16); 30-day expiry with one-tap renew and no re-moderation; price-only edit exception; SOLD not editable/renewable; 24h moderation SLA; ≥3 open reports auto-hide; duplicate heuristic (same seller + species + ±10% price + 7 days, admin warning only); manual bans archiving all listings; OTP backend-managed (code valid 10 min / 120 s resend timer / 5 wrong-attempt cap; SMS provider & custom-token session per 00-foundation & 13-deployment); 60 writes/min; 20 interests/day; 5 reports/day; public browse; login-gated contact; phone reveal only via interest endpoint with logging; cursor pagination 20/50; mandatory seller declaration with stored `declaration_accepted` + timestamp
 - [x] State machine covers every canonical transition (T-01–T-12), including both `APPROVED → PENDING` paths (non-price edit, auto-hide), `EXPIRED → APPROVED` renew, and non-terminal → `ARCHIVED` via seller archive and admin ban
 - [x] Disallowed transitions explicitly listed with `INVALID_STATE_TRANSITION` behavior (incl. `SOLD` → anything, `ARCHIVED` → anything)
 - [x] Transition table specifies Trigger, Actor, Guards, and Side-effects (notifications, `expires_at`, `moderation_log`) for every transition
