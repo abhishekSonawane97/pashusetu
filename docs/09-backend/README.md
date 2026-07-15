@@ -424,7 +424,7 @@ Rules (doc 12 §8.2, restated as code conventions):
 | `cuidSchema` | `/^c[a-z0-9]{20,}$/` | every path id | doc 08 §1.6 |
 | Enum schemas | `speciesSchema`, `sexSchema`, `interestTypeSchema`, `reportReasonSchema`, `listingStatusSchema` — `z.enum` of the exact doc 07 values | everywhere | BR-022, BR-050, BR-062 |
 
-Cross-field conditionality (the BR-022 species/sex matrix: `COW ⇒ FEMALE`, `BULL_OX ⇒ MALE`, `REDA ⇒ MALE`, milch fields female-only; report `details` required for `OTHER`) is expressed with `.superRefine` in the domain schemas so a single parse yields the complete `details.fields` map for the wizard's jump-to-step behavior (doc 08 API-10).
+Cross-field conditionality (the BR-022 species/sex matrix: `COW ⇒ FEMALE`, `BULL_OX ⇒ MALE`, `REDA ⇒ MALE` *(REDA/रेडा retired — dormant enum value kept only for archived rows; not listable, `listableSpeciesSchema` rejects it)*, milch fields female-only; report `details` required for `OTHER`) is expressed with `.superRefine` in the domain schemas so a single parse yields the complete `details.fields` map for the wizard's jump-to-step behavior (doc 08 API-10).
 
 **Feedback schema — deliberate BR-065 exemption.** `lib/validation/feedback.ts` (`createFeedbackSchema`: `type` `PROBLEM`|`SUGGESTION`|`OTHER`, `message` 3–1000, `contact` ≤ 120 optional, `path` ≤ 200 optional, `.strict()`) deliberately does **not** run `noPhoneInText` on `message` or `contact`. Feedback is **exempt** from BR-065: a user reporting a problem may legitimately leave a phone number or name for follow-up — the opposite of a listing `description`/`village`, which *do* run the hard phone block. (The BR-065 exemption rule is owned by doc 04; the feedback wire contract by doc 08.)
 
@@ -768,7 +768,7 @@ Keying for the §10.1 write-limiter is always `users.id`, never IP (rural CGNAT 
   | `enums.species.BULL_OX` | बैल | Bull / Ox |
   | `enums.species.GOAT` | शेळी | Goat |
   | `enums.species.SHEEP` | मेंढी | Sheep |
-  | `enums.species.REDA` | रेडा | He-buffalo |
+  | `enums.species.REDA` | रेडा | He-buffalo *(retired — display only for archived rows; not listable)* |
   | `enums.listingStatus.DRAFT` | अपूर्ण जाहिरात *(incomplete listing)* | Draft |
   | `enums.listingStatus.PENDING` | तपासणी सुरू आहे *(under review)* | Under review |
   | `enums.listingStatus.APPROVED` | सुरू आहे *(live)* | Live |

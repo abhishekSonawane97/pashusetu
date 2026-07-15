@@ -99,7 +99,7 @@ Payments/escrow · delivery/transport · AI price estimation · insurance · loa
 |---|---|---|
 | Cow | गाय (Gai) | Female bovine; primary listed species |
 | Buffalo | म्हैस (Mhais) | Water buffalo |
-| He-buffalo (Reda) | रेडा (Reda) | Male / draught water-buffalo; 6th listed species (added 2026-07) |
+| He-buffalo (Reda) | रेडा (Reda) | Male / draught water-buffalo; retired 2026-07 — not listable; dormant DB enum value only |
 | Goat | शेळी (Sheli) | — |
 | Sheep | मेंढी (Mendhi) | — |
 | Bull / Ox | बैल (Bail) | Draft/breeding male |

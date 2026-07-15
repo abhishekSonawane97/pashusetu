@@ -81,7 +81,7 @@ enum Species {
   BULL_OX
   GOAT
   SHEEP
-  REDA
+  REDA // retired 2026-07-15 — dormant enum value kept only for archived rows; NOT listable (listable species = 5: COW/BUFFALO/BULL_OX/GOAT/SHEEP). No migration dropped it (expand–contract, §7.4).
 
   @@map("species")
 }
@@ -692,10 +692,10 @@ Types are the generated Postgres types. "R@submit" = nullable in DB, required by
 |---|---|---|---|---|---|
 | id | text (cuid) | no | cuid() | PK; public URL id (`/listings/{id}`) | — |
 | seller_id | text | no | — | FK → users (Restrict) | BR-020 |
-| species | species | no | — | COW \| BUFFALO \| BULL_OX \| GOAT \| SHEEP \| REDA (रेडा = he-buffalo / male buffalo); fixed at creation (S-10a) | BR-022 |
+| species | species | no | — | Listable = COW \| BUFFALO \| BULL_OX \| GOAT \| SHEEP (गाय/म्हैस/बैल/शेळी/मेंढी); fixed at creation (S-10a). `REDA` (रेडा = he-buffalo / male buffalo) is a **retired, dormant enum value** kept only for archived rows — not listable (REDA/रेडा retired — not a create/edit option; `listableSpeciesSchema` 422s it) | BR-022 |
 | breed_id | text | yes | null | R@submit; FK → breeds (Restrict); must match `species` (service layer) | BR-022 |
 | description | text | yes | null | R@submit; 10–1000 Unicode chars; CHECK ≤ 1000; no phone numbers (app regex) | BR-025, BR-065 |
-| sex | sex | yes | null | R@submit; COW ⇒ FEMALE; BULL_OX, REDA ⇒ MALE (service layer) | BR-022 |
+| sex | sex | yes | null | R@submit; COW ⇒ FEMALE; BULL_OX ⇒ MALE (service layer). REDA ⇒ MALE rule retained for dormant/archived REDA rows only (REDA retired — not listable) | BR-022 |
 | age_months | integer | yes | null | R@submit; CHECK 1–300 | BR-022 |
 | weight_kg | integer | yes | null | Optional; CHECK 5–1500 | BR-022 |
 | milk_yield_lpd | numeric(4,1) | yes | null | Litres/day 0–60 (0 = dry); CHECK; FEMALE-only fields per species matrix (service layer) | BR-022 |
@@ -838,7 +838,7 @@ All `name_mr` values go through native-speaker review before beta (PRD §10 rele
 
 ### 6.2 Breeds — 39 rows
 
-Per BR-022, **every species carries a "Local / Crossbred" option** (गावठी / संकरित — the everyday farmer word गावठी is used first per the doc-10 register rule) so `breed_id` is always satisfiable. The canonical cattle/buffalo/goat/sheep lists are seeded verbatim (REDA, the he-buffalo, reuses the BUFFALO list verbatim); BULL_OX has no canonical list, so it is seeded with Maharashtra's draught cattle breeds (decision, recorded): Khillar (the state's signature bullock breed), Gir, Dangi, Gaolao, Deoni + Local / Crossbred.
+Per BR-022, **every species carries a "Local / Crossbred" option** (गावठी / संकरित — the everyday farmer word गावठी is used first per the doc-10 register rule) so `breed_id` is always satisfiable. The canonical cattle/buffalo/goat/sheep lists are seeded verbatim (REDA, the he-buffalo, reuses the BUFFALO list verbatim — retained dormant for archived rows; REDA/रेडा retired 2026-07-15, not listable); BULL_OX has no canonical list, so it is seeded with Maharashtra's draught cattle breeds (decision, recorded): Khillar (the state's signature bullock breed), Gir, Dangi, Gaolao, Deoni + Local / Crossbred.
 
 **COW — गाय (11):**
 
@@ -897,7 +897,7 @@ Per BR-022, **every species carries a "Local / Crossbred" option** (गावठ
 | Madgyal | माडग्याळ |
 | Local / Crossbred | गावठी / संकरित |
 
-**REDA — रेडा (7):**
+**REDA — रेडा (7) — retired/dormant (not listable; kept only for archived rows, REDA/रेडा retired 2026-07-15):**
 
 | name_en | name_mr |
 |---|---|
@@ -909,7 +909,7 @@ Per BR-022, **every species carries a "Local / Crossbred" option** (गावठ
 | Surti | सुरती |
 | Local / Crossbred | गावठी / संकरित |
 
-REDA (रेडा, he-buffalo) shares the BUFFALO breed list (same animal, male).
+REDA (रेडा, he-buffalo) shares the BUFFALO breed list (same animal, male). Dormant only — REDA/रेडा retired 2026-07-15 and is not a listable species; these breed rows persist solely so archived REDA listings keep valid `breed_id` references.
 
 Note: breed rows are unique per `(species, name_en)`, so "Khillar" exists twice — once as a COW row, once as a BULL_OX row — which is exactly what the species-filtered breed picker (`GET /meta/breeds?species=`) needs. New breeds observed in the wild (assumption A-07) are added by a seed-file change + re-run, never by hand-editing production rows.
 
@@ -1158,7 +1158,7 @@ ALTER TABLE "reports"
 
 - [x] Header table (Status/Version/Owner/Last updated 2026-07-04/Depends on) present; relative links to docs 00, 01, 04, 06, 08, 09, 11, 12, 13, 14 used throughout
 - [x] Design principles state snake_case via `@map`/`@@map`, cuid ids everywhere (no DB extensions), `created_at` on every table with an explicit `updated_at` policy, and the soft-delete decision exactly as required: no soft deletes; listings use `status = ARCHIVED`, users use `status = BANNED` (+ BR-015 anonymize-in-place)
-- [x] One fenced Prisma schema block containing all 11 models (User, District, Breed, Listing, ListingImage, Favorite, InterestEvent, Report, Feedback, Notification, ModerationLog) and all 13 enums (Species — now incl. REDA — Sex, ListingStatus, LanguagePref, UserStatus, InterestType, ReportReason, ReportStatus, NotificationChannel, NotificationStatus, ModerationAction, FeedbackType, FeedbackStatus) with the exact canonical values (the shipped schema additionally carries the two OTP tables `OtpChallenge`/`OtpIpThrottle`, documented outside this doc's slice)
+- [x] One fenced Prisma schema block containing all 11 models (User, District, Breed, Listing, ListingImage, Favorite, InterestEvent, Report, Feedback, Notification, ModerationLog) and all 13 enums (Species — still carries REDA as a retired/dormant value kept only for archived rows, not listable (REDA/रेडा retired 2026-07-15) — Sex, ListingStatus, LanguagePref, UserStatus, InterestType, ReportReason, ReportStatus, NotificationChannel, NotificationStatus, ModerationAction, FeedbackType, FeedbackStatus) with the exact canonical values (the shipped schema additionally carries the two OTP tables `OtpChallenge`/`OtpIpThrottle`, documented outside this doc's slice)
 - [x] Canonical entity/field names followed exactly (snake_case DB names via mapping); the only additions — `duplicate_of_id`, `created_at` on child tables, `r2_key` uniqueness — are additive elaborations, each justified with a BR reference
 - [x] Every relation declares an `onDelete` behavior with a per-relation justification table (Restrict for audit/reference, Cascade only for favorites/notifications/listing_images per BR-015)
 - [x] Uniqueness constraints present: `users.firebase_uid`, `users.phone`, favorites composite PK `(user_id, listing_id)`, `breeds(species, name_en)`, `districts.name_en`, `listing_images.r2_key`, partial unique `reports(listing_id, reporter_id) WHERE OPEN`

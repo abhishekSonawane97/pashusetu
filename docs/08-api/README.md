@@ -135,7 +135,7 @@ All list endpoints (including admin) use **opaque cursor pagination**:
 | Timestamps | ISO 8601 UTC with milliseconds and `Z` suffix: `"2026-07-02T05:10:00.000Z"`. All comparisons/formatting are client-side in device-local time |
 | Money | `priceInr` is an **integer number of rupees** (no paise, no floats, no strings) — bounds per BR-026 (₹500–₹10,00,000) |
 | Field naming | **camelCase in every JSON payload**, mapping 1:1 to the snake_case DB columns of the canonical data model (`age_months` ↔ `ageMonths`, `milk_yield_lpd` ↔ `milkYieldLpd`, `price_inr` ↔ `priceInr`, …) |
-| Enums | UPPER_SNAKE strings exactly as in the data model: `species` ∈ `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP\|REDA`, `sex` ∈ `FEMALE\|MALE`, listing `status` ∈ `DRAFT\|PENDING\|APPROVED\|SOLD\|REJECTED\|EXPIRED\|ARCHIVED` (D10), report `reason` ∈ `FAKE\|SOLD_ALREADY\|WRONG_INFO\|SPAM\|ILLEGAL\|OTHER`, `languagePref` ∈ `MR\|EN`. Clients MUST tolerate unknown enum values in responses (forward compatibility, §5) |
+| Enums | UPPER_SNAKE strings exactly as in the data model: `species` ∈ `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP\|REDA` (REDA — retired 2026-07-15, dormant enum value kept only for archived rows; not listable), `sex` ∈ `FEMALE\|MALE`, listing `status` ∈ `DRAFT\|PENDING\|APPROVED\|SOLD\|REJECTED\|EXPIRED\|ARCHIVED` (D10), report `reason` ∈ `FAKE\|SOLD_ALREADY\|WRONG_INFO\|SPAM\|ILLEGAL\|OTHER`, `languagePref` ∈ `MR\|EN`. Clients MUST tolerate unknown enum values in responses (forward compatibility, §5) |
 | Null policy | Optional fields that are unset are returned as explicit `null` (stable shapes for typed clients); the UI omits null attributes entirely (F-05 AC-3) |
 
 ### 1.7 Idempotency & retry stance
@@ -384,7 +384,7 @@ No parameters. **Response — 200** `UserProfile` (includes own `phone` — BR-0
 
 | Param | Type | Required | Validation |
 |---|---|---|---|
-| `species` | string | no | `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP\|REDA`; omitted → all breeds of all species |
+| `species` | string | no | `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP\|REDA` (REDA retired — dormant, archived rows only; not listable, but still accepted here so archived-row breed lookups resolve); omitted → all breeds of all species |
 
 **Response — 200** (not paginated — §1.4 exemption). Ordered by `species`, then seed order (locals last):
 
@@ -478,7 +478,7 @@ Summary here; **full deep spec incl. every param, sort semantics and the visibil
 
 | Field | Type | Required | Validation |
 |---|---|---|---|
-| `species` | string | yes | `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP\|REDA` — the only field required at DRAFT creation (the wizard always has it after step 1; all other columns stay null until filled) |
+| `species` | string | yes | `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP` (five listable species; REDA/रेडा retired — not listable, `species=REDA` → 422 `VALIDATION_ERROR`) — the only field required at DRAFT creation (the wizard always has it after step 1; all other columns stay null until filled) |
 | `breedId` | string | no | Must belong to `species` (BR-022) |
 | `sex` | string | no | `FEMALE\|MALE`; `COW` forces `FEMALE`, `BULL_OX` forces `MALE` — mismatch → 422 (BR-022) |
 | `ageMonths` | int | no | 1–300 (BR-022) |
@@ -1589,7 +1589,7 @@ Concurrency: two admins acting on the same listing — the second hits the `WHER
 | Param | Type | Required | Default | Validation / semantics |
 |---|---|---|---|---|
 | `q` | string | no | — | 1–60 chars after trim; free-text search (WS3, F-04). Case-insensitive `contains` over village, taluka, breed `nameMr` / `nameEn` and seller name, **plus** an exact match on the listing `id` (paste an id / shared link). Empty (after trim) or > 60 chars → 400 |
-| `species` | string | no | — | `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP\|REDA`; unknown value → 400 |
+| `species` | string | no | — | `COW\|BUFFALO\|BULL_OX\|GOAT\|SHEEP\|REDA` (REDA retired — dormant, archived rows only; not listable, still tolerated as a filter value); unknown value → 400 |
 | `breedId` | string | no | — | Must exist **and** belong to `species` when both are given; mismatch or orphan `breedId` (without `species` it just must exist) → 400 `VALIDATION_ERROR` (F-04 AC-3) |
 | `districtId` | string | no | — | Must be a seeded MH district → else 400 |
 | `taluka` | string | no | — | 1–60 chars; **exact** match on the listing's `taluka` (BR-022 free-text tehsil). Distinct from `q`, whose `contains` match also covers taluka |

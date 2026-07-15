@@ -102,13 +102,13 @@ MVP ships **helpline-mediated deletion with in-place anonymization** (no self-se
 
 ### BR-022 — Required vs optional fields per species
 
-Species enum: `COW | BUFFALO | BULL_OX | GOAT | SHEEP | REDA`. Field names per the canonical data model ([../07-database/README.md](../07-database/README.md)).
+Species enum: `COW | BUFFALO | BULL_OX | GOAT | SHEEP | REDA` — the DB enum keeps all **6 values**, but only **5 are listable** (`COW`/`BUFFALO`/`BULL_OX`/`GOAT`/`SHEEP`; गाय/म्हैस/बैल/शेळी/मेंढी). `REDA` (रेडा) is **retired — a dormant enum value kept only for archived rows, not listable** (owner decision 2026-07-15; a male buffalo skews to slaughter buyers, against the not-for-slaughter stance). The DB enum is NOT dropped (doc 07 keeps all 6); the create/edit API accepts only the 5 listable values and 422s `species=REDA`. Field names per the canonical data model ([../07-database/README.md](../07-database/README.md)).
 
-| Field | COW | BUFFALO | BULL_OX | GOAT | SHEEP | REDA | Validation |
+| Field | COW | BUFFALO | BULL_OX | GOAT | SHEEP | REDA (retired) | Validation |
 |---|---|---|---|---|---|---|---|
 | `species` | R | R | R | R | R | R | enum |
 | `breed_id` | R | R | R | R | R | R | must belong to the chosen species; every species has a "local/crossbred" (स्थानिक/संकरित) option so R is always satisfiable |
-| `sex` | fixed `FEMALE` | R | fixed `MALE` | R | R | fixed `MALE` | `COW` implies `FEMALE`; `BULL_OX` and `REDA` imply `MALE` (server rejects mismatches with `VALIDATION_ERROR`) |
+| `sex` | fixed `FEMALE` | R | fixed `MALE` | R | R | fixed `MALE` | `COW` implies `FEMALE`; `BULL_OX` and `REDA` imply `MALE` (server rejects mismatches with `VALIDATION_ERROR`) — the `REDA ⇒ MALE` rule is kept only for archived REDA rows (retired, not listable) |
 | `age_months` | R | R | R | R | R | R | integer 1–300 |
 | `weight_kg` | O | O | O | O (recommended) | O (recommended) | O | integer 5–1500 |
 | `milk_yield_lpd` | **R** | **R if `sex=FEMALE`**, else N/A | N/A | O if `sex=FEMALE` | N/A | N/A | number 0–60 (0 = currently dry) |
@@ -571,7 +571,7 @@ A listing containing any of the following is rejected (reason in parentheses); s
 |---|---|---|---|
 | 1 | Slaughter intent — explicit or coded (e.g., "कत्तलीसाठी", "meat purpose", per-kg meat pricing of live animals) | `SLAUGHTER_INTENT` | Severe → ban eligible on first offense (Maharashtra Animal Preservation Act; foundation §8) |
 | 2 | Endangered/protected/wild species (deer, tortoises, exotic birds, any Wildlife Protection Act animal) | `WRONG_CATEGORY` | Severe → ban eligible |
-| 3 | Any non-livestock animal (dogs, cats, poultry, horses, camels — outside the 6-species enum) | `WRONG_CATEGORY` | Standard |
+| 3 | Any non-livestock animal (dogs, cats, poultry, horses, camels — outside the 5 listable species) | `WRONG_CATEGORY` | Standard |
 | 4 | Abusive, obscene, casteist, or communal language | `OTHER` (free text) | Standard; severe abuse → ban eligible |
 | 5 | Fabricated claims presented as fact (fake vet certificates, invented milk yields contradicted by photos) | `FRAUD_SUSPECTED` | Counts toward 3-strike ban |
 | 6 | Links to other marketplaces, external URLs, QR codes in photos | `CONTACT_IN_DESCRIPTION` | Standard |
