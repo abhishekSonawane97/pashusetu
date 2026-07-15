@@ -233,7 +233,12 @@ export async function search(query: SearchQuery): Promise<Paginated<ListingCard>
 
 // ---------------- Write path (state machine, doc 04 BR-03x) ----------------
 
-const ACTIVE_LIMIT = 10 // BR-024
+// BR-024 removed (2026-07-16, owner decision): NO active-listing cap. Dealers
+// legitimately list many animals, so a 10-cap works against the target user. Abuse
+// is still bounded by pre-publication moderation (nothing goes public without admin
+// approval) + the per-user write rate limit. null = unlimited; the "meter" is now an
+// informational active-listing count only.
+const ACTIVE_LIMIT: number | null = null
 
 /** API-08 / T-01: create a DRAFT with the atomic active-listing quota (BR-024). */
 export async function createDraft(ctx: AuthContext, input: CreateListingInput) {
@@ -244,7 +249,9 @@ export async function createDraft(ctx: AuthContext, input: CreateListingInput) {
     { negotiable: negotiable ?? true, ...rest },
     ACTIVE_LIMIT,
   )
-  if (!created) throw AppError.listingLimitReached(activeCount, ACTIVE_LIMIT)
+  // With ACTIVE_LIMIT = null this never trips (created is always returned); kept as a
+  // defensive guard in case a finite cap is ever restored.
+  if (!created) throw AppError.listingLimitReached(activeCount, ACTIVE_LIMIT ?? activeCount)
   return buildDetail(created, {
     isOwner: true,
     isAdmin: false,

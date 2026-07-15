@@ -186,22 +186,24 @@ export function incrementViewCount(id: string): Promise<unknown> {
 export const ACTIVE_STATUSES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'EXPIRED'] as const
 
 /**
- * Create a DRAFT with the active-listing quota (BR-024, max 10) enforced
- * ATOMICALLY inside the same transaction (doc 08 API-08) — count + insert under
- * one interactive tx so two concurrent creates can't both slip past the cap.
+ * Create a DRAFT, atomically counting the seller's active listings in the same
+ * transaction (doc 08 API-08). `limit` is the active-listing cap; pass `null` for
+ * NO cap (BR-024 removed 2026-07-16 — dealers list many). When a finite limit is
+ * given, count + insert run under one interactive tx so two concurrent creates
+ * can't both slip past it. The returned activeCount feeds the My-Listings meter.
  */
 export type DraftInput = Omit<Prisma.ListingUncheckedCreateInput, 'sellerId' | 'status' | 'id'>
 
 export async function createDraftWithQuota(
   sellerId: string,
   data: DraftInput,
-  limit: number,
+  limit: number | null,
 ): Promise<{ created: ListingDetailRow | null; activeCount: number }> {
   return prisma.$transaction(async (tx) => {
     const activeCount = await tx.listing.count({
       where: { sellerId, status: { in: ACTIVE_STATUSES as unknown as ListingStatus[] } },
     })
-    if (activeCount >= limit) return { created: null, activeCount }
+    if (limit != null && activeCount >= limit) return { created: null, activeCount }
     const created = await tx.listing.create({
       data: { ...data, sellerId, status: 'DRAFT' },
       include: detailInclude,

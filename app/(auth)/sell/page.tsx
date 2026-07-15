@@ -56,7 +56,7 @@ function MyListingsInner() {
   const submitted = params.get('submitted') === '1'
   const [tab, setTab] = useState<ListingStatus | 'ALL'>('ALL')
   const [items, setItems] = useState<Item[] | null>(null)
-  const [meta, setMeta] = useState<{ activeCount: number; activeLimit: number } | null>(null)
+  const [meta, setMeta] = useState<{ activeCount: number; activeLimit: number | null } | null>(null)
   const [error, setError] = useState(false)
   const [confirmingSold, setConfirmingSold] = useState<string | null>(null)
   const [soldBusy, setSoldBusy] = useState(false)
@@ -112,7 +112,7 @@ function MyListingsInner() {
         <h1 className="text-[22px] font-bold">माझ्या जाहिराती</h1>
         {meta && (
           <span className="rounded-full bg-[var(--color-surface-2)] px-3 py-1 text-[14px] font-bold text-[var(--color-text-2)]">
-            {meta.activeCount} / {meta.activeLimit}
+            {meta.activeCount} सक्रिय
           </span>
         )}
       </header>
