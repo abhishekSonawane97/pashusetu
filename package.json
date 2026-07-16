@@ -77,10 +77,6 @@
   "pnpm": {
     "overrides": {
       "tmp": ">=0.2.6"
-    },
-    "supportedArchitectures": {
-      "os": ["current", "linux"],
-      "cpu": ["current", "x64"]
     }
   }
 }
