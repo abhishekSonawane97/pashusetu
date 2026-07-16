@@ -10,7 +10,6 @@ import {
   PutObjectCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import sharp from 'sharp'
 import { getS3, publicBucket, publicBaseUrl, uploadsBucket } from './client'
 import {
   IMAGE_VARIANTS,
@@ -89,6 +88,13 @@ export async function processUpload(
   const obj = await s3.send(new GetObjectCommand({ Bucket: uploadsBucket(), Key: key }))
   const original = Buffer.from(await obj.Body!.transformToByteArray())
   if (!sniff(original)) return null
+
+  // sharp is a NATIVE module — load it LAZILY (dynamic import) so routes that only
+  // presign (and never process images) don't pull it into their module graph and
+  // crash at load on Vercel. Turbopack bundles a static `import sharp` even with
+  // serverExternalPackages set; a dynamic import is resolved from the external
+  // package at runtime (kept external via serverExternalPackages: ['sharp']).
+  const sharp = (await import('sharp')).default
 
   // EXIF is dropped because sharp re-encodes without copying metadata (GPS privacy, doc 12 §6).
   const meta = await sharp(original).metadata()
