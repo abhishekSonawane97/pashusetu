@@ -96,6 +96,13 @@ const nextConfig: NextConfig = {
   // that imports it (the image presign/attach path via lib/r2/images) crashes at
   // module load → 500 (prod-only; dev doesn't bundle, so it looked fine locally).
   serverExternalPackages: ['firebase-admin', 'sharp'],
+  // sharp's native binary (@img/sharp-linux-x64 + libvips) isn't reliably traced into
+  // the image-attach lambda under pnpm's nested node_modules, so runtime processing
+  // (processUpload) 500s on Vercel. Force-include sharp + @img into that one function's
+  // bundle. Purely additive — only adds files to the deployment, changes no behavior.
+  outputFileTracingIncludes: {
+    '/api/v1/listings/[id]/images': ['./node_modules/**/@img/**', './node_modules/**/sharp/**'],
+  },
   // Pin the workspace root to this project — a stray package-lock.json in the
   // parent dir was making Turbopack infer the wrong root (dev-log warning).
   turbopack: { root: import.meta.dirname },
