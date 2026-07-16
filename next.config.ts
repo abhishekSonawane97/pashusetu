@@ -91,7 +91,11 @@ const nextConfig: NextConfig = {
   // ESM entry and throws ERR_REQUIRE_ESM, 500-ing every auth-importing route
   // (listings/detail/users/me) while auth-free routes stay fine. Works locally
   // (`next start` loads modules differently) which is why it only shows in prod.
-  serverExternalPackages: ['firebase-admin'],
+  // sharp is a NATIVE module — it must be externalized, never bundled into the
+  // serverless function, or its .node binary fails to load on Vercel and any route
+  // that imports it (the image presign/attach path via lib/r2/images) crashes at
+  // module load → 500 (prod-only; dev doesn't bundle, so it looked fine locally).
+  serverExternalPackages: ['firebase-admin', 'sharp'],
   // Pin the workspace root to this project — a stray package-lock.json in the
   // parent dir was making Turbopack infer the wrong root (dev-log warning).
   turbopack: { root: import.meta.dirname },
