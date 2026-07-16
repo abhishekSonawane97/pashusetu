@@ -107,7 +107,19 @@ const nextConfig: NextConfig = {
   // nothing, which is why @img/libvips was never shipped despite this config. Pinning the
   // trace root to this project makes ./node_modules/... point at the real dependencies.
   outputFileTracingRoot: import.meta.dirname,
+  // NOTE: these KEYS are GLOB patterns, not literal routes. '[id]' is a glob
+  // character-class (matches a single 'i' or 'd'), so the literal dynamic-segment
+  // key '/api/v1/listings/[id]/images' silently matches NOTHING — which is why the
+  // native binary shipped to the bracket-free diag route but NOT to this real upload
+  // route, and the upload kept failing with ERR_DLOPEN libvips. Use '*' (matches the
+  // [id] segment). Both forms kept so it works whether keys are globbed or literal.
   outputFileTracingIncludes: {
+    '/api/v1/listings/*/images': [
+      './node_modules/@img/**',
+      './node_modules/**/@img/**',
+      './node_modules/sharp/**',
+      './node_modules/**/sharp/**',
+    ],
     '/api/v1/listings/[id]/images': [
       './node_modules/@img/**',
       './node_modules/**/@img/**',
