@@ -98,10 +98,29 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['firebase-admin', 'sharp'],
   // sharp's native binary (@img/sharp-linux-x64 + libvips) isn't reliably traced into
   // the image-attach lambda under pnpm's nested node_modules, so runtime processing
-  // (processUpload) 500s on Vercel. Force-include sharp + @img into that one function's
+  // (processUpload) 500s on Vercel. Force-include sharp + @img into that function's
   // bundle. Purely additive — only adds files to the deployment, changes no behavior.
+  //
+  // outputFileTracingRoot is THE critical fix: a stray package-lock.json in the parent
+  // dir (/home/abhishek) makes Next infer the workspace root as the parent, so nft AND
+  // the include globs below resolve against the WRONG node_modules — silently matching
+  // nothing, which is why @img/libvips was never shipped despite this config. Pinning the
+  // trace root to this project makes ./node_modules/... point at the real dependencies.
+  outputFileTracingRoot: import.meta.dirname,
   outputFileTracingIncludes: {
-    '/api/v1/listings/[id]/images': ['./node_modules/**/@img/**', './node_modules/**/sharp/**'],
+    '/api/v1/listings/[id]/images': [
+      './node_modules/@img/**',
+      './node_modules/**/@img/**',
+      './node_modules/sharp/**',
+      './node_modules/**/sharp/**',
+    ],
+    // Temp diag route mirrors the include so the .so shipping can be verified unauth.
+    '/api/v1/diag-sharp': [
+      './node_modules/@img/**',
+      './node_modules/**/@img/**',
+      './node_modules/sharp/**',
+      './node_modules/**/sharp/**',
+    ],
   },
   // Pin the workspace root to this project — a stray package-lock.json in the
   // parent dir was making Turbopack infer the wrong root (dev-log warning).
