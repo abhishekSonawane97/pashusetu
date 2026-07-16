@@ -22,8 +22,13 @@ export function getS3(): S3Client {
     region: process.env.R2_REGION ?? 'auto',
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
-    // MinIO needs path-style (bucket in the path, not the host); R2 uses vhost.
-    forcePathStyle: process.env.R2_FORCE_PATH_STYLE === '1',
+    // Path-style (bucket in the path, not the host) is REQUIRED by Supabase (prod
+    // storage) and MinIO (dev) — the app's actual providers. Default it ON so a
+    // missing/stale `R2_FORCE_PATH_STYLE` on the host can't silently produce a
+    // virtual-host URL (`<bucket>.<host>`) that doesn't resolve and isn't in the CSP,
+    // which breaks the presigned upload PUT. Set `R2_FORCE_PATH_STYLE=0` ONLY for a
+    // vhost provider like Cloudflare R2 (a deliberate future switch).
+    forcePathStyle: process.env.R2_FORCE_PATH_STYLE !== '0',
     // AWS SDK v3 defaults to WHEN_SUPPORTED, which stamps CRC32 flexible-checksum
     // params (x-amz-sdk-checksum-algorithm / x-amz-checksum-crc32) into presigned
     // PutObject URLs. That makes the client expect the body sent with an aws-chunked
