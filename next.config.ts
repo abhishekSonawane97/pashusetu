@@ -114,13 +114,6 @@ const nextConfig: NextConfig = {
       './node_modules/sharp/**',
       './node_modules/**/sharp/**',
     ],
-    // Temp diag route mirrors the include so the .so shipping can be verified unauth.
-    '/api/v1/diag-sharp': [
-      './node_modules/@img/**',
-      './node_modules/**/@img/**',
-      './node_modules/sharp/**',
-      './node_modules/**/sharp/**',
-    ],
   },
   // Pin the workspace root to this project — a stray package-lock.json in the
   // parent dir was making Turbopack infer the wrong root (dev-log warning).
